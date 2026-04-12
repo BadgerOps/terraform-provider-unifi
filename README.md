@@ -28,6 +28,18 @@ This repository implements the new provider shape described in the adjacent Badg
 
 The implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough. `unifi_radius_profile`, `unifi_device_tag`, `unifi_wan`, `unifi_switch_stack`, `unifi_mc_lag_domain`, and `unifi_lag` are data sources because the current shipped integration API only exposes read-only endpoints for them.
 
+## OpenAPI Snapshot
+
+The repo now includes a committed OpenAPI snapshot under [`internal/openapi/spec`](./internal/openapi/spec) plus a first generated-code spike under [`internal/openapi/generated`](./internal/openapi/generated).
+
+Current codegen status:
+
+- pinned generator: `oapi-codegen` `v2.6.0`
+- committed snapshot: UniFi Network API `10.2.105`
+- committed generation scope: site and network operations only
+
+The full shipped UniFi `3.1.0` document does not yet generate cleanly with the selected toolchain, so the generated package is intentionally limited to the site/network spike while the handwritten provider continues to cover the broader resource surface.
+
 ## Provider example
 
 ```hcl
@@ -79,6 +91,7 @@ make fmt
 make test
 make build
 make terraform-fmt-check
+make openapi-generate
 ```
 
 The [`examples/basic-site`](./examples/basic-site) configuration exercises the provider source address used by the final registry namespace and is validated in CI via a Terraform development override.
