@@ -91,5 +91,10 @@ func (p *unifiProvider) DataSources(_ context.Context) []func() datasource.DataS
 }
 
 func (p *unifiProvider) Resources(_ context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{
+		NewNetworkResource,
+		NewWifiBroadcastResource,
+		NewFirewallZoneResource,
+		NewFirewallPolicyResource,
+	}
 }
