@@ -30,27 +30,30 @@ type mockUniFiAPI struct {
 
 	nextID int
 
-	siteID            string
-	existingNetworkID string
-	existingZoneID    string
+	siteID                        string
+	existingNetworkID             string
+	existingZoneID                string
+	existingTrafficMatchingListID string
 
-	sites            map[string]client.Site
-	networks         map[string]map[string]client.Network
-	wifiBroadcasts   map[string]map[string]client.WifiBroadcast
-	firewallZones    map[string]map[string]client.FirewallZone
-	firewallPolicies map[string]map[string]client.FirewallPolicy
+	sites                map[string]client.Site
+	networks             map[string]map[string]client.Network
+	wifiBroadcasts       map[string]map[string]client.WifiBroadcast
+	firewallZones        map[string]map[string]client.FirewallZone
+	firewallPolicies     map[string]map[string]client.FirewallPolicy
+	trafficMatchingLists map[string]map[string]client.TrafficMatchingList
 }
 
 func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	t.Helper()
 
 	api := &mockUniFiAPI{
-		nextID:           1,
-		sites:            make(map[string]client.Site),
-		networks:         make(map[string]map[string]client.Network),
-		wifiBroadcasts:   make(map[string]map[string]client.WifiBroadcast),
-		firewallZones:    make(map[string]map[string]client.FirewallZone),
-		firewallPolicies: make(map[string]map[string]client.FirewallPolicy),
+		nextID:               1,
+		sites:                make(map[string]client.Site),
+		networks:             make(map[string]map[string]client.Network),
+		wifiBroadcasts:       make(map[string]map[string]client.WifiBroadcast),
+		firewallZones:        make(map[string]map[string]client.FirewallZone),
+		firewallPolicies:     make(map[string]map[string]client.FirewallPolicy),
+		trafficMatchingLists: make(map[string]map[string]client.TrafficMatchingList),
 	}
 
 	api.siteID = api.newID()
@@ -63,6 +66,7 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	api.wifiBroadcasts[api.siteID] = make(map[string]client.WifiBroadcast)
 	api.firewallZones[api.siteID] = make(map[string]client.FirewallZone)
 	api.firewallPolicies[api.siteID] = make(map[string]client.FirewallPolicy)
+	api.trafficMatchingLists[api.siteID] = make(map[string]client.TrafficMatchingList)
 
 	existingNetwork := client.Network{
 		ID:                    api.newID(),
@@ -91,6 +95,18 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	}
 	api.existingZoneID = existingZone.ID
 	api.firewallZones[api.siteID][existingZone.ID] = existingZone
+
+	existingTrafficMatchingList := client.TrafficMatchingList{
+		ID:   api.newID(),
+		Type: "PORTS",
+		Name: "existing-web-ports",
+		Items: []client.PortMatch{
+			portNumberMatch(80),
+			portRangeMatch(443, 444),
+		},
+	}
+	api.existingTrafficMatchingListID = existingTrafficMatchingList.ID
+	api.trafficMatchingLists[api.siteID][existingTrafficMatchingList.ID] = existingTrafficMatchingList
 
 	api.server = httptest.NewServer(http.HandlerFunc(api.serveHTTP))
 	return api
@@ -155,6 +171,12 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 		return
 	case len(segments) == 6 && segments[3] == "firewall" && segments[4] == "policies":
 		api.handleFirewallPolicy(writer, request, segments[2], segments[5])
+		return
+	case len(segments) == 4 && segments[3] == "traffic-matching-lists":
+		api.handleTrafficMatchingLists(writer, request, segments[2])
+		return
+	case len(segments) == 5 && segments[3] == "traffic-matching-lists":
+		api.handleTrafficMatchingList(writer, request, segments[2], segments[4])
 		return
 	default:
 		writer.WriteHeader(http.StatusNotFound)
@@ -375,6 +397,58 @@ func (api *mockUniFiAPI) handleFirewallPolicy(writer http.ResponseWriter, reques
 	}
 }
 
+func (api *mockUniFiAPI) handleTrafficMatchingLists(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var lists []client.TrafficMatchingList
+		for _, list := range api.trafficMatchingLists[siteID] {
+			lists = append(lists, list)
+		}
+		sort.Slice(lists, func(i, j int) bool {
+			return lists[i].ID < lists[j].ID
+		})
+		writePage(writer, request, lists)
+	case http.MethodPost:
+		var list client.TrafficMatchingList
+		api.decodeRequest(writer, request, &list)
+		list.ID = api.newID()
+		api.trafficMatchingLists[siteID][list.ID] = list
+		api.writeJSON(writer, http.StatusCreated, list)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleTrafficMatchingList(writer http.ResponseWriter, request *http.Request, siteID, listID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	list, ok := api.trafficMatchingLists[siteID][listID]
+	if !ok {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	switch request.Method {
+	case http.MethodGet:
+		api.writeJSON(writer, http.StatusOK, list)
+	case http.MethodPut:
+		var updated client.TrafficMatchingList
+		api.decodeRequest(writer, request, &updated)
+		updated.ID = listID
+		api.trafficMatchingLists[siteID][listID] = updated
+		api.writeJSON(writer, http.StatusOK, updated)
+	case http.MethodDelete:
+		delete(api.trafficMatchingLists[siteID], listID)
+		writer.WriteHeader(http.StatusOK)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
 func (api *mockUniFiAPI) decodeRequest(writer http.ResponseWriter, request *http.Request, target any) {
 	if err := json.NewDecoder(request.Body).Decode(target); err != nil {
 		writer.WriteHeader(http.StatusBadRequest)
@@ -475,6 +549,11 @@ data "unifi_firewall_zone" "existing" {
   site_id = data.unifi_site.main.id
   name    = "existing-zone"
 }
+
+data "unifi_traffic_matching_list" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "existing-web-ports"
+}
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.unifi_site.main", "id", api.siteID),
@@ -485,6 +564,10 @@ data "unifi_firewall_zone" "existing" {
 					resource.TestCheckResourceAttr("data.unifi_firewall_zone.existing", "id", api.existingZoneID),
 					resource.TestCheckResourceAttr("data.unifi_firewall_zone.existing", "name", "existing-zone"),
 					resource.TestCheckTypeSetElemAttr("data.unifi_firewall_zone.existing", "network_ids.*", api.existingNetworkID),
+					resource.TestCheckResourceAttr("data.unifi_traffic_matching_list.existing", "id", api.existingTrafficMatchingListID),
+					resource.TestCheckResourceAttr("data.unifi_traffic_matching_list.existing", "type", "PORTS"),
+					resource.TestCheckTypeSetElemAttr("data.unifi_traffic_matching_list.existing", "ports.*", "80"),
+					resource.TestCheckTypeSetElemAttr("data.unifi_traffic_matching_list.existing", "ports.*", "443-444"),
 				),
 			},
 		},
@@ -638,6 +721,58 @@ resource "unifi_firewall_zone" "test" {
 	})
 }
 
+func TestAccResourceTrafficMatchingList(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_traffic_matching_list.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_traffic_matching_list" "test" {
+  site_id = data.unifi_site.main.id
+  type    = "PORTS"
+  name    = "web-ports"
+  ports   = ["80", "443", "8443-8444"]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "type", "PORTS"),
+					resource.TestCheckResourceAttr(resourceName, "name", "web-ports"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "80"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "443"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "8443-8444"),
+				),
+			},
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_traffic_matching_list" "test" {
+  site_id = data.unifi_site.main.id
+  type    = "PORTS"
+  name    = "web-ports-updated"
+  ports   = ["53", "443", "10000-10010"]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", "web-ports-updated"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "53"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "443"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "10000-10010"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateIdFunc: testImportCompositeID(resourceName, api.siteID),
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 func TestAccResourceFirewallPolicy(t *testing.T) {
 	api := newMockUniFiAPI(t)
 	defer api.Close()
@@ -692,6 +827,7 @@ resource "unifi_firewall_policy" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted-to-iot"),
 					resource.TestCheckResourceAttr(resourceName, "action", "ALLOW"),
+					resource.TestCheckResourceAttr(resourceName, "destination_network_ids.#", "1"),
 				),
 			},
 			{
@@ -724,23 +860,36 @@ resource "unifi_firewall_zone" "iot" {
   network_ids = [unifi_network.iot.id]
 }
 
+resource "unifi_traffic_matching_list" "web" {
+  site_id = data.unifi_site.main.id
+  type    = "PORTS"
+  name    = "web-ports"
+  ports   = ["443", "8443", "10000-10010"]
+}
+
 resource "unifi_firewall_policy" "test" {
-  site_id                     = data.unifi_site.main.id
-  enabled                     = true
-  name                        = "trusted-to-iot-updated"
-  action                      = "BLOCK"
-  source_zone_id              = unifi_firewall_zone.trusted.id
-  destination_zone_id         = unifi_firewall_zone.iot.id
-  destination_network_ids     = [unifi_network.iot.id]
-  destination_network_match_opposite = false
-  ip_version                  = "IPV4_AND_IPV6"
-  logging_enabled             = true
+  site_id             = data.unifi_site.main.id
+  enabled             = true
+  name                = "trusted-to-iot-updated"
+  action              = "BLOCK"
+  source_zone_id      = unifi_firewall_zone.trusted.id
+  destination_zone_id = unifi_firewall_zone.iot.id
+  destination_port_filter = {
+    type                     = "TRAFFIC_MATCHING_LIST"
+    traffic_matching_list_id = unifi_traffic_matching_list.web.id
+    match_opposite           = true
+  }
+  ip_version      = "IPV4_AND_IPV6"
+  logging_enabled = true
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted-to-iot-updated"),
 					resource.TestCheckResourceAttr(resourceName, "action", "BLOCK"),
 					resource.TestCheckResourceAttr(resourceName, "logging_enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "destination_port_filter.type", "TRAFFIC_MATCHING_LIST"),
+					resource.TestCheckResourceAttrPair(resourceName, "destination_port_filter.traffic_matching_list_id", "unifi_traffic_matching_list.web", "id"),
+					resource.TestCheckResourceAttr(resourceName, "destination_port_filter.match_opposite", "true"),
 				),
 			},
 			{
@@ -869,4 +1018,23 @@ resource "unifi_wifi_broadcast" "test" {
 
 func boolPtr(value bool) *bool {
 	return &value
+}
+
+func int64Ptr(value int64) *int64 {
+	return &value
+}
+
+func portNumberMatch(value int64) client.PortMatch {
+	return client.PortMatch{
+		Type:  "PORT_NUMBER",
+		Value: int64Ptr(value),
+	}
+}
+
+func portRangeMatch(start, stop int64) client.PortMatch {
+	return client.PortMatch{
+		Type:  "PORT_NUMBER_RANGE",
+		Start: int64Ptr(start),
+		Stop:  int64Ptr(stop),
+	}
 }

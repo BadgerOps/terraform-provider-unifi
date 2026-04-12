@@ -10,11 +10,13 @@ This repository implements the new provider shape described in the adjacent Badg
 - Data source: `unifi_site`
 - Data source: `unifi_network`
 - Data source: `unifi_firewall_zone`
+- Data source: `unifi_traffic_matching_list`
 - Resources:
   - `unifi_network`
   - `unifi_wifi_broadcast`
   - `unifi_firewall_zone`
   - `unifi_firewall_policy`
+  - `unifi_traffic_matching_list`
 
 The initial implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough.
 
@@ -44,6 +46,7 @@ Resources that belong to a site use composite import IDs:
 - `unifi_wifi_broadcast`: `<site_id>/<wifi_broadcast_id>`
 - `unifi_firewall_zone`: `<site_id>/<firewall_zone_id>`
 - `unifi_firewall_policy`: `<site_id>/<firewall_policy_id>`
+- `unifi_traffic_matching_list`: `<site_id>/<traffic_matching_list_id>`
 
 ## Development
 

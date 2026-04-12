@@ -117,14 +117,36 @@ type FirewallPolicyNetworkFilter struct {
 	MatchOpposite bool     `json:"matchOpposite"`
 }
 
-type FirewallPolicyNetworkTrafficFilter struct {
-	Type          string                      `json:"type"`
-	NetworkFilter FirewallPolicyNetworkFilter `json:"networkFilter"`
+type PortMatch struct {
+	Type  string `json:"type"`
+	Value *int64 `json:"value,omitempty"`
+	Start *int64 `json:"start,omitempty"`
+	Stop  *int64 `json:"stop,omitempty"`
+}
+
+type TrafficMatchingList struct {
+	ID    string      `json:"id,omitempty"`
+	Type  string      `json:"type"`
+	Name  string      `json:"name"`
+	Items []PortMatch `json:"items,omitempty"`
+}
+
+type FirewallPolicyPortFilter struct {
+	Type                  string      `json:"type"`
+	MatchOpposite         bool        `json:"matchOpposite"`
+	Items                 []PortMatch `json:"items,omitempty"`
+	TrafficMatchingListID *string     `json:"trafficMatchingListId,omitempty"`
+}
+
+type FirewallPolicyTrafficFilter struct {
+	Type          string                       `json:"type"`
+	NetworkFilter *FirewallPolicyNetworkFilter `json:"networkFilter,omitempty"`
+	PortFilter    *FirewallPolicyPortFilter    `json:"portFilter,omitempty"`
 }
 
 type FirewallPolicyEndpoint struct {
-	ZoneID        string                              `json:"zoneId"`
-	TrafficFilter *FirewallPolicyNetworkTrafficFilter `json:"trafficFilter,omitempty"`
+	ZoneID        string                       `json:"zoneId"`
+	TrafficFilter *FirewallPolicyTrafficFilter `json:"trafficFilter,omitempty"`
 }
 
 type FirewallPolicyIPProtocolScope struct {
@@ -308,6 +330,59 @@ func (c *Client) UpdateFirewallPolicy(ctx context.Context, siteID, firewallPolic
 
 func (c *Client) DeleteFirewallPolicy(ctx context.Context, siteID, firewallPolicyID string) error {
 	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/firewall/policies/%s", siteID, firewallPolicyID), nil, nil, nil)
+}
+
+func (c *Client) CreateTrafficMatchingList(ctx context.Context, siteID string, request TrafficMatchingList) (*TrafficMatchingList, error) {
+	var response TrafficMatchingList
+	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists", siteID), nil, request, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+func (c *Client) GetTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string) (*TrafficMatchingList, error) {
+	var response TrafficMatchingList
+	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, nil, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+func (c *Client) UpdateTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string, request TrafficMatchingList) (*TrafficMatchingList, error) {
+	var response TrafficMatchingList
+	if err := c.do(ctx, http.MethodPut, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, request, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+func (c *Client) DeleteTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string) error {
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, nil, nil)
+}
+
+func (c *Client) ListTrafficMatchingLists(ctx context.Context, siteID string) ([]TrafficMatchingList, error) {
+	var lists []TrafficMatchingList
+	offset := 0
+
+	for {
+		var response page[TrafficMatchingList]
+		query := url.Values{}
+		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
+		query.Set("offset", fmt.Sprintf("%d", offset))
+
+		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists", siteID), query, nil, &response); err != nil {
+			return nil, err
+		}
+
+		lists = append(lists, response.Data...)
+		offset += len(response.Data)
+
+		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+			break
+		}
+	}
+
+	return lists, nil
 }
 
 func (c *Client) GetWithQuery(ctx context.Context, requestPath string, query url.Values, out any) error {
