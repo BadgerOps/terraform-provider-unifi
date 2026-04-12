@@ -30,15 +30,18 @@ The implementation focuses on the common documented fields for those resources a
 
 ## OpenAPI Snapshot
 
-The repo now includes a committed OpenAPI snapshot under [`internal/openapi/spec`](./internal/openapi/spec) plus a first generated-code spike under [`internal/openapi/generated`](./internal/openapi/generated).
+The repo includes a committed OpenAPI snapshot under [`internal/openapi/spec`](./internal/openapi/spec) and a generated client/model package under [`internal/openapi/generated`](./internal/openapi/generated).
 
 Current codegen status:
 
 - pinned generator: `oapi-codegen` `v2.6.0`
 - committed snapshot: UniFi Network API `10.2.105`
-- committed generation scope: site and network operations only
+- committed generation scope: full snapshot
+- generation inputs:
+  - [`internal/openapi/oapi-codegen.yaml`](./internal/openapi/oapi-codegen.yaml)
+  - [`internal/openapi/overlay.yaml`](./internal/openapi/overlay.yaml)
 
-The full shipped UniFi `3.1.0` document does not yet generate cleanly with the selected toolchain, so the generated package is intentionally limited to the site/network spike while the handwritten provider continues to cover the broader resource surface.
+Because upstream `oapi-codegen` still does not claim full OpenAPI `3.1` support, the repo keeps the upstream snapshot untouched and applies an OpenAPI Overlay at generation time to downgrade the declared document version to `3.0.3`. The provider code continues to isolate generated DTOs behind explicit translation code in [`internal/translate`](./internal/translate).
 
 ## Provider example
 

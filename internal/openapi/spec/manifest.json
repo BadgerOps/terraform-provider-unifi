@@ -19,23 +19,18 @@
     "name": "oapi-codegen",
     "module": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
     "version": "v2.6.0",
-    "scope": "site-and-network-spike",
+    "scope": "full-snapshot",
     "generate": [
       "types",
       "client"
     ],
-    "include_operation_ids": [
-      "getSiteOverviewPage",
-      "getNetworksOverviewPage",
-      "createNetwork",
-      "getNetworkDetails",
-      "updateNetwork",
-      "deleteNetwork"
-    ],
-    "output": "internal/openapi/generated/network_spike.gen.go",
+    "config": "internal/openapi/oapi-codegen.yaml",
+    "overlay": "internal/openapi/overlay.yaml",
+    "output": "internal/openapi/generated/integration.gen.go",
     "notes": [
-      "The full UniFi OpenAPI 3.1 document currently fails under oapi-codegen v2.6.0 because of unsupported 3.1 behavior and duplicate schema names.",
-      "This committed spike narrows generation to site and network operations to establish the generated-code boundary without blocking provider development."
+      "The upstream snapshot is committed unchanged.",
+      "Generation applies an OpenAPI Overlay that downgrades the declared version from 3.1.0 to 3.0.3 for oapi-codegen compatibility.",
+      "resolve-type-name-collisions is enabled in the generator config to guard against duplicate generated names across component sections."
     ]
   }
 }

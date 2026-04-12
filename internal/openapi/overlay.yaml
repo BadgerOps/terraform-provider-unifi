@@ -1,0 +1,11 @@
+overlay: 1.0.0
+info:
+  title: UniFi Network provider overlay
+  version: 1.0.0
+actions:
+  - target: "$"
+    description: Downgrade the declared OpenAPI version for oapi-codegen compatibility.
+    update:
+      openapi: 3.0.3
+      info:
+        x-badgerops-oapi-overlay: downgraded-for-codegen

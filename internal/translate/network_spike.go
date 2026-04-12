@@ -37,7 +37,7 @@ func NetworkDetailsToClient(network generated.NetworkDetails) client.Network {
 }
 
 // NetworkToGeneratedCreateUpdate maps the handwritten network model into the
-// generated create/update DTO for the current codegen spike.
+// generated create/update DTO.
 func NetworkToGeneratedCreateUpdate(network client.Network) generated.CreateOrUpdateNetwork {
 	result := generated.CreateOrUpdateNetwork{
 		Enabled:    network.Enabled,

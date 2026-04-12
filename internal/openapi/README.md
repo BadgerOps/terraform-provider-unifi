@@ -8,13 +8,15 @@ This directory is the generated-code boundary for the provider.
 
 ## Current Scope
 
-The committed generator lane currently targets a narrow spike:
+The committed generator lane now targets the full committed snapshot.
 
-- site listing
-- network listing
-- network CRUD
+The shipped UniFi Network `10.2.105` OpenAPI document is `3.1.0`, and `oapi-codegen` `v2.6.0` does not yet advertise OpenAPI `3.1` support. To keep the vendor snapshot untouched while still generating a usable client, the repo uses:
 
-This is intentional. The shipped UniFi Network `10.2.105` OpenAPI document is `3.1.0`, and `oapi-codegen` `v2.6.0` does not yet handle the full document cleanly because of both OpenAPI `3.1` limitations and duplicate schema names in the upstream spec.
+- `oapi-codegen.yaml` for pinned generator configuration
+- `overlay.yaml` to downgrade the declared document version to `3.0.3` before generation
+- `resolve-type-name-collisions` to guard against duplicate generated names across component sections
+
+The Terraform provider still uses an explicit translation boundary in `internal/translate/` instead of coupling provider logic directly to generated DTOs.
 
 The regeneration command is:
 

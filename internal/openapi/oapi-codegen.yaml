@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/v2.6.0/configuration-schema.json
+package: generated
+output: internal/openapi/generated/integration.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  overlay:
+    path: internal/openapi/overlay.yaml
+  resolve-type-name-collisions: true

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestGeneratedClientNetworkSpike(t *testing.T) {
+func TestGeneratedClient(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
 		case "/v1/sites":
