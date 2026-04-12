@@ -113,6 +113,8 @@ func (r *trafficMatchingListResource) Read(ctx context.Context, request resource
 func (r *trafficMatchingListResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
 	var plan trafficMatchingListResourceModel
 	response.Diagnostics.Append(request.Plan.Get(ctx, &plan)...)
+	var state trafficMatchingListResourceModel
+	response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	if response.Diagnostics.HasError() {
 		return
 	}
@@ -122,7 +124,7 @@ func (r *trafficMatchingListResource) Update(ctx context.Context, request resour
 		return
 	}
 
-	updated, err := r.providerData.client.UpdateTrafficMatchingList(ctx, plan.SiteID.ValueString(), plan.ID.ValueString(), apiList)
+	updated, err := r.providerData.client.UpdateTrafficMatchingList(ctx, plan.SiteID.ValueString(), state.ID.ValueString(), apiList)
 	if err != nil {
 		response.Diagnostics.AddError("Unable to update traffic matching list", err.Error())
 		return

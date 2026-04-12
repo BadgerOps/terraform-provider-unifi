@@ -113,6 +113,8 @@ func (r *firewallZoneResource) Read(ctx context.Context, request resource.ReadRe
 func (r *firewallZoneResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
 	var plan firewallZoneResourceModel
 	response.Diagnostics.Append(request.Plan.Get(ctx, &plan)...)
+	var state firewallZoneResourceModel
+	response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	if response.Diagnostics.HasError() {
 		return
 	}
@@ -125,7 +127,7 @@ func (r *firewallZoneResource) Update(ctx context.Context, request resource.Upda
 		return
 	}
 
-	updated, err := r.providerData.client.UpdateFirewallZone(ctx, plan.SiteID.ValueString(), plan.ID.ValueString(), apiZone)
+	updated, err := r.providerData.client.UpdateFirewallZone(ctx, plan.SiteID.ValueString(), state.ID.ValueString(), apiZone)
 	if err != nil {
 		response.Diagnostics.AddError("Unable to update firewall zone", err.Error())
 		return

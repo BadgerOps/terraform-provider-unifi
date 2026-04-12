@@ -246,6 +246,8 @@ func (r *wifiBroadcastResource) Read(ctx context.Context, request resource.ReadR
 func (r *wifiBroadcastResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
 	var plan wifiBroadcastResourceModel
 	response.Diagnostics.Append(request.Plan.Get(ctx, &plan)...)
+	var state wifiBroadcastResourceModel
+	response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	if response.Diagnostics.HasError() {
 		return
 	}
@@ -255,7 +257,7 @@ func (r *wifiBroadcastResource) Update(ctx context.Context, request resource.Upd
 		return
 	}
 
-	updated, err := r.providerData.client.UpdateWifiBroadcast(ctx, plan.SiteID.ValueString(), plan.ID.ValueString(), apiBroadcast)
+	updated, err := r.providerData.client.UpdateWifiBroadcast(ctx, plan.SiteID.ValueString(), state.ID.ValueString(), apiBroadcast)
 	if err != nil {
 		response.Diagnostics.AddError("Unable to update WiFi broadcast", err.Error())
 		return

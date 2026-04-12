@@ -223,6 +223,8 @@ func (r *firewallPolicyResource) Read(ctx context.Context, request resource.Read
 func (r *firewallPolicyResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
 	var plan firewallPolicyResourceModel
 	response.Diagnostics.Append(request.Plan.Get(ctx, &plan)...)
+	var state firewallPolicyResourceModel
+	response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	if response.Diagnostics.HasError() {
 		return
 	}
@@ -232,7 +234,7 @@ func (r *firewallPolicyResource) Update(ctx context.Context, request resource.Up
 		return
 	}
 
-	updated, err := r.providerData.client.UpdateFirewallPolicy(ctx, plan.SiteID.ValueString(), plan.ID.ValueString(), apiPolicy)
+	updated, err := r.providerData.client.UpdateFirewallPolicy(ctx, plan.SiteID.ValueString(), state.ID.ValueString(), apiPolicy)
 	if err != nil {
 		response.Diagnostics.AddError("Unable to update firewall policy", err.Error())
 		return
