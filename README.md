@@ -95,6 +95,36 @@ make test
 make build
 make terraform-fmt-check
 make openapi-generate
+make testacc
 ```
 
 The [`examples/basic-site`](./examples/basic-site) configuration exercises the provider source address used by the final registry namespace and is validated in CI via a Terraform development override.
+
+## Live Acceptance Tests
+
+The repo also includes live controller-backed acceptance tests under `internal/provider`. These are separate from the mock-backed provider tests and only run when `TF_ACC=1` is set.
+
+Recommended local setup:
+
+```bash
+cp .env.example .env
+set -a
+source .env
+set +a
+
+make testacc
+```
+
+Required environment variables:
+
+- `UNIFI_API_URL`
+- `UNIFI_API_KEY`
+- exactly one of `UNIFI_TEST_SITE_ID` or `UNIFI_TEST_SITE_NAME`
+
+Optional environment variables:
+
+- `UNIFI_ALLOW_INSECURE`
+- `UNIFI_TEST_NAME_PREFIX`
+- `UNIFI_TEST_WIFI_PASSPHRASE`
+
+Use a dedicated disposable UniFi site for these tests. The live suite creates and destroys real resources.
