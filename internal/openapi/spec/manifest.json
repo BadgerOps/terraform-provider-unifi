@@ -1,0 +1,41 @@
+{
+  "upstream": {
+    "application": "UniFi Network",
+    "api_version": "10.2.105",
+    "openapi_version": "3.1.0",
+    "source_package": {
+      "name": "unifi-native",
+      "version": "10.2.105-33556-1",
+      "architecture": "arm64",
+      "sha256": "acb47ee76d10ab769ea0c673eb20ef445a90d732ff720f62748dc51b38691949"
+    },
+    "source_document": "api-docs/integration.json"
+  },
+  "snapshot": {
+    "path": "internal/openapi/spec/integration.json",
+    "sha256": "04040c724bb5329c6b9cf117573f9cd96d21a5a47bd28af22c47b0d228aafac5"
+  },
+  "generator": {
+    "name": "oapi-codegen",
+    "module": "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen",
+    "version": "v2.6.0",
+    "scope": "site-and-network-spike",
+    "generate": [
+      "types",
+      "client"
+    ],
+    "include_operation_ids": [
+      "getSiteOverviewPage",
+      "getNetworksOverviewPage",
+      "createNetwork",
+      "getNetworkDetails",
+      "updateNetwork",
+      "deleteNetwork"
+    ],
+    "output": "internal/openapi/generated/network_spike.gen.go",
+    "notes": [
+      "The full UniFi OpenAPI 3.1 document currently fails under oapi-codegen v2.6.0 because of unsupported 3.1 behavior and duplicate schema names.",
+      "This committed spike narrows generation to site and network operations to establish the generated-code boundary without blocking provider development."
+    ]
+  }
+}
