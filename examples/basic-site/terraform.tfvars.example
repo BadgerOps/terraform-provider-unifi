@@ -1,0 +1,4 @@
+api_url         = "https://unifi.example.com"
+api_key         = "replace-me"
+site_name       = "Default"
+wifi_passphrase = "replace-me"

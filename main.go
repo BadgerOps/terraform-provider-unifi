@@ -10,6 +10,8 @@ import (
 	"github.com/badgerops/terraform-provider-unifi/internal/provider"
 )
 
+var version = "dev"
+
 func main() {
 	var debug bool
 
@@ -21,7 +23,7 @@ func main() {
 		Debug:   debug,
 	}
 
-	if err := providerserver.Serve(context.Background(), provider.New(), opts); err != nil {
+	if err := providerserver.Serve(context.Background(), provider.New(version), opts); err != nil {
 		log.Fatal(err)
 	}
 }

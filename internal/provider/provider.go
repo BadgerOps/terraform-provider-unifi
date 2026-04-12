@@ -29,9 +29,9 @@ type providerData struct {
 	client *client.Client
 }
 
-func New() func() provider.Provider {
+func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &unifiProvider{}
+		return &unifiProvider{version: version}
 	}
 }
 

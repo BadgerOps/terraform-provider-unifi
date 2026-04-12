@@ -1,0 +1,74 @@
+name: Terraform
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4.0.0
+        with:
+          terraform_version: 1.14.8
+          terraform_wrapper: false
+
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v6.2.2
+        with:
+          tflint_version: v0.61.0
+
+      - name: Build local provider mirror
+        run: |
+          mirror_dir="${RUNNER_TEMP}/tf-mirror/registry.terraform.io/badgerops/unifi/0.0.1/linux_amd64"
+          mkdir -p "${mirror_dir}"
+          go build -o "${mirror_dir}/terraform-provider-unifi_v0.0.1" .
+
+      - name: Configure Terraform provider mirror
+        run: |
+          cat > "${RUNNER_TEMP}/terraformrc" <<EOF
+          provider_installation {
+            filesystem_mirror {
+              path    = "${RUNNER_TEMP}/tf-mirror"
+              include = ["badgerops/unifi"]
+            }
+            direct {
+              exclude = ["badgerops/unifi"]
+            }
+          }
+          EOF
+
+      - name: Check Terraform formatting
+        run: make terraform-fmt-check
+
+      - name: Initialize TFLint plugins
+        run: tflint --init
+
+      - name: Run TFLint
+        run: make tflint
+
+      - name: Terraform init example
+        env:
+          TF_CLI_CONFIG_FILE: ${{ runner.temp }}/terraformrc
+        run: terraform -chdir=examples/basic-site init -backend=false
+
+      - name: Terraform validate example
+        env:
+          TF_CLI_CONFIG_FILE: ${{ runner.temp }}/terraformrc
+        run: terraform -chdir=examples/basic-site validate

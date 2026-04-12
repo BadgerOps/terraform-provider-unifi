@@ -1,0 +1,9 @@
+bin/
+dist/
+.direnv/
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+terraform.rc
+.terraformrc
