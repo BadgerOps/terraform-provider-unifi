@@ -736,6 +736,37 @@ data "unifi_device_tag" "lookup" {
 	})
 }
 
+func TestAccLiveDataSourceSwitchDevice(t *testing.T) {
+	t.Parallel()
+
+	config := requireLiveAcceptanceConfig(t)
+	device := requireDeviceWithFeature(t, config, "switching")
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+data "unifi_device" "lookup" {
+  site_id          = data.unifi_site.target.id
+  id               = %q
+  required_feature = "switching"
+}
+`, device.ID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.unifi_device.lookup", "id", device.ID),
+					resource.TestCheckResourceAttr("data.unifi_device.lookup", "name", device.Name),
+					resource.TestCheckResourceAttr("data.unifi_device.lookup", "model", device.Model),
+					resource.TestCheckResourceAttr("data.unifi_device.lookup", "mac_address", device.MacAddress),
+					resource.TestCheckResourceAttr("data.unifi_device.lookup", "ip_address", device.IPAddress),
+					resource.TestCheckResourceAttr("data.unifi_device.lookup", "state", device.State),
+					resource.TestCheckTypeSetElemAttr("data.unifi_device.lookup", "features.*", "switching"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccLiveDataSourceWAN(t *testing.T) {
 	t.Parallel()
 
@@ -1257,6 +1288,29 @@ func requireWAN(t *testing.T, config liveAcceptanceConfig) client.WAN {
 	}
 
 	return wans[0]
+}
+
+func requireDeviceWithFeature(t *testing.T, config liveAcceptanceConfig, feature string) client.Device {
+	t.Helper()
+
+	apiClient, err := newLiveDestroyCheckClient(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	devices, err := apiClient.ListDevices(context.Background(), resolveLiveSiteID(t, config))
+	if err != nil {
+		t.Fatalf("list devices: %v", err)
+	}
+
+	for _, device := range devices {
+		if deviceHasFeature(device, feature) {
+			return device
+		}
+	}
+
+	t.Skipf("no devices with feature %q found in the target site", feature)
+	return client.Device{}
 }
 
 func requireSwitchStack(t *testing.T, config liveAcceptanceConfig) client.SwitchStack {
