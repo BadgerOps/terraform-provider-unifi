@@ -13,6 +13,10 @@ This repository implements the new provider shape described in the adjacent Badg
 - Data source: `unifi_traffic_matching_list`
 - Data source: `unifi_radius_profile`
 - Data source: `unifi_device_tag`
+- Data source: `unifi_wan`
+- Data source: `unifi_switch_stack`
+- Data source: `unifi_mc_lag_domain`
+- Data source: `unifi_lag`
 - Resources:
   - `unifi_network`
   - `unifi_wifi_broadcast`
@@ -22,7 +26,7 @@ This repository implements the new provider shape described in the adjacent Badg
   - `unifi_dns_policy`
   - `unifi_acl_rule`
 
-The implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough. `unifi_radius_profile` and `unifi_device_tag` are data sources because the current shipped integration API only exposes read-only list endpoints for them.
+The implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough. `unifi_radius_profile`, `unifi_device_tag`, `unifi_wan`, `unifi_switch_stack`, `unifi_mc_lag_domain`, and `unifi_lag` are data sources because the current shipped integration API only exposes read-only endpoints for them.
 
 ## Provider example
 
@@ -53,6 +57,10 @@ Resources that belong to a site use composite import IDs:
 - `unifi_traffic_matching_list`: `<site_id>/<traffic_matching_list_id>`
 - `unifi_dns_policy`: `<site_id>/<dns_policy_id>`
 - `unifi_acl_rule`: `<site_id>/<acl_rule_id>`
+
+## Migration
+
+Migration guidance for users coming from older UniFi Terraform providers is in [`docs/MIGRATION.md`](./docs/MIGRATION.md).
 
 ## Development
 

@@ -92,6 +92,10 @@ func (p *unifiProvider) DataSources(_ context.Context) []func() datasource.DataS
 		NewTrafficMatchingListDataSource,
 		NewRadiusProfileDataSource,
 		NewDeviceTagDataSource,
+		NewWANDataSource,
+		NewSwitchStackDataSource,
+		NewMcLagDomainDataSource,
+		NewLagDataSource,
 	}
 }
 

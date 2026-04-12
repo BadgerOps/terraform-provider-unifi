@@ -34,6 +34,21 @@ func parseCompositeImportID(raw string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
+func validateIDOrNameLookup(id, name types.String) error {
+	lookupCount := 0
+	if !id.IsNull() && id.ValueString() != "" {
+		lookupCount++
+	}
+	if !name.IsNull() && name.ValueString() != "" {
+		lookupCount++
+	}
+	if lookupCount != 1 {
+		return fmt.Errorf("exactly one of `id` or `name` must be set")
+	}
+
+	return nil
+}
+
 func importCompositeID(ctx context.Context, request resource.ImportStateRequest, response *resource.ImportStateResponse) {
 	siteID, resourceID, err := parseCompositeImportID(request.ID)
 	if err != nil {

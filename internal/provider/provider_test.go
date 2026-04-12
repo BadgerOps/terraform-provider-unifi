@@ -36,6 +36,11 @@ type mockUniFiAPI struct {
 	existingTrafficMatchingListID string
 	existingRadiusProfileID       string
 	existingDeviceTagID           string
+	existingWANID                 string
+	existingSwitchStackID         string
+	existingMcLagDomainID         string
+	existingSwitchStackLagID      string
+	existingMcLagID               string
 
 	sites                map[string]client.Site
 	networks             map[string]map[string]client.Network
@@ -47,6 +52,10 @@ type mockUniFiAPI struct {
 	deviceTags           map[string]map[string]client.DeviceTag
 	dnsPolicies          map[string]map[string]client.DNSPolicy
 	aclRules             map[string]map[string]client.ACLRule
+	wans                 map[string]map[string]client.WAN
+	switchStacks         map[string]map[string]client.SwitchStack
+	mcLagDomains         map[string]map[string]client.McLagDomain
+	lags                 map[string]map[string]client.Lag
 }
 
 func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
@@ -64,6 +73,10 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 		deviceTags:           make(map[string]map[string]client.DeviceTag),
 		dnsPolicies:          make(map[string]map[string]client.DNSPolicy),
 		aclRules:             make(map[string]map[string]client.ACLRule),
+		wans:                 make(map[string]map[string]client.WAN),
+		switchStacks:         make(map[string]map[string]client.SwitchStack),
+		mcLagDomains:         make(map[string]map[string]client.McLagDomain),
+		lags:                 make(map[string]map[string]client.Lag),
 	}
 
 	api.siteID = api.newID()
@@ -81,6 +94,10 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	api.deviceTags[api.siteID] = make(map[string]client.DeviceTag)
 	api.dnsPolicies[api.siteID] = make(map[string]client.DNSPolicy)
 	api.aclRules[api.siteID] = make(map[string]client.ACLRule)
+	api.wans[api.siteID] = make(map[string]client.WAN)
+	api.switchStacks[api.siteID] = make(map[string]client.SwitchStack)
+	api.mcLagDomains[api.siteID] = make(map[string]client.McLagDomain)
+	api.lags[api.siteID] = make(map[string]client.Lag)
 
 	existingNetwork := client.Network{
 		ID:                    api.newID(),
@@ -136,6 +153,69 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	}
 	api.existingDeviceTagID = existingDeviceTag.ID
 	api.deviceTags[api.siteID][existingDeviceTag.ID] = existingDeviceTag
+
+	existingWAN := client.WAN{
+		ID:   api.newID(),
+		Name: "Internet 1",
+	}
+	api.existingWANID = existingWAN.ID
+	api.wans[api.siteID][existingWAN.ID] = existingWAN
+
+	switchMemberA := api.newID()
+	switchMemberB := api.newID()
+	existingSwitchStackLag := client.Lag{
+		ID:   api.newID(),
+		Type: "SWITCH_STACK",
+		Members: []client.LagMember{
+			{DeviceID: switchMemberA, PortIdxs: []int64{1, 2}},
+			{DeviceID: switchMemberB, PortIdxs: []int64{1, 2}},
+		},
+	}
+	existingSwitchStackID := api.newID()
+	existingSwitchStackLag.SwitchStackID = stringPtr(existingSwitchStackID)
+	existingSwitchStack := client.SwitchStack{
+		ID:   existingSwitchStackID,
+		Name: "core-stack",
+		Members: []client.SwitchStackMember{
+			{DeviceID: switchMemberA},
+			{DeviceID: switchMemberB},
+		},
+		Lags: []client.SwitchStackLag{
+			{ID: existingSwitchStackLag.ID, Members: existingSwitchStackLag.Members},
+		},
+	}
+	api.existingSwitchStackID = existingSwitchStack.ID
+	api.existingSwitchStackLagID = existingSwitchStackLag.ID
+	api.switchStacks[api.siteID][existingSwitchStack.ID] = existingSwitchStack
+	api.lags[api.siteID][existingSwitchStackLag.ID] = existingSwitchStackLag
+
+	mcPeerTop := api.newID()
+	mcPeerBottom := api.newID()
+	existingMcLag := client.Lag{
+		ID:   api.newID(),
+		Type: "MULTI_CHASSIS",
+		Members: []client.LagMember{
+			{DeviceID: mcPeerTop, PortIdxs: []int64{5}},
+			{DeviceID: mcPeerBottom, PortIdxs: []int64{5}},
+		},
+	}
+	existingMcLagDomainID := api.newID()
+	existingMcLag.McLagDomainID = stringPtr(existingMcLagDomainID)
+	existingMcLagDomain := client.McLagDomain{
+		ID:   existingMcLagDomainID,
+		Name: "leaf-domain",
+		Peers: []client.McLagPeer{
+			{Role: "TOP", DeviceID: mcPeerTop, LinkPortIdxs: []int64{49, 50}},
+			{Role: "BOTTOM", DeviceID: mcPeerBottom, LinkPortIdxs: []int64{49, 50}},
+		},
+		Lags: []client.McLagLocalLag{
+			{ID: existingMcLag.ID, Members: existingMcLag.Members},
+		},
+	}
+	api.existingMcLagDomainID = existingMcLagDomain.ID
+	api.existingMcLagID = existingMcLag.ID
+	api.mcLagDomains[api.siteID][existingMcLagDomain.ID] = existingMcLagDomain
+	api.lags[api.siteID][existingMcLag.ID] = existingMcLag
 
 	api.server = httptest.NewServer(http.HandlerFunc(api.serveHTTP))
 	return api
@@ -212,6 +292,21 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 		return
 	case len(segments) == 4 && segments[3] == "device-tags":
 		api.handleDeviceTags(writer, request, segments[2])
+		return
+	case len(segments) == 4 && segments[3] == "wans":
+		api.handleWANs(writer, request, segments[2])
+		return
+	case len(segments) == 5 && segments[3] == "switching" && segments[4] == "switch-stacks":
+		api.handleSwitchStacks(writer, request, segments[2])
+		return
+	case len(segments) == 6 && segments[3] == "switching" && segments[4] == "lags":
+		api.handleLag(writer, request, segments[2], segments[5])
+		return
+	case len(segments) == 5 && segments[3] == "switching" && segments[4] == "lags":
+		api.handleLags(writer, request, segments[2])
+		return
+	case len(segments) == 5 && segments[3] == "switching" && segments[4] == "mc-lag-domains":
+		api.handleMcLagDomains(writer, request, segments[2])
 		return
 	case len(segments) == 5 && segments[3] == "dns" && segments[4] == "policies":
 		api.handleDNSPolicies(writer, request, segments[2])
@@ -534,6 +629,100 @@ func (api *mockUniFiAPI) handleDeviceTags(writer http.ResponseWriter, request *h
 	}
 }
 
+func (api *mockUniFiAPI) handleWANs(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var wans []client.WAN
+		for _, wan := range api.wans[siteID] {
+			wans = append(wans, wan)
+		}
+		sort.Slice(wans, func(i, j int) bool {
+			return wans[i].ID < wans[j].ID
+		})
+		writePage(writer, request, wans)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleSwitchStacks(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var stacks []client.SwitchStack
+		for _, stack := range api.switchStacks[siteID] {
+			stacks = append(stacks, stack)
+		}
+		sort.Slice(stacks, func(i, j int) bool {
+			return stacks[i].ID < stacks[j].ID
+		})
+		writePage(writer, request, stacks)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleLags(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var lags []client.Lag
+		for _, lag := range api.lags[siteID] {
+			lags = append(lags, lag)
+		}
+		sort.Slice(lags, func(i, j int) bool {
+			return lags[i].ID < lags[j].ID
+		})
+		writePage(writer, request, lags)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleLag(writer http.ResponseWriter, request *http.Request, siteID, lagID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	lag, ok := api.lags[siteID][lagID]
+	if !ok {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	switch request.Method {
+	case http.MethodGet:
+		api.writeJSON(writer, http.StatusOK, lag)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleMcLagDomains(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var domains []client.McLagDomain
+		for _, domain := range api.mcLagDomains[siteID] {
+			domains = append(domains, domain)
+		}
+		sort.Slice(domains, func(i, j int) bool {
+			return domains[i].ID < domains[j].ID
+		})
+		writePage(writer, request, domains)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
 func (api *mockUniFiAPI) handleDNSPolicies(writer http.ResponseWriter, request *http.Request, siteID string) {
 	api.mu.Lock()
 	defer api.mu.Unlock()
@@ -755,6 +944,26 @@ data "unifi_device_tag" "existing" {
   site_id = data.unifi_site.main.id
   name    = "existing-tag"
 }
+
+data "unifi_wan" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "Internet 1"
+}
+
+data "unifi_switch_stack" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "core-stack"
+}
+
+data "unifi_mc_lag_domain" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "leaf-domain"
+}
+
+data "unifi_lag" "existing" {
+  site_id = data.unifi_site.main.id
+  id      = "` + api.existingSwitchStackLagID + `"
+}
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.unifi_site.main", "id", api.siteID),
@@ -774,6 +983,20 @@ data "unifi_device_tag" "existing" {
 					resource.TestCheckResourceAttr("data.unifi_device_tag.existing", "id", api.existingDeviceTagID),
 					resource.TestCheckResourceAttr("data.unifi_device_tag.existing", "name", "existing-tag"),
 					resource.TestCheckResourceAttr("data.unifi_device_tag.existing", "device_ids.#", "1"),
+					resource.TestCheckResourceAttr("data.unifi_wan.existing", "id", api.existingWANID),
+					resource.TestCheckResourceAttr("data.unifi_wan.existing", "name", "Internet 1"),
+					resource.TestCheckResourceAttr("data.unifi_switch_stack.existing", "id", api.existingSwitchStackID),
+					resource.TestCheckResourceAttr("data.unifi_switch_stack.existing", "name", "core-stack"),
+					resource.TestCheckResourceAttr("data.unifi_switch_stack.existing", "member_device_ids.#", "2"),
+					resource.TestCheckTypeSetElemAttr("data.unifi_switch_stack.existing", "lag_ids.*", api.existingSwitchStackLagID),
+					resource.TestCheckResourceAttr("data.unifi_mc_lag_domain.existing", "id", api.existingMcLagDomainID),
+					resource.TestCheckResourceAttr("data.unifi_mc_lag_domain.existing", "name", "leaf-domain"),
+					resource.TestCheckResourceAttr("data.unifi_mc_lag_domain.existing", "peer_device_ids.#", "2"),
+					resource.TestCheckTypeSetElemAttr("data.unifi_mc_lag_domain.existing", "lag_ids.*", api.existingMcLagID),
+					resource.TestCheckResourceAttr("data.unifi_lag.existing", "id", api.existingSwitchStackLagID),
+					resource.TestCheckResourceAttr("data.unifi_lag.existing", "type", "SWITCH_STACK"),
+					resource.TestCheckResourceAttr("data.unifi_lag.existing", "member_device_ids.#", "2"),
+					resource.TestCheckResourceAttr("data.unifi_lag.existing", "switch_stack_id", api.existingSwitchStackID),
 				),
 			},
 		},
@@ -1379,6 +1602,10 @@ func boolPtr(value bool) *bool {
 }
 
 func int64Ptr(value int64) *int64 {
+	return &value
+}
+
+func stringPtr(value string) *string {
 	return &value
 }
 
