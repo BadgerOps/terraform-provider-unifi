@@ -11,14 +11,18 @@ This repository implements the new provider shape described in the adjacent Badg
 - Data source: `unifi_network`
 - Data source: `unifi_firewall_zone`
 - Data source: `unifi_traffic_matching_list`
+- Data source: `unifi_radius_profile`
+- Data source: `unifi_device_tag`
 - Resources:
   - `unifi_network`
   - `unifi_wifi_broadcast`
   - `unifi_firewall_zone`
   - `unifi_firewall_policy`
   - `unifi_traffic_matching_list`
+  - `unifi_dns_policy`
+  - `unifi_acl_rule`
 
-The initial implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough.
+The implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough. `unifi_radius_profile` and `unifi_device_tag` are data sources because the current shipped integration API only exposes read-only list endpoints for them.
 
 ## Provider example
 
@@ -47,6 +51,8 @@ Resources that belong to a site use composite import IDs:
 - `unifi_firewall_zone`: `<site_id>/<firewall_zone_id>`
 - `unifi_firewall_policy`: `<site_id>/<firewall_policy_id>`
 - `unifi_traffic_matching_list`: `<site_id>/<traffic_matching_list_id>`
+- `unifi_dns_policy`: `<site_id>/<dns_policy_id>`
+- `unifi_acl_rule`: `<site_id>/<acl_rule_id>`
 
 ## Development
 

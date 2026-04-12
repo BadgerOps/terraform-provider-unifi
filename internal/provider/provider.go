@@ -90,6 +90,8 @@ func (p *unifiProvider) DataSources(_ context.Context) []func() datasource.DataS
 		NewNetworkDataSource,
 		NewFirewallZoneDataSource,
 		NewTrafficMatchingListDataSource,
+		NewRadiusProfileDataSource,
+		NewDeviceTagDataSource,
 	}
 }
 
@@ -100,5 +102,7 @@ func (p *unifiProvider) Resources(_ context.Context) []func() resource.Resource 
 		NewFirewallZoneResource,
 		NewFirewallPolicyResource,
 		NewTrafficMatchingListResource,
+		NewDNSPolicyResource,
+		NewACLRuleResource,
 	}
 }

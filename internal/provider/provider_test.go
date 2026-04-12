@@ -34,6 +34,8 @@ type mockUniFiAPI struct {
 	existingNetworkID             string
 	existingZoneID                string
 	existingTrafficMatchingListID string
+	existingRadiusProfileID       string
+	existingDeviceTagID           string
 
 	sites                map[string]client.Site
 	networks             map[string]map[string]client.Network
@@ -41,6 +43,10 @@ type mockUniFiAPI struct {
 	firewallZones        map[string]map[string]client.FirewallZone
 	firewallPolicies     map[string]map[string]client.FirewallPolicy
 	trafficMatchingLists map[string]map[string]client.TrafficMatchingList
+	radiusProfiles       map[string]map[string]client.RadiusProfile
+	deviceTags           map[string]map[string]client.DeviceTag
+	dnsPolicies          map[string]map[string]client.DNSPolicy
+	aclRules             map[string]map[string]client.ACLRule
 }
 
 func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
@@ -54,6 +60,10 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 		firewallZones:        make(map[string]map[string]client.FirewallZone),
 		firewallPolicies:     make(map[string]map[string]client.FirewallPolicy),
 		trafficMatchingLists: make(map[string]map[string]client.TrafficMatchingList),
+		radiusProfiles:       make(map[string]map[string]client.RadiusProfile),
+		deviceTags:           make(map[string]map[string]client.DeviceTag),
+		dnsPolicies:          make(map[string]map[string]client.DNSPolicy),
+		aclRules:             make(map[string]map[string]client.ACLRule),
 	}
 
 	api.siteID = api.newID()
@@ -67,6 +77,10 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	api.firewallZones[api.siteID] = make(map[string]client.FirewallZone)
 	api.firewallPolicies[api.siteID] = make(map[string]client.FirewallPolicy)
 	api.trafficMatchingLists[api.siteID] = make(map[string]client.TrafficMatchingList)
+	api.radiusProfiles[api.siteID] = make(map[string]client.RadiusProfile)
+	api.deviceTags[api.siteID] = make(map[string]client.DeviceTag)
+	api.dnsPolicies[api.siteID] = make(map[string]client.DNSPolicy)
+	api.aclRules[api.siteID] = make(map[string]client.ACLRule)
 
 	existingNetwork := client.Network{
 		ID:                    api.newID(),
@@ -107,6 +121,21 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	}
 	api.existingTrafficMatchingListID = existingTrafficMatchingList.ID
 	api.trafficMatchingLists[api.siteID][existingTrafficMatchingList.ID] = existingTrafficMatchingList
+
+	existingRadiusProfile := client.RadiusProfile{
+		ID:   api.newID(),
+		Name: "existing-radius",
+	}
+	api.existingRadiusProfileID = existingRadiusProfile.ID
+	api.radiusProfiles[api.siteID][existingRadiusProfile.ID] = existingRadiusProfile
+
+	existingDeviceTag := client.DeviceTag{
+		ID:        api.newID(),
+		Name:      "existing-tag",
+		DeviceIDs: []string{api.newID()},
+	}
+	api.existingDeviceTagID = existingDeviceTag.ID
+	api.deviceTags[api.siteID][existingDeviceTag.ID] = existingDeviceTag
 
 	api.server = httptest.NewServer(http.HandlerFunc(api.serveHTTP))
 	return api
@@ -177,6 +206,24 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 		return
 	case len(segments) == 5 && segments[3] == "traffic-matching-lists":
 		api.handleTrafficMatchingList(writer, request, segments[2], segments[4])
+		return
+	case len(segments) == 5 && segments[3] == "radius" && segments[4] == "profiles":
+		api.handleRadiusProfiles(writer, request, segments[2])
+		return
+	case len(segments) == 4 && segments[3] == "device-tags":
+		api.handleDeviceTags(writer, request, segments[2])
+		return
+	case len(segments) == 5 && segments[3] == "dns" && segments[4] == "policies":
+		api.handleDNSPolicies(writer, request, segments[2])
+		return
+	case len(segments) == 6 && segments[3] == "dns" && segments[4] == "policies":
+		api.handleDNSPolicy(writer, request, segments[2], segments[5])
+		return
+	case len(segments) == 4 && segments[3] == "acl-rules":
+		api.handleACLRules(writer, request, segments[2])
+		return
+	case len(segments) == 5 && segments[3] == "acl-rules":
+		api.handleACLRule(writer, request, segments[2], segments[4])
 		return
 	default:
 		writer.WriteHeader(http.StatusNotFound)
@@ -449,6 +496,150 @@ func (api *mockUniFiAPI) handleTrafficMatchingList(writer http.ResponseWriter, r
 	}
 }
 
+func (api *mockUniFiAPI) handleRadiusProfiles(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var profiles []client.RadiusProfile
+		for _, profile := range api.radiusProfiles[siteID] {
+			profiles = append(profiles, profile)
+		}
+		sort.Slice(profiles, func(i, j int) bool {
+			return profiles[i].ID < profiles[j].ID
+		})
+		writePage(writer, request, profiles)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleDeviceTags(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var tags []client.DeviceTag
+		for _, tag := range api.deviceTags[siteID] {
+			tags = append(tags, tag)
+		}
+		sort.Slice(tags, func(i, j int) bool {
+			return tags[i].ID < tags[j].ID
+		})
+		writePage(writer, request, tags)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleDNSPolicies(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var policies []client.DNSPolicy
+		for _, policy := range api.dnsPolicies[siteID] {
+			policies = append(policies, policy)
+		}
+		sort.Slice(policies, func(i, j int) bool {
+			return policies[i].ID < policies[j].ID
+		})
+		writePage(writer, request, policies)
+	case http.MethodPost:
+		var policy client.DNSPolicy
+		api.decodeRequest(writer, request, &policy)
+		policy.ID = api.newID()
+		api.dnsPolicies[siteID][policy.ID] = policy
+		api.writeJSON(writer, http.StatusCreated, policy)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleDNSPolicy(writer http.ResponseWriter, request *http.Request, siteID, policyID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	policy, ok := api.dnsPolicies[siteID][policyID]
+	if !ok {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	switch request.Method {
+	case http.MethodGet:
+		api.writeJSON(writer, http.StatusOK, policy)
+	case http.MethodPut:
+		var updated client.DNSPolicy
+		api.decodeRequest(writer, request, &updated)
+		updated.ID = policyID
+		api.dnsPolicies[siteID][policyID] = updated
+		api.writeJSON(writer, http.StatusOK, updated)
+	case http.MethodDelete:
+		delete(api.dnsPolicies[siteID], policyID)
+		writer.WriteHeader(http.StatusOK)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleACLRules(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var rules []client.ACLRule
+		for _, rule := range api.aclRules[siteID] {
+			rules = append(rules, rule)
+		}
+		sort.Slice(rules, func(i, j int) bool {
+			return rules[i].ID < rules[j].ID
+		})
+		writePage(writer, request, rules)
+	case http.MethodPost:
+		var rule client.ACLRule
+		api.decodeRequest(writer, request, &rule)
+		rule.ID = api.newID()
+		rule.Index = int64(len(api.aclRules[siteID]))
+		api.aclRules[siteID][rule.ID] = rule
+		api.writeJSON(writer, http.StatusCreated, rule)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleACLRule(writer http.ResponseWriter, request *http.Request, siteID, aclRuleID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	rule, ok := api.aclRules[siteID][aclRuleID]
+	if !ok {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	switch request.Method {
+	case http.MethodGet:
+		api.writeJSON(writer, http.StatusOK, rule)
+	case http.MethodPut:
+		var updated client.ACLRule
+		api.decodeRequest(writer, request, &updated)
+		updated.ID = aclRuleID
+		updated.Index = rule.Index
+		api.aclRules[siteID][aclRuleID] = updated
+		api.writeJSON(writer, http.StatusOK, updated)
+	case http.MethodDelete:
+		delete(api.aclRules[siteID], aclRuleID)
+		writer.WriteHeader(http.StatusOK)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
 func (api *mockUniFiAPI) decodeRequest(writer http.ResponseWriter, request *http.Request, target any) {
 	if err := json.NewDecoder(request.Body).Decode(target); err != nil {
 		writer.WriteHeader(http.StatusBadRequest)
@@ -554,6 +745,16 @@ data "unifi_traffic_matching_list" "existing" {
   site_id = data.unifi_site.main.id
   name    = "existing-web-ports"
 }
+
+data "unifi_radius_profile" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "existing-radius"
+}
+
+data "unifi_device_tag" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "existing-tag"
+}
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.unifi_site.main", "id", api.siteID),
@@ -568,6 +769,11 @@ data "unifi_traffic_matching_list" "existing" {
 					resource.TestCheckResourceAttr("data.unifi_traffic_matching_list.existing", "type", "PORTS"),
 					resource.TestCheckTypeSetElemAttr("data.unifi_traffic_matching_list.existing", "ports.*", "80"),
 					resource.TestCheckTypeSetElemAttr("data.unifi_traffic_matching_list.existing", "ports.*", "443-444"),
+					resource.TestCheckResourceAttr("data.unifi_radius_profile.existing", "id", api.existingRadiusProfileID),
+					resource.TestCheckResourceAttr("data.unifi_radius_profile.existing", "name", "existing-radius"),
+					resource.TestCheckResourceAttr("data.unifi_device_tag.existing", "id", api.existingDeviceTagID),
+					resource.TestCheckResourceAttr("data.unifi_device_tag.existing", "name", "existing-tag"),
+					resource.TestCheckResourceAttr("data.unifi_device_tag.existing", "device_ids.#", "1"),
 				),
 			},
 		},
@@ -768,6 +974,158 @@ resource "unifi_traffic_matching_list" "test" {
 				ImportState:       true,
 				ImportStateIdFunc: testImportCompositeID(resourceName, api.siteID),
 				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccResourceDNSPolicy(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_dns_policy.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_dns_policy" "test" {
+  site_id      = data.unifi_site.main.id
+  type         = "A_RECORD"
+  enabled      = true
+  domain       = "printer.internal"
+  ipv4_address = "10.30.0.50"
+  ttl_seconds  = 300
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "type", "A_RECORD"),
+					resource.TestCheckResourceAttr(resourceName, "domain", "printer.internal"),
+					resource.TestCheckResourceAttr(resourceName, "ipv4_address", "10.30.0.50"),
+					resource.TestCheckResourceAttr(resourceName, "ttl_seconds", "300"),
+				),
+			},
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_dns_policy" "test" {
+  site_id       = data.unifi_site.main.id
+  type          = "SRV_RECORD"
+  enabled       = true
+  domain        = "_ldap._tcp.example.internal"
+  server_domain = "ldap01.example.internal"
+  service       = "_ldap"
+  protocol      = "_tcp"
+  port          = 389
+  priority      = 10
+  weight        = 20
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "type", "SRV_RECORD"),
+					resource.TestCheckResourceAttr(resourceName, "server_domain", "ldap01.example.internal"),
+					resource.TestCheckResourceAttr(resourceName, "service", "_ldap"),
+					resource.TestCheckResourceAttr(resourceName, "protocol", "_tcp"),
+					resource.TestCheckResourceAttr(resourceName, "port", "389"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateIdFunc: testImportCompositeID(resourceName, api.siteID),
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccResourceACLRule(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_acl_rule.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_network" "iot" {
+  site_id    = data.unifi_site.main.id
+  management = "UNMANAGED"
+  name       = "iot"
+  enabled    = true
+  vlan_id    = 80
+}
+
+resource "unifi_acl_rule" "test" {
+  site_id         = data.unifi_site.main.id
+  type            = "IPV4"
+  enabled         = true
+  name            = "block-iot-dns"
+  action          = "BLOCK"
+  protocol_filter = ["TCP", "UDP"]
+
+  source_ip_filter = {
+    type        = "NETWORKS"
+    network_ids = [unifi_network.iot.id]
+  }
+
+  destination_ip_filter = {
+    type  = "PORTS"
+    ports = [53]
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "type", "IPV4"),
+					resource.TestCheckResourceAttr(resourceName, "action", "BLOCK"),
+					resource.TestCheckResourceAttr(resourceName, "source_ip_filter.type", "NETWORKS"),
+					resource.TestCheckResourceAttr(resourceName, "destination_ip_filter.type", "PORTS"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "protocol_filter.*", "TCP"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "protocol_filter.*", "UDP"),
+				),
+			},
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_network" "iot" {
+  site_id    = data.unifi_site.main.id
+  management = "UNMANAGED"
+  name       = "iot"
+  enabled    = true
+  vlan_id    = 80
+}
+
+resource "unifi_acl_rule" "test" {
+  site_id           = data.unifi_site.main.id
+  type              = "MAC"
+  enabled           = true
+  name              = "allow-printer"
+  action            = "ALLOW"
+  network_id_filter = unifi_network.iot.id
+
+  source_mac_filter = {
+    type         = "MAC_ADDRESSES"
+    mac_addresses = ["AA:BB:CC:DD:EE:FF"]
+    prefix_length = 48
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "type", "MAC"),
+					resource.TestCheckResourceAttr(resourceName, "action", "ALLOW"),
+					resource.TestCheckResourceAttrPair(resourceName, "network_id_filter", "unifi_network.iot", "id"),
+					resource.TestCheckResourceAttr(resourceName, "source_mac_filter.type", "MAC_ADDRESSES"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "source_mac_filter.mac_addresses.*", "AA:BB:CC:DD:EE:FF"),
+					resource.TestCheckResourceAttr(resourceName, "source_mac_filter.prefix_length", "48"),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateIdFunc:       testImportCompositeID(resourceName, api.siteID),
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"index"},
 			},
 		},
 	})

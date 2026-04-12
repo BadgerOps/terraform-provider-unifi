@@ -129,3 +129,31 @@ resource "unifi_firewall_policy" "trusted_to_iot" {
   logging_enabled         = false
   destination_network_ids = [unifi_network.iot.id]
 }
+
+resource "unifi_dns_policy" "printer" {
+  site_id      = data.unifi_site.main.id
+  type         = "A_RECORD"
+  enabled      = true
+  domain       = "printer.iot.internal"
+  ipv4_address = "10.30.0.50"
+  ttl_seconds  = 300
+}
+
+resource "unifi_acl_rule" "block_iot_dns" {
+  site_id         = data.unifi_site.main.id
+  type            = "IPV4"
+  enabled         = true
+  name            = "block-iot-dns"
+  action          = "BLOCK"
+  protocol_filter = ["TCP", "UDP"]
+
+  source_ip_filter = {
+    type        = "NETWORKS"
+    network_ids = [unifi_network.iot.id]
+  }
+
+  destination_ip_filter = {
+    type  = "PORTS"
+    ports = [53]
+  }
+}

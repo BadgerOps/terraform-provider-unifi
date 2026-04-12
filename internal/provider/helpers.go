@@ -61,6 +61,14 @@ func float64SetValue(ctx context.Context, values []float64) (types.Set, diag.Dia
 	return types.SetValueFrom(ctx, types.Float64Type, values)
 }
 
+func int64SetValue(ctx context.Context, values []int64) (types.Set, diag.Diagnostics) {
+	if len(values) == 0 {
+		return types.SetNull(types.Int64Type), nil
+	}
+
+	return types.SetValueFrom(ctx, types.Int64Type, values)
+}
+
 func setToStrings(ctx context.Context, value types.Set, path string, diags *diag.Diagnostics) []string {
 	if value.IsNull() || value.IsUnknown() {
 		return nil
@@ -84,6 +92,20 @@ func setToFloat64s(ctx context.Context, value types.Set, path string, diags *dia
 	diags.Append(value.ElementsAs(ctx, &values, false)...)
 	if diags.HasError() {
 		diags.AddError("Invalid set value", fmt.Sprintf("Unable to decode `%s` into a float set.", path))
+	}
+
+	return values
+}
+
+func setToInt64s(ctx context.Context, value types.Set, path string, diags *diag.Diagnostics) []int64 {
+	if value.IsNull() || value.IsUnknown() {
+		return nil
+	}
+
+	var values []int64
+	diags.Append(value.ElementsAs(ctx, &values, false)...)
+	if diags.HasError() {
+		diags.AddError("Invalid set value", fmt.Sprintf("Unable to decode `%s` into an integer set.", path))
 	}
 
 	return values
