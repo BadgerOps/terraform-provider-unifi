@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	frameworkpath "github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -136,11 +135,4 @@ func nullableInt64(value *int64) types.Int64 {
 		return types.Int64Null()
 	}
 	return types.Int64Value(*value)
-}
-
-func nullOrValue[T attr.Value](isNull bool, value T, nullValue T) T {
-	if isNull {
-		return nullValue
-	}
-	return value
 }

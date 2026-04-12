@@ -156,7 +156,9 @@ func (c *Client) do(ctx context.Context, method, requestPath string, query url.V
 	if err != nil {
 		return fmt.Errorf("%s %s: %w", method, requestURL.String(), err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 
 	payload, err := io.ReadAll(response.Body)
 	if err != nil {

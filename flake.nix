@@ -12,6 +12,9 @@
         pkgs = import nixpkgs {
           inherit system;
         };
+        terraformCompat = pkgs.writeShellScriptBin "terraform" ''
+          exec ${pkgs.opentofu}/bin/tofu "$@"
+        '';
       in {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
@@ -23,7 +26,8 @@
             gopls
             gnumake
             jq
-            terraform
+            opentofu
+            terraformCompat
             terraform-ls
             tfsec
             tflint

@@ -51,6 +51,8 @@ If you use Nix, enter the pinned development shell with:
 nix develop
 ```
 
+The Nix shell exposes a `terraform` command via an OpenTofu compatibility wrapper for fast local validation, while CI still runs HashiCorp Terraform `1.14.8`.
+
 Useful local commands:
 
 ```bash
