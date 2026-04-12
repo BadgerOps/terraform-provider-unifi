@@ -183,7 +183,18 @@ resource "unifi_network" "test" {
 }
 
 func liveAcceptanceName(config liveAcceptanceConfig, suffix string) string {
-	return fmt.Sprintf("%s%s-%d", config.NamePrefix, suffix, time.Now().UnixNano())
+	token := strconv.FormatInt(time.Now().UnixNano()%1_000_000_000, 36)
+	name := fmt.Sprintf("%s%s-%s", config.NamePrefix, suffix, token)
+	if len(name) <= 32 {
+		return name
+	}
+
+	excess := len(name) - 32
+	if excess >= len(config.NamePrefix) {
+		return name[len(name)-32:]
+	}
+
+	return fmt.Sprintf("%s%s-%s", config.NamePrefix[:len(config.NamePrefix)-excess], suffix, token)
 }
 
 func liveAcceptanceVLAN() int64 {
