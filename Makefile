@@ -34,4 +34,4 @@ openapi-generate:
 	./scripts/generate-openapi.sh
 
 testacc:
-	go test -v ./internal/provider -run '^TestAccLive'
+	./scripts/testacc.sh

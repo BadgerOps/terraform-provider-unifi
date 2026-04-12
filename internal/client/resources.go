@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/badgerops/terraform-provider-unifi/internal/openapi/generated"
 )
@@ -682,145 +683,51 @@ func (c *Client) DeleteFirewallPolicy(ctx context.Context, siteID, firewallPolic
 }
 
 func (c *Client) CreateTrafficMatchingList(ctx context.Context, siteID string, request TrafficMatchingList) (*TrafficMatchingList, error) {
-	siteUUID, err := parseUUID(siteID)
-	if err != nil {
-		return nil, fmt.Errorf("create traffic matching list site id: %w", err)
-	}
-
-	body, err := transcode[generated.CreateTrafficMatchingListJSONRequestBody](request)
-	if err != nil {
-		return nil, fmt.Errorf("translate create traffic matching list request: %w", err)
-	}
-
-	response, err := c.apiClient.CreateTrafficMatchingListWithResponse(ctx, siteUUID, body)
-	if err != nil {
-		return nil, fmt.Errorf("create traffic matching list: %w", err)
-	}
-
-	created, err := requireJSON(response.StatusCode(), response.Body, response.JSON201, http.StatusCreated)
-	if err != nil {
+	var response TrafficMatchingList
+	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists", siteID), nil, request, &response); err != nil {
 		return nil, err
 	}
-
-	list, err := transcode[TrafficMatchingList](created)
-	if err != nil {
-		return nil, fmt.Errorf("translate created traffic matching list: %w", err)
-	}
-
-	return &list, nil
+	return &response, nil
 }
 
 func (c *Client) GetTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string) (*TrafficMatchingList, error) {
-	siteUUID, err := parseUUID(siteID)
-	if err != nil {
-		return nil, fmt.Errorf("get traffic matching list site id: %w", err)
-	}
-	listUUID, err := parseUUID(trafficMatchingListID)
-	if err != nil {
-		return nil, fmt.Errorf("get traffic matching list id: %w", err)
-	}
-
-	response, err := c.apiClient.GetTrafficMatchingListWithResponse(ctx, siteUUID, listUUID)
-	if err != nil {
-		return nil, fmt.Errorf("get traffic matching list: %w", err)
-	}
-
-	details, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-	if err != nil {
+	var response TrafficMatchingList
+	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, nil, &response); err != nil {
 		return nil, err
 	}
-
-	list, err := transcode[TrafficMatchingList](details)
-	if err != nil {
-		return nil, fmt.Errorf("translate traffic matching list: %w", err)
-	}
-
-	return &list, nil
+	return &response, nil
 }
 
 func (c *Client) UpdateTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string, request TrafficMatchingList) (*TrafficMatchingList, error) {
-	siteUUID, err := parseUUID(siteID)
-	if err != nil {
-		return nil, fmt.Errorf("update traffic matching list site id: %w", err)
-	}
-	listUUID, err := parseUUID(trafficMatchingListID)
-	if err != nil {
-		return nil, fmt.Errorf("update traffic matching list id: %w", err)
-	}
-
-	body, err := transcode[generated.UpdateTrafficMatchingListJSONRequestBody](request)
-	if err != nil {
-		return nil, fmt.Errorf("translate update traffic matching list request: %w", err)
-	}
-
-	response, err := c.apiClient.UpdateTrafficMatchingListWithResponse(ctx, siteUUID, listUUID, body)
-	if err != nil {
-		return nil, fmt.Errorf("update traffic matching list: %w", err)
-	}
-
-	updated, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-	if err != nil {
+	var response TrafficMatchingList
+	if err := c.do(ctx, http.MethodPut, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, request, &response); err != nil {
 		return nil, err
 	}
-
-	list, err := transcode[TrafficMatchingList](updated)
-	if err != nil {
-		return nil, fmt.Errorf("translate updated traffic matching list: %w", err)
-	}
-
-	return &list, nil
+	return &response, nil
 }
 
 func (c *Client) DeleteTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string) error {
-	siteUUID, err := parseUUID(siteID)
-	if err != nil {
-		return fmt.Errorf("delete traffic matching list site id: %w", err)
-	}
-	listUUID, err := parseUUID(trafficMatchingListID)
-	if err != nil {
-		return fmt.Errorf("delete traffic matching list id: %w", err)
-	}
-
-	response, err := c.apiClient.DeleteTrafficMatchingListWithResponse(ctx, siteUUID, listUUID)
-	if err != nil {
-		return fmt.Errorf("delete traffic matching list: %w", err)
-	}
-
-	return requireStatus(response.StatusCode(), response.Body, http.StatusOK, http.StatusNoContent)
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, nil, nil)
 }
 
 func (c *Client) ListTrafficMatchingLists(ctx context.Context, siteID string) ([]TrafficMatchingList, error) {
-	siteUUID, err := parseUUID(siteID)
-	if err != nil {
-		return nil, fmt.Errorf("list traffic matching lists site id: %w", err)
-	}
-
 	var lists []TrafficMatchingList
 	offset := 0
 
 	for {
-		response, err := c.apiClient.GetTrafficMatchingListsWithResponse(ctx, siteUUID, &generated.GetTrafficMatchingListsParams{
-			Limit:  pageParam(defaultPageLimit),
-			Offset: pageParam(offset),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("list traffic matching lists: %w", err)
-		}
+		var response page[TrafficMatchingList]
+		query := url.Values{}
+		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
+		query.Set("offset", fmt.Sprintf("%d", offset))
 
-		page, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-		if err != nil {
+		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists", siteID), query, nil, &response); err != nil {
 			return nil, err
 		}
 
-		batch, err := transcode[[]TrafficMatchingList](page.Data)
-		if err != nil {
-			return nil, fmt.Errorf("translate traffic matching list page: %w", err)
-		}
+		lists = append(lists, response.Data...)
+		offset += len(response.Data)
 
-		lists = append(lists, batch...)
-		offset += len(batch)
-
-		if len(batch) == 0 || int64(offset) >= page.TotalCount {
+		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
 			break
 		}
 	}

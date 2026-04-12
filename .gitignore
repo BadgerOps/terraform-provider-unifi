@@ -11,3 +11,4 @@ dist/
 *.tfstate.*
 terraform.rc
 .terraformrc
+.envrc

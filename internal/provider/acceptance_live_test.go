@@ -92,6 +92,168 @@ func TestAccLiveResourceNetwork(t *testing.T) {
 	})
 }
 
+func TestAccLiveDataSourceNetwork(t *testing.T) {
+	t.Parallel()
+
+	config := requireLiveAcceptanceConfig(t)
+	resourceName := "unifi_network.test"
+	dataSourceName := "data.unifi_network.lookup"
+	networkName := liveAcceptanceName(config, "netds")
+	vlanID := liveAcceptanceVLAN()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             liveCheckDestroyNetwork(config, resourceName),
+		Steps: []resource.TestStep{
+			{
+				Config: liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+resource "unifi_network" "test" {
+  site_id    = data.unifi_site.target.id
+  management = "UNMANAGED"
+  name       = %q
+  enabled    = true
+  vlan_id    = %d
+}
+
+data "unifi_network" "lookup" {
+  site_id = data.unifi_site.target.id
+  id      = unifi_network.test.id
+}
+`, networkName, vlanID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrPair(dataSourceName, "id", resourceName, "id"),
+					resource.TestCheckResourceAttr(dataSourceName, "name", networkName),
+					resource.TestCheckResourceAttr(dataSourceName, "management", "UNMANAGED"),
+					resource.TestCheckResourceAttr(dataSourceName, "vlan_id", strconv.FormatInt(vlanID, 10)),
+				),
+			},
+		},
+	})
+}
+
+func TestAccLiveResourceTrafficMatchingList(t *testing.T) {
+	t.Parallel()
+
+	config := requireLiveAcceptanceConfig(t)
+	requireZoneFirewallConfigured(t)
+	resourceName := "unifi_traffic_matching_list.test"
+	listName := liveAcceptanceName(config, "ports")
+	updatedName := liveAcceptanceName(config, "portsu")
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             liveCheckDestroyTrafficMatchingList(config, resourceName),
+		Steps: []resource.TestStep{
+			{
+				Config: liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+resource "unifi_traffic_matching_list" "test" {
+  site_id = data.unifi_site.target.id
+  type    = "PORTS"
+  name    = %q
+  ports   = ["80", "443", "8443-8444"]
+}
+`, listName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "type", "PORTS"),
+					resource.TestCheckResourceAttr(resourceName, "name", listName),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "80"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "443"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "8443-8444"),
+				),
+			},
+			{
+				Config: liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+resource "unifi_traffic_matching_list" "test" {
+  site_id = data.unifi_site.target.id
+  type    = "PORTS"
+  name    = %q
+  ports   = ["53", "443", "10000-10010"]
+}
+`, updatedName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", updatedName),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "53"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "443"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ports.*", "10000-10010"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateIdFunc: liveImportCompositeID(resourceName),
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccLiveResourceFirewallZone(t *testing.T) {
+	t.Parallel()
+
+	config := requireLiveAcceptanceConfig(t)
+	requireZoneFirewallConfigured(t)
+	resourceName := "unifi_firewall_zone.test"
+	networkName := liveAcceptanceName(config, "zone-net")
+	zoneName := liveAcceptanceName(config, "zone")
+	updatedZoneName := liveAcceptanceName(config, "zoneu")
+	vlanID := liveAcceptanceVLAN()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             liveCheckDestroyFirewallZone(config, resourceName),
+		Steps: []resource.TestStep{
+			{
+				Config: liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+resource "unifi_network" "test" {
+  site_id    = data.unifi_site.target.id
+  management = "UNMANAGED"
+  name       = %q
+  enabled    = true
+  vlan_id    = %d
+}
+
+resource "unifi_firewall_zone" "test" {
+  site_id     = data.unifi_site.target.id
+  name        = %q
+  network_ids = [unifi_network.test.id]
+}
+`, networkName, vlanID, zoneName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", zoneName),
+					resource.TestCheckResourceAttr(resourceName, "network_ids.#", "1"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "network_ids.*", "unifi_network.test", "id"),
+				),
+			},
+			{
+				Config: liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+resource "unifi_network" "test" {
+  site_id    = data.unifi_site.target.id
+  management = "UNMANAGED"
+  name       = %q
+  enabled    = true
+  vlan_id    = %d
+}
+
+resource "unifi_firewall_zone" "test" {
+  site_id     = data.unifi_site.target.id
+  name        = %q
+  network_ids = [unifi_network.test.id]
+}
+`, networkName, vlanID, updatedZoneName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", updatedZoneName),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateIdFunc: liveImportCompositeID(resourceName),
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 func requireLiveAcceptanceConfig(t *testing.T) liveAcceptanceConfig {
 	t.Helper()
 
@@ -140,6 +302,14 @@ func parseEnvBool(key string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func requireZoneFirewallConfigured(t *testing.T) {
+	t.Helper()
+
+	if !parseEnvBool("UNIFI_TEST_ENABLE_ZONE_FIREWALL") {
+		t.Skip("set UNIFI_TEST_ENABLE_ZONE_FIREWALL=1 to run zone firewall live acceptance tests")
 	}
 }
 
@@ -249,4 +419,76 @@ func liveCheckDestroyNetwork(config liveAcceptanceConfig, resourceName string) r
 
 		return fmt.Errorf("network %s still exists", resourceState.Primary.ID)
 	}
+}
+
+func liveCheckDestroyFirewallZone(config liveAcceptanceConfig, resourceName string) resource.TestCheckFunc {
+	return func(state *tfstate.State) error {
+		resourceState, ok := state.RootModule().Resources[resourceName]
+		if !ok || resourceState.Primary.ID == "" {
+			return nil
+		}
+
+		siteState, ok := state.RootModule().Resources["data.unifi_site.target"]
+		if !ok || siteState.Primary.ID == "" {
+			return fmt.Errorf("site lookup data source missing from state during destroy check")
+		}
+
+		apiClient, err := newLiveDestroyCheckClient(config)
+		if err != nil {
+			return err
+		}
+
+		_, err = apiClient.GetFirewallZone(context.Background(), siteState.Primary.ID, resourceState.Primary.ID)
+		if client.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("verify firewall zone destroy: %w", err)
+		}
+
+		return fmt.Errorf("firewall zone %s still exists", resourceState.Primary.ID)
+	}
+}
+
+func liveCheckDestroyTrafficMatchingList(config liveAcceptanceConfig, resourceName string) resource.TestCheckFunc {
+	return func(state *tfstate.State) error {
+		resourceState, ok := state.RootModule().Resources[resourceName]
+		if !ok || resourceState.Primary.ID == "" {
+			return nil
+		}
+
+		siteState, ok := state.RootModule().Resources["data.unifi_site.target"]
+		if !ok || siteState.Primary.ID == "" {
+			return fmt.Errorf("site lookup data source missing from state during destroy check")
+		}
+
+		apiClient, err := newLiveDestroyCheckClient(config)
+		if err != nil {
+			return err
+		}
+
+		_, err = apiClient.GetTrafficMatchingList(context.Background(), siteState.Primary.ID, resourceState.Primary.ID)
+		if client.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("verify traffic matching list destroy: %w", err)
+		}
+
+		return fmt.Errorf("traffic matching list %s still exists", resourceState.Primary.ID)
+	}
+}
+
+func newLiveDestroyCheckClient(config liveAcceptanceConfig) (*client.Client, error) {
+	apiClient, err := client.New(client.Config{
+		BaseURL:       config.APIURL,
+		APIKey:        config.APIKey,
+		AllowInsecure: config.AllowInsecure,
+		UserAgent:     "terraform-provider-unifi/testacc",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build client for destroy check: %w", err)
+	}
+
+	return apiClient, nil
 }

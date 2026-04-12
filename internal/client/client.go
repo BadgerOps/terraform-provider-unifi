@@ -1,9 +1,12 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -23,13 +26,25 @@ type Config struct {
 }
 
 type Client struct {
-	apiClient *generated.ClientWithResponses
+	apiClient  *generated.ClientWithResponses
+	baseURL    *url.URL
+	apiKey     string
+	httpClient *http.Client
+	userAgent  string
 }
 
 type apiError struct {
 	Code           string `json:"code"`
 	Message        string `json:"message"`
 	HTTPStatusCode int    `json:"httpStatusCode"`
+}
+
+type page[T any] struct {
+	Offset     int64 `json:"offset"`
+	Limit      int   `json:"limit"`
+	Count      int   `json:"count"`
+	TotalCount int64 `json:"totalCount"`
+	Data       []T   `json:"data"`
 }
 
 type Site struct {
@@ -78,7 +93,13 @@ func New(config Config) (*Client, error) {
 		return nil, fmt.Errorf("create generated api client: %w", err)
 	}
 
-	return &Client{apiClient: apiClient}, nil
+	return &Client{
+		apiClient:  apiClient,
+		baseURL:    baseURL,
+		apiKey:     config.APIKey,
+		httpClient: httpClient,
+		userAgent:  config.UserAgent,
+	}, nil
 }
 
 func normalizeBaseURL(raw string) (*url.URL, error) {
@@ -133,4 +154,73 @@ func (c *Client) ListSites(ctx context.Context) ([]Site, error) {
 	}
 
 	return sites, nil
+}
+
+func (c *Client) do(ctx context.Context, method, requestPath string, query url.Values, body any, out any) error {
+	requestURL := *c.baseURL
+	requestURL.Path = path.Join(c.baseURL.Path, requestPath)
+	requestURL.RawQuery = query.Encode()
+
+	var reader io.Reader
+	if body != nil {
+		payload, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("marshal request body: %w", err)
+		}
+		reader = bytes.NewReader(payload)
+	}
+
+	request, err := http.NewRequestWithContext(ctx, method, requestURL.String(), reader)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("X-API-KEY", c.apiKey)
+	if c.userAgent != "" {
+		request.Header.Set("User-Agent", c.userAgent)
+	}
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("%s %s: %w", method, requestURL.String(), err)
+	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	payload, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("read response body: %w", err)
+	}
+
+	if response.StatusCode >= http.StatusBadRequest {
+		var apiErr apiError
+		if err := json.Unmarshal(payload, &apiErr); err == nil && (apiErr.Code != "" || apiErr.Message != "") {
+			return &Error{
+				StatusCode: response.StatusCode,
+				Code:       apiErr.Code,
+				Message:    apiErr.Message,
+				Body:       string(payload),
+			}
+		}
+
+		return &Error{
+			StatusCode: response.StatusCode,
+			Body:       string(payload),
+		}
+	}
+
+	if out == nil || len(payload) == 0 {
+		return nil
+	}
+
+	if err := json.Unmarshal(payload, out); err != nil {
+		return fmt.Errorf("decode response body: %w", err)
+	}
+
+	return nil
 }

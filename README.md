@@ -107,6 +107,8 @@ Then run:
 direnv allow
 ```
 
+`make testacc` will use `.envrc` when `direnv` is available and will prefer `/usr/bin/terraform` for acceptance runs so the Terraform plugin test framework does not accidentally pick up the OpenTofu compatibility wrapper from the dev shell.
+
 Useful local commands:
 
 ```bash
@@ -144,5 +146,8 @@ Optional environment variables:
 - `UNIFI_ALLOW_INSECURE`
 - `UNIFI_TEST_NAME_PREFIX`
 - `UNIFI_TEST_WIFI_PASSPHRASE`
+- `UNIFI_TEST_ENABLE_ZONE_FIREWALL`
 
 Use a dedicated disposable UniFi site for these tests. The live suite creates and destroys real resources.
+
+Tests that exercise zone firewall resources are skipped unless `UNIFI_TEST_ENABLE_ZONE_FIREWALL=1` is set.
