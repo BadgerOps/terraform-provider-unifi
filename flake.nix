@@ -20,6 +20,7 @@
           packages = with pkgs; [
             actionlint
             curl
+            direnv
             git
             go_1_25
             golangci-lint

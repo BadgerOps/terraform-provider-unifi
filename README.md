@@ -87,6 +87,26 @@ nix develop
 
 The Nix shell exposes a `terraform` command via an OpenTofu compatibility wrapper for fast local validation, while CI still runs HashiCorp Terraform `1.14.8`.
 
+If you use `direnv`, the flake also provides `direnv` in the dev shell. A simple local setup is:
+
+```bash
+# .envrc
+use flake
+
+export TF_ACC=1
+export UNIFI_API_URL=https://unifi.example.com
+export UNIFI_API_KEY=replace-me
+export UNIFI_ALLOW_INSECURE=false
+export UNIFI_TEST_SITE_NAME=Terraform Acceptance
+export UNIFI_TEST_NAME_PREFIX=acctest-
+```
+
+Then run:
+
+```bash
+direnv allow
+```
+
 Useful local commands:
 
 ```bash
@@ -107,13 +127,11 @@ The repo also includes live controller-backed acceptance tests under `internal/p
 Recommended local setup:
 
 ```bash
-cp .env.example .env
-set -a
-source .env
-set +a
-
+cp .env.example .env.testacc
 make testacc
 ```
+
+If you already use `.env` for another tool such as Docker Compose, keep acceptance settings in a separate file or in `.envrc`.
 
 Required environment variables:
 
