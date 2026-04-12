@@ -8,6 +8,8 @@ This repository implements the new provider shape described in the adjacent Badg
 
 - Provider: `badgerops/unifi`
 - Data source: `unifi_site`
+- Data source: `unifi_network`
+- Data source: `unifi_firewall_zone`
 - Resources:
   - `unifi_network`
   - `unifi_wifi_broadcast`

@@ -176,6 +176,31 @@ func (c *Client) DeleteNetwork(ctx context.Context, siteID, networkID string) er
 	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/networks/%s", siteID, networkID), nil, nil, nil)
 }
 
+func (c *Client) ListNetworks(ctx context.Context, siteID string) ([]Network, error) {
+	var networks []Network
+	offset := 0
+
+	for {
+		var response page[Network]
+		query := url.Values{}
+		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
+		query.Set("offset", fmt.Sprintf("%d", offset))
+
+		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/networks", siteID), query, nil, &response); err != nil {
+			return nil, err
+		}
+
+		networks = append(networks, response.Data...)
+		offset += len(response.Data)
+
+		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+			break
+		}
+	}
+
+	return networks, nil
+}
+
 func (c *Client) CreateWifiBroadcast(ctx context.Context, siteID string, request WifiBroadcast) (*WifiBroadcast, error) {
 	var response WifiBroadcast
 	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/v1/sites/%s/wifi/broadcasts", siteID), nil, request, &response); err != nil {
@@ -230,6 +255,31 @@ func (c *Client) UpdateFirewallZone(ctx context.Context, siteID, firewallZoneID 
 
 func (c *Client) DeleteFirewallZone(ctx context.Context, siteID, firewallZoneID string) error {
 	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/firewall/zones/%s", siteID, firewallZoneID), nil, nil, nil)
+}
+
+func (c *Client) ListFirewallZones(ctx context.Context, siteID string) ([]FirewallZone, error) {
+	var zones []FirewallZone
+	offset := 0
+
+	for {
+		var response page[FirewallZone]
+		query := url.Values{}
+		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
+		query.Set("offset", fmt.Sprintf("%d", offset))
+
+		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/firewall/zones", siteID), query, nil, &response); err != nil {
+			return nil, err
+		}
+
+		zones = append(zones, response.Data...)
+		offset += len(response.Data)
+
+		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+			break
+		}
+	}
+
+	return zones, nil
 }
 
 func (c *Client) CreateFirewallPolicy(ctx context.Context, siteID string, request FirewallPolicy) (*FirewallPolicy, error) {
