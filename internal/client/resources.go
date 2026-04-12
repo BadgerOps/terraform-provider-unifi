@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/badgerops/terraform-provider-unifi/internal/openapi/generated"
 )
@@ -683,51 +682,141 @@ func (c *Client) DeleteFirewallPolicy(ctx context.Context, siteID, firewallPolic
 }
 
 func (c *Client) CreateTrafficMatchingList(ctx context.Context, siteID string, request TrafficMatchingList) (*TrafficMatchingList, error) {
-	var response TrafficMatchingList
-	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists", siteID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("create traffic matching list site id: %w", err)
+	}
+
+	body, err := jsonBodyReader(request)
+	if err != nil {
+		return nil, fmt.Errorf("encode create traffic matching list request: %w", err)
+	}
+
+	response, err := c.apiClient.CreateTrafficMatchingListWithBodyWithResponse(ctx, siteUUID, "application/json", body)
+	if err != nil {
+		return nil, fmt.Errorf("create traffic matching list: %w", err)
+	}
+
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusCreated); err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	list, err := decodeBody[TrafficMatchingList](response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("decode created traffic matching list: %w", err)
+	}
+
+	return list, nil
 }
 
 func (c *Client) GetTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string) (*TrafficMatchingList, error) {
-	var response TrafficMatchingList
-	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, nil, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("get traffic matching list site id: %w", err)
+	}
+	listUUID, err := parseUUID(trafficMatchingListID)
+	if err != nil {
+		return nil, fmt.Errorf("get traffic matching list id: %w", err)
+	}
+
+	response, err := c.apiClient.GetTrafficMatchingListWithResponse(ctx, siteUUID, listUUID)
+	if err != nil {
+		return nil, fmt.Errorf("get traffic matching list: %w", err)
+	}
+
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	list, err := decodeBody[TrafficMatchingList](response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("decode traffic matching list: %w", err)
+	}
+
+	return list, nil
 }
 
 func (c *Client) UpdateTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string, request TrafficMatchingList) (*TrafficMatchingList, error) {
-	var response TrafficMatchingList
-	if err := c.do(ctx, http.MethodPut, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("update traffic matching list site id: %w", err)
+	}
+	listUUID, err := parseUUID(trafficMatchingListID)
+	if err != nil {
+		return nil, fmt.Errorf("update traffic matching list id: %w", err)
+	}
+
+	body, err := jsonBodyReader(request)
+	if err != nil {
+		return nil, fmt.Errorf("encode update traffic matching list request: %w", err)
+	}
+
+	response, err := c.apiClient.UpdateTrafficMatchingListWithBodyWithResponse(ctx, siteUUID, listUUID, "application/json", body)
+	if err != nil {
+		return nil, fmt.Errorf("update traffic matching list: %w", err)
+	}
+
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	list, err := decodeBody[TrafficMatchingList](response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("decode updated traffic matching list: %w", err)
+	}
+
+	return list, nil
 }
 
 func (c *Client) DeleteTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string) error {
-	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, nil, nil)
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return fmt.Errorf("delete traffic matching list site id: %w", err)
+	}
+	listUUID, err := parseUUID(trafficMatchingListID)
+	if err != nil {
+		return fmt.Errorf("delete traffic matching list id: %w", err)
+	}
+
+	response, err := c.apiClient.DeleteTrafficMatchingListWithResponse(ctx, siteUUID, listUUID)
+	if err != nil {
+		return fmt.Errorf("delete traffic matching list: %w", err)
+	}
+
+	return requireStatus(response.StatusCode(), response.Body, http.StatusOK, http.StatusNoContent)
 }
 
 func (c *Client) ListTrafficMatchingLists(ctx context.Context, siteID string) ([]TrafficMatchingList, error) {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list traffic matching lists site id: %w", err)
+	}
+
 	var lists []TrafficMatchingList
 	offset := 0
 
 	for {
-		var response page[TrafficMatchingList]
-		query := url.Values{}
-		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
-		query.Set("offset", fmt.Sprintf("%d", offset))
+		response, err := c.apiClient.GetTrafficMatchingListsWithResponse(ctx, siteUUID, &generated.GetTrafficMatchingListsParams{
+			Limit:  pageParam(defaultPageLimit),
+			Offset: pageParam(offset),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list traffic matching lists: %w", err)
+		}
 
-		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists", siteID), query, nil, &response); err != nil {
+		if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 			return nil, err
 		}
 
-		lists = append(lists, response.Data...)
-		offset += len(response.Data)
+		page, err := decodeBody[page[TrafficMatchingList]](response.Body)
+		if err != nil {
+			return nil, fmt.Errorf("decode traffic matching list page: %w", err)
+		}
 
-		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+		lists = append(lists, page.Data...)
+		offset += len(page.Data)
+
+		if len(page.Data) == 0 || int64(offset) >= page.TotalCount {
 			break
 		}
 	}

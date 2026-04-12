@@ -150,4 +150,9 @@ Optional environment variables:
 
 Use a dedicated disposable UniFi site for these tests. The live suite creates and destroys real resources.
 
-Tests that exercise zone firewall resources are skipped unless `UNIFI_TEST_ENABLE_ZONE_FIREWALL=1` is set.
+Live test behavior:
+
+- core coverage always runs: `unifi_site`, `unifi_network`, `unifi_traffic_matching_list`, `unifi_dns_policy`, `unifi_acl_rule`
+- WiFi broadcast coverage is skipped unless `UNIFI_TEST_WIFI_PASSPHRASE` is set
+- zone firewall coverage is skipped unless `UNIFI_TEST_ENABLE_ZONE_FIREWALL=1` is set
+- inventory-backed data sources such as `unifi_wan`, `unifi_radius_profile`, `unifi_device_tag`, `unifi_switch_stack`, `unifi_mc_lag_domain`, and `unifi_lag` skip when the target site has no matching objects

@@ -1,8 +1,10 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 
@@ -81,6 +83,28 @@ func transcode[T any](input any) (T, error) {
 	}
 
 	return output, nil
+}
+
+func jsonBodyReader(input any) (io.Reader, error) {
+	payload, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request body: %w", err)
+	}
+
+	return bytes.NewReader(payload), nil
+}
+
+func decodeBody[T any](body []byte) (*T, error) {
+	if len(body) == 0 {
+		return nil, fmt.Errorf("unexpected empty response body")
+	}
+
+	var output T
+	if err := json.Unmarshal(body, &output); err != nil {
+		return nil, fmt.Errorf("decode response body: %w", err)
+	}
+
+	return &output, nil
 }
 
 func isNilValue(input any) bool {
