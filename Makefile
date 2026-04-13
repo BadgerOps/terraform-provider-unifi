@@ -1,6 +1,8 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate testacc release-artifacts sync-version check-version-drift
+DOCS_TRACKED_PATHS := docs templates examples/README.md examples/provider examples/resources examples/data-sources
+
+.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate docs-generate docs-check testacc release-artifacts sync-version check-version-drift
 
 fmt:
 	go fmt ./...
@@ -32,6 +34,13 @@ tflint:
 
 openapi-generate:
 	./scripts/generate-openapi.sh
+
+docs-generate:
+	./scripts/generate-docs.sh
+
+docs-check:
+	./scripts/generate-docs.sh
+	git diff --exit-code -- $(DOCS_TRACKED_PATHS)
 
 sync-version:
 	./scripts/sync-version.sh

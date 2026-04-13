@@ -55,6 +55,39 @@ Current codegen status:
 
 Because upstream `oapi-codegen` still does not claim full OpenAPI `3.1` support, the repo keeps the upstream snapshot untouched and applies an OpenAPI Overlay at generation time to downgrade the declared document version to `3.0.3`. The provider code continues to isolate generated DTOs behind explicit translation code in [`internal/translate`](./internal/translate).
 
+## Generated Docs
+
+Schema-driven provider docs are generated into [`docs`](./docs) with `tfplugindocs`.
+
+Generation inputs come from:
+
+- Terraform schema definitions in [`internal/provider`](./internal/provider)
+- provider/resource/data source examples under [`examples/provider`](./examples/provider), [`examples/resources`](./examples/resources), and [`examples/data-sources`](./examples/data-sources)
+- resource import examples under [`examples/resources`](./examples/resources)
+- provider landing-page template under [`templates/index.md.tmpl`](./templates/index.md.tmpl)
+
+The checked-in example contract is documented in [`examples/README.md`](./examples/README.md). Each provider object should have a minimal public-facing example that shows the intended Terraform workflow, not an internal test fixture.
+
+Generation workflow:
+
+1. Update the schema implementation in [`internal/provider`](./internal/provider).
+2. Add or update the matching example files in [`examples`](./examples).
+3. Run `make docs-generate` to regenerate `docs/`.
+4. Run `make docs-check` to confirm there is no drift in generated docs, templates, or documentation example inputs.
+5. Commit both the code changes and the generated markdown.
+
+Useful commands:
+
+```bash
+make docs-generate
+make docs-check
+```
+
+Enforcement:
+
+- [docs.yml](./.github/workflows/docs.yml) runs `make docs-check` on pull requests and pushes to `master`
+- [`.pre-commit-config.yaml`](./.pre-commit-config.yaml) can run the same docs check locally before commit
+
 ## Provider example
 
 ```hcl
@@ -62,7 +95,7 @@ terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
-      version = "0.2.2"
+      version = "0.2.3"
     }
   }
 }
@@ -93,7 +126,7 @@ provider_installation {
 Then build the binary in the repo root:
 
 ```bash
-go build -o terraform-provider-unifi_v0.2.2 .
+go build -o terraform-provider-unifi_v0.2.3 .
 ```
 
 For CI and internal shared usage, use the packaged filesystem mirror bundle produced by the release workflow:
@@ -181,7 +214,9 @@ make test
 make build
 make sync-version
 make check-version-drift
-make release-artifacts VERSION=0.2.2
+make docs-generate
+make docs-check
+make release-artifacts VERSION=0.2.3
 make terraform-fmt-check
 make openapi-generate
 make testacc

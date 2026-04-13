@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.3] - 2026-04-13
+
+### Added
+
+- Generated provider documentation under `docs/`, driven by Terraform schema plus checked-in provider, resource, data source, and import examples.
+- `make docs-generate` and `make docs-check` for reproducible documentation generation and validation.
+- GitHub Actions docs workflow to detect drift in generated docs, templates, and documentation examples.
+- Checked-in docs generation inputs and local enforcement via `templates/index.md.tmpl`, `examples/README.md`, and a `pre-commit` docs drift hook.
+
 ## [0.2.2] - 2026-04-13
 
 ### Added
