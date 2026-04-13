@@ -33,6 +33,7 @@
             tfsec
             tflint
             unzip
+            zip
           ];
         };
 

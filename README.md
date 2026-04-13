@@ -51,6 +51,7 @@ terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
+      version = "0.1.0"
     }
   }
 }
@@ -61,6 +62,59 @@ provider "unifi" {
   allow_insecure = var.allow_insecure
 }
 ```
+
+## Internal Usage
+
+There are two practical ways to use this provider internally.
+
+For local development, use a Terraform CLI development override that points at a directory containing a locally built provider binary:
+
+```hcl
+# ~/.terraformrc or $TF_CLI_CONFIG_FILE
+provider_installation {
+  dev_overrides {
+    "badgerops/unifi" = "/absolute/path/to/terraform-provider-unifi"
+  }
+  direct {}
+}
+```
+
+Then build the binary in the repo root:
+
+```bash
+go build -o terraform-provider-unifi_v0.1.0 .
+```
+
+For CI and internal shared usage, use the packaged filesystem mirror bundle produced by the release workflow:
+
+- `.github/workflows/release.yml` reads the current version and notes from `CHANGELOG.md`
+- when a change lands on `master`, it builds release artifacts and publishes GitHub release assets for the current changelog version
+- `terraform-provider-unifi_<version>_terraform-mirror.tar.gz` is the recommended internal-consumption artifact
+
+Extract that mirror bundle onto the runner and point Terraform at it:
+
+```hcl
+# terraform.rc
+provider_installation {
+  filesystem_mirror {
+    path    = "/opt/terraform/providers"
+    include = ["badgerops/unifi"]
+  }
+  direct {
+    exclude = ["badgerops/unifi"]
+  }
+}
+```
+
+Then in CI:
+
+```bash
+export TF_CLI_CONFIG_FILE="$PWD/terraform.rc"
+terraform init
+terraform plan
+```
+
+The filesystem mirror bundle already contains the directory layout Terraform expects under `registry.terraform.io/badgerops/unifi/<version>/<os>_<arch>/`.
 
 ## Imports
 
@@ -116,6 +170,7 @@ Useful local commands:
 make fmt
 make test
 make build
+make release-artifacts VERSION=0.1.0
 make terraform-fmt-check
 make openapi-generate
 make testacc

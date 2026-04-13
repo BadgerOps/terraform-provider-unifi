@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate testacc
+.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate testacc release-artifacts
 
 fmt:
 	go fmt ./...
@@ -35,3 +35,7 @@ openapi-generate:
 
 testacc:
 	./scripts/testacc.sh
+
+release-artifacts:
+	@test -n "$(VERSION)" || (echo "VERSION is required, for example: make release-artifacts VERSION=0.1.0" >&2; exit 1)
+	./scripts/build-release-artifacts.sh "$(VERSION)"

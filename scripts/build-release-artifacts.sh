@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "usage: $0 <version> [dist_dir]" >&2
+  exit 1
+fi
+
+version="$1"
+dist_dir="${2:-dist/release}"
+repo_root="$(pwd)"
+
+provider_type="unifi"
+provider_host="registry.terraform.io"
+provider_namespace="badgerops"
+provider_name="terraform-provider-${provider_type}"
+
+platforms=(
+  "linux/amd64"
+  "linux/arm64"
+  "darwin/amd64"
+  "darwin/arm64"
+  "windows/amd64"
+)
+
+rm -rf "${dist_dir}"
+mkdir -p "${dist_dir}"
+
+mirror_root="${dist_dir}/terraform-mirror/${provider_host}/${provider_namespace}/${provider_type}/${version}"
+
+for platform in "${platforms[@]}"; do
+  goos="${platform%/*}"
+  goarch="${platform#*/}"
+  target="${goos}_${goarch}"
+  ext=""
+  if [[ "${goos}" == "windows" ]]; then
+    ext=".exe"
+  fi
+
+  build_dir="${dist_dir}/build/${target}"
+  archive_name="${provider_name}_${version}_${target}.zip"
+  binary_name="${provider_name}_v${version}${ext}"
+
+  mkdir -p "${build_dir}" "${mirror_root}/${target}"
+
+  GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 \
+    go build \
+      -trimpath \
+      -ldflags="-s -w -X main.version=${version}" \
+      -o "${build_dir}/${binary_name}" \
+      .
+
+  (
+    cd "${build_dir}"
+    zip -q -9 "${repo_root}/${dist_dir}/${archive_name}" "${binary_name}"
+  )
+
+  cp "${dist_dir}/${archive_name}" "${mirror_root}/${target}/${archive_name}"
+done
+
+mirror_bundle="${dist_dir}/${provider_name}_${version}_terraform-mirror.tar.gz"
+tar -C "${dist_dir}" -czf "${mirror_bundle}" terraform-mirror
+
+(
+  cd "${dist_dir}"
+  sha256sum ./*.zip ./*.tar.gz > "${provider_name}_${version}_SHA256SUMS"
+)
