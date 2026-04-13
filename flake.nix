@@ -28,6 +28,7 @@
             gnumake
             jq
             opentofu
+            pre-commit
             terraformCompat
             terraform-ls
             tfsec
