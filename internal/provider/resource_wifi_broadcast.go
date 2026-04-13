@@ -461,17 +461,25 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 }
 
 func (r *wifiBroadcastResource) writeState(ctx context.Context, state *tfsdk.State, diags *diag.Diagnostics, siteID types.String, broadcast *client.WifiBroadcast) {
-	network, diagnostics := flattenWifiNetwork(ctx, broadcast.Network)
-	diags.Append(diagnostics...)
-	securityConfiguration, diagnostics := flattenWifiSecurityConfiguration(ctx, broadcast.SecurityConfiguration)
-	diags.Append(diagnostics...)
-	broadcastingFrequencies, diagnostics := float64SetValue(ctx, broadcast.BroadcastingFrequenciesGHz)
-	diags.Append(diagnostics...)
-	broadcastingDeviceFilter, diagnostics := flattenWifiBroadcastingDeviceFilter(ctx, broadcast.BroadcastingDeviceFilter)
+	model, diagnostics := buildWifiBroadcastStateModel(ctx, siteID, broadcast)
 	diags.Append(diagnostics...)
 	if diags.HasError() {
 		return
 	}
+
+	diags.Append(state.Set(ctx, &model)...)
+}
+
+func buildWifiBroadcastStateModel(ctx context.Context, siteID types.String, broadcast *client.WifiBroadcast) (wifiBroadcastResourceModel, diag.Diagnostics) {
+	var diagnostics diag.Diagnostics
+	network, networkDiagnostics := flattenWifiNetwork(ctx, broadcast.Network)
+	diagnostics.Append(networkDiagnostics...)
+	securityConfiguration, securityDiagnostics := flattenWifiSecurityConfiguration(ctx, broadcast.SecurityConfiguration)
+	diagnostics.Append(securityDiagnostics...)
+	broadcastingFrequencies, frequenciesDiagnostics := float64SetValue(ctx, broadcast.BroadcastingFrequenciesGHz)
+	diagnostics.Append(frequenciesDiagnostics...)
+	broadcastingDeviceFilter, deviceFilterDiagnostics := flattenWifiBroadcastingDeviceFilter(ctx, broadcast.BroadcastingDeviceFilter)
+	diagnostics.Append(deviceFilterDiagnostics...)
 
 	model := wifiBroadcastResourceModel{
 		ID:                                  types.StringValue(broadcast.ID),
@@ -493,7 +501,7 @@ func (r *wifiBroadcastResource) writeState(ctx context.Context, state *tfsdk.Sta
 		BSSTransitionEnabled:                nullableBool(broadcast.BSSTransitionEnabled),
 	}
 
-	diags.Append(state.Set(ctx, &model)...)
+	return model, diagnostics
 }
 
 func flattenWifiNetwork(ctx context.Context, network *client.WifiNetworkReference) (types.Object, diag.Diagnostics) {

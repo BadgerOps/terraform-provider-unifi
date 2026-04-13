@@ -411,6 +411,45 @@ func (c *Client) ListNetworks(ctx context.Context, siteID string) ([]Network, er
 	return networks, nil
 }
 
+func (c *Client) ListWifiBroadcasts(ctx context.Context, siteID string) ([]WifiBroadcast, error) {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list wifi broadcasts site id: %w", err)
+	}
+
+	var broadcasts []WifiBroadcast
+	offset := 0
+
+	for {
+		response, err := c.apiClient.GetWifiBroadcastPageWithResponse(ctx, siteUUID, &generated.GetWifiBroadcastPageParams{
+			Limit:  pageParam(defaultPageLimit),
+			Offset: pageParam(offset),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list wifi broadcasts: %w", err)
+		}
+
+		page, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+		if err != nil {
+			return nil, err
+		}
+
+		batch, err := transcode[[]WifiBroadcast](page.Data)
+		if err != nil {
+			return nil, fmt.Errorf("translate wifi broadcast page: %w", err)
+		}
+
+		broadcasts = append(broadcasts, batch...)
+		offset += len(batch)
+
+		if len(batch) == 0 || int64(offset) >= page.TotalCount {
+			break
+		}
+	}
+
+	return broadcasts, nil
+}
+
 func (c *Client) CreateWifiBroadcast(ctx context.Context, siteID string, request WifiBroadcast) (*WifiBroadcast, error) {
 	siteUUID, err := parseUUID(siteID)
 	if err != nil {

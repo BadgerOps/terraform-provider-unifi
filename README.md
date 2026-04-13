@@ -10,6 +10,7 @@ This repository follows the shared BadgerOps plan and the committed UniFi Networ
 - Data source: `unifi_site`
 - Data source: `unifi_device`
 - Data source: `unifi_network`
+- Data source: `unifi_wifi_broadcast`
 - Data source: `unifi_firewall_zone`
 - Data source: `unifi_firewall_policy`
 - Data source: `unifi_traffic_matching_list`
@@ -61,7 +62,7 @@ terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
-      version = "0.2.1"
+      version = "0.2.2"
     }
   }
 }
@@ -92,7 +93,7 @@ provider_installation {
 Then build the binary in the repo root:
 
 ```bash
-go build -o terraform-provider-unifi_v0.2.1 .
+go build -o terraform-provider-unifi_v0.2.2 .
 ```
 
 For CI and internal shared usage, use the packaged filesystem mirror bundle produced by the release workflow:
@@ -180,7 +181,7 @@ make test
 make build
 make sync-version
 make check-version-drift
-make release-artifacts VERSION=0.2.1
+make release-artifacts VERSION=0.2.2
 make terraform-fmt-check
 make openapi-generate
 make testacc
