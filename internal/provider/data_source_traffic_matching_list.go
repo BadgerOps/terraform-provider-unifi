@@ -22,11 +22,13 @@ type trafficMatchingListDataSource struct {
 }
 
 type trafficMatchingListDataSourceModel struct {
-	ID     types.String `tfsdk:"id"`
-	SiteID types.String `tfsdk:"site_id"`
-	Type   types.String `tfsdk:"type"`
-	Name   types.String `tfsdk:"name"`
-	Ports  types.Set    `tfsdk:"ports"`
+	ID            types.String `tfsdk:"id"`
+	SiteID        types.String `tfsdk:"site_id"`
+	Type          types.String `tfsdk:"type"`
+	Name          types.String `tfsdk:"name"`
+	Ports         types.Set    `tfsdk:"ports"`
+	IPv4Addresses types.Set    `tfsdk:"ipv4_addresses"`
+	IPv6Addresses types.Set    `tfsdk:"ipv6_addresses"`
 }
 
 func NewTrafficMatchingListDataSource() datasource.DataSource {
@@ -56,6 +58,14 @@ func (d *trafficMatchingListDataSource) Schema(_ context.Context, _ datasource.S
 				Computed: true,
 			},
 			"ports": schema.SetAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+			},
+			"ipv4_addresses": schema.SetAttribute{
+				Computed:    true,
+				ElementType: types.StringType,
+			},
+			"ipv6_addresses": schema.SetAttribute{
 				Computed:    true,
 				ElementType: types.StringType,
 			},
@@ -96,8 +106,28 @@ func (d *trafficMatchingListDataSource) Read(ctx context.Context, request dataso
 			state.ID = types.StringValue(list.ID)
 			state.Type = types.StringValue(list.Type)
 			state.Name = types.StringValue(list.Name)
+			values, err := flattenTrafficMatchingListItems(list.Type, list.Items)
+			if err != nil {
+				response.Diagnostics.AddError("Unable to flatten traffic matching list", err.Error())
+				return
+			}
+
+			state.Ports = types.SetNull(types.StringType)
+			state.IPv4Addresses = types.SetNull(types.StringType)
+			state.IPv6Addresses = types.SetNull(types.StringType)
+
 			var diagnostics diag.Diagnostics
-			state.Ports, diagnostics = stringSetValue(ctx, flattenPortMatches(list.Items))
+			switch list.Type {
+			case "PORTS":
+				state.Ports, diagnostics = stringSetValue(ctx, values)
+			case "IPV4_ADDRESSES":
+				state.IPv4Addresses, diagnostics = stringSetValue(ctx, values)
+			case "IPV6_ADDRESSES":
+				state.IPv6Addresses, diagnostics = stringSetValue(ctx, values)
+			default:
+				response.Diagnostics.AddError("Unsupported traffic matching list type", fmt.Sprintf("Unsupported traffic matching list type %q returned by the API.", list.Type))
+				return
+			}
 			response.Diagnostics.Append(diagnostics...)
 			if response.Diagnostics.HasError() {
 				return

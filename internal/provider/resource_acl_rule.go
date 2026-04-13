@@ -515,33 +515,52 @@ func expandACLMACFilter(ctx context.Context, value types.Object, path string, di
 }
 
 func (r *aclRuleResource) writeState(ctx context.Context, state *tfsdk.State, diags *diag.Diagnostics, siteID types.String, aclRule *client.ACLRule) {
+	model, diagnostics := buildACLRuleStateModel(ctx, siteID, aclRule)
+	diags.Append(diagnostics...)
+	if diags.HasError() {
+		return
+	}
+
+	diags.Append(state.Set(ctx, &model)...)
+}
+
+func buildACLRuleStateModel(ctx context.Context, siteID types.String, aclRule *client.ACLRule) (aclRuleDataSourceModel, diag.Diagnostics) {
 	enforcingDeviceIDs := types.SetNull(types.StringType)
 	if aclRule.EnforcingDeviceFilter != nil {
 		var diagnostics diag.Diagnostics
 		enforcingDeviceIDs, diagnostics = stringSetValue(ctx, aclRule.EnforcingDeviceFilter.DeviceIDs)
-		diags.Append(diagnostics...)
+		if diagnostics.HasError() {
+			return aclRuleDataSourceModel{}, diagnostics
+		}
 	}
 
 	protocolFilter := types.SetNull(types.StringType)
 	if len(aclRule.ProtocolFilter) > 0 {
 		var diagnostics diag.Diagnostics
 		protocolFilter, diagnostics = stringSetValue(ctx, aclRule.ProtocolFilter)
-		diags.Append(diagnostics...)
+		if diagnostics.HasError() {
+			return aclRuleDataSourceModel{}, diagnostics
+		}
 	}
 
 	sourceIPFilter, diagnostics := flattenACLIPFilter(ctx, aclRule.Type, aclRule.SourceFilter)
-	diags.Append(diagnostics...)
+	if diagnostics.HasError() {
+		return aclRuleDataSourceModel{}, diagnostics
+	}
 	destinationIPFilter, diagnostics := flattenACLIPFilter(ctx, aclRule.Type, aclRule.DestinationFilter)
-	diags.Append(diagnostics...)
+	if diagnostics.HasError() {
+		return aclRuleDataSourceModel{}, diagnostics
+	}
 	sourceMACFilter, diagnostics := flattenACLMACFilter(ctx, aclRule.Type, aclRule.SourceFilter)
-	diags.Append(diagnostics...)
+	if diagnostics.HasError() {
+		return aclRuleDataSourceModel{}, diagnostics
+	}
 	destinationMACFilter, diagnostics := flattenACLMACFilter(ctx, aclRule.Type, aclRule.DestinationFilter)
-	diags.Append(diagnostics...)
-	if diags.HasError() {
-		return
+	if diagnostics.HasError() {
+		return aclRuleDataSourceModel{}, diagnostics
 	}
 
-	model := aclRuleResourceModel{
+	model := aclRuleDataSourceModel{
 		ID:                   types.StringValue(aclRule.ID),
 		SiteID:               siteID,
 		Type:                 types.StringValue(aclRule.Type),
@@ -559,7 +578,7 @@ func (r *aclRuleResource) writeState(ctx context.Context, state *tfsdk.State, di
 		Index:                types.Int64Value(aclRule.Index),
 	}
 
-	diags.Append(state.Set(ctx, &model)...)
+	return model, nil
 }
 
 func flattenACLIPFilter(ctx context.Context, ruleType string, filter *client.ACLRuleEndpointFilter) (types.Object, diag.Diagnostics) {

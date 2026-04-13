@@ -11,7 +11,15 @@ This repository implements the new provider shape described in the adjacent Badg
 - Data source: `unifi_device`
 - Data source: `unifi_network`
 - Data source: `unifi_firewall_zone`
+- Data source: `unifi_firewall_policy`
 - Data source: `unifi_traffic_matching_list`
+- Data source: `unifi_dns_policy`
+- Data source: `unifi_acl_rule`
+- Data source: `unifi_vpn_server`
+- Data source: `unifi_site_to_site_vpn_tunnel`
+- Data source: `unifi_dpi_application`
+- Data source: `unifi_dpi_application_category`
+- Data source: `unifi_country`
 - Data source: `unifi_radius_profile`
 - Data source: `unifi_device_tag`
 - Data source: `unifi_wan`
@@ -23,11 +31,13 @@ This repository implements the new provider shape described in the adjacent Badg
   - `unifi_wifi_broadcast`
   - `unifi_firewall_zone`
   - `unifi_firewall_policy`
+  - `unifi_firewall_policy_ordering`
   - `unifi_traffic_matching_list`
   - `unifi_dns_policy`
   - `unifi_acl_rule`
+  - `unifi_acl_rule_ordering`
 
-The implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough. `unifi_radius_profile`, `unifi_device_tag`, `unifi_wan`, `unifi_switch_stack`, `unifi_mc_lag_domain`, and `unifi_lag` are data sources because the current shipped integration API only exposes read-only endpoints for them.
+The implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough. Firewall policy ordering and ACL rule ordering are managed through dedicated resources because the controller exposes separate ordering endpoints and treats the per-object `index` as read-only state. `unifi_radius_profile`, `unifi_device_tag`, `unifi_wan`, `unifi_switch_stack`, `unifi_mc_lag_domain`, and `unifi_lag` are data sources because the current shipped integration API only exposes read-only endpoints for them.
 
 ## OpenAPI Snapshot
 
@@ -124,9 +134,11 @@ Resources that belong to a site use composite import IDs:
 - `unifi_wifi_broadcast`: `<site_id>/<wifi_broadcast_id>`
 - `unifi_firewall_zone`: `<site_id>/<firewall_zone_id>`
 - `unifi_firewall_policy`: `<site_id>/<firewall_policy_id>`
+- `unifi_firewall_policy_ordering`: `<site_id>/<source_zone_id>/<destination_zone_id>`
 - `unifi_traffic_matching_list`: `<site_id>/<traffic_matching_list_id>`
 - `unifi_dns_policy`: `<site_id>/<dns_policy_id>`
 - `unifi_acl_rule`: `<site_id>/<acl_rule_id>`
+- `unifi_acl_rule_ordering`: `<site_id>`
 
 ## Migration
 
@@ -177,6 +189,13 @@ make testacc
 ```
 
 The [`examples/basic-site`](./examples/basic-site) configuration exercises the provider source address used by the final registry namespace and is validated in CI via a Terraform development override.
+
+### Pull Requests
+
+Every pull request must update [`CHANGELOG.md`](./CHANGELOG.md).
+
+- Bump the version for the next release entry on the branch.
+- Add a concise summary of the user-visible changes shipped by the PR.
 
 ## Live Acceptance Tests
 

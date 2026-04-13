@@ -119,15 +119,33 @@ resource "unifi_firewall_zone" "iot" {
 }
 
 resource "unifi_firewall_policy" "trusted_to_iot" {
-  site_id                 = data.unifi_site.main.id
-  enabled                 = true
-  name                    = "trusted-to-iot"
-  action                  = "ALLOW"
-  source_zone_id          = unifi_firewall_zone.trusted.id
-  destination_zone_id     = unifi_firewall_zone.iot.id
-  ip_version              = "IPV4_AND_IPV6"
-  logging_enabled         = false
-  destination_network_ids = [unifi_network.iot.id]
+  site_id              = data.unifi_site.main.id
+  enabled              = true
+  name                 = "trusted-to-iot"
+  action               = "ALLOW"
+  allow_return_traffic = true
+  source_zone_id       = unifi_firewall_zone.trusted.id
+  source_filter = {
+    type                   = "NETWORK"
+    network_ids            = [unifi_network.trusted.id]
+    network_match_opposite = false
+  }
+  destination_zone_id = unifi_firewall_zone.iot.id
+  destination_filter = {
+    type                   = "NETWORK"
+    network_ids            = [unifi_network.iot.id]
+    network_match_opposite = false
+  }
+  ip_version      = "IPV4_AND_IPV6"
+  logging_enabled = false
+}
+
+resource "unifi_firewall_policy_ordering" "trusted_to_iot" {
+  site_id                          = data.unifi_site.main.id
+  source_zone_id                   = unifi_firewall_zone.trusted.id
+  destination_zone_id              = unifi_firewall_zone.iot.id
+  before_system_defined_policy_ids = [unifi_firewall_policy.trusted_to_iot.id]
+  after_system_defined_policy_ids  = []
 }
 
 resource "unifi_dns_policy" "printer" {
@@ -156,4 +174,9 @@ resource "unifi_acl_rule" "block_iot_dns" {
     type  = "PORTS"
     ports = [53]
   }
+}
+
+resource "unifi_acl_rule_ordering" "site" {
+  site_id              = data.unifi_site.main.id
+  ordered_acl_rule_ids = [unifi_acl_rule.block_iot_dns.id]
 }

@@ -49,6 +49,36 @@ func validateIDOrNameLookup(id, name types.String) error {
 	return nil
 }
 
+func validateInt64OrNameLookup(id types.Int64, name types.String) error {
+	lookupCount := 0
+	if !id.IsNull() {
+		lookupCount++
+	}
+	if !name.IsNull() && name.ValueString() != "" {
+		lookupCount++
+	}
+	if lookupCount != 1 {
+		return fmt.Errorf("exactly one of `id` or `name` must be set")
+	}
+
+	return nil
+}
+
+func validateCodeOrNameLookup(code, name types.String) error {
+	lookupCount := 0
+	if !code.IsNull() && code.ValueString() != "" {
+		lookupCount++
+	}
+	if !name.IsNull() && name.ValueString() != "" {
+		lookupCount++
+	}
+	if lookupCount != 1 {
+		return fmt.Errorf("exactly one of `code` or `name` must be set")
+	}
+
+	return nil
+}
+
 func importCompositeID(ctx context.Context, request resource.ImportStateRequest, response *resource.ImportStateResponse) {
 	siteID, resourceID, err := parseCompositeImportID(request.ID)
 	if err != nil {
@@ -66,6 +96,13 @@ func stringSetValue(ctx context.Context, values []string) (types.Set, diag.Diagn
 	}
 
 	return types.SetValueFrom(ctx, types.StringType, values)
+}
+
+func stringListValue(ctx context.Context, values []string) (types.List, diag.Diagnostics) {
+	if values == nil {
+		values = []string{}
+	}
+	return types.ListValueFrom(ctx, types.StringType, values)
 }
 
 func float64SetValue(ctx context.Context, values []float64) (types.Set, diag.Diagnostics) {
@@ -93,6 +130,20 @@ func setToStrings(ctx context.Context, value types.Set, path string, diags *diag
 	diags.Append(value.ElementsAs(ctx, &values, false)...)
 	if diags.HasError() {
 		diags.AddError("Invalid set value", fmt.Sprintf("Unable to decode `%s` into a string slice.", path))
+	}
+
+	return values
+}
+
+func listToStrings(ctx context.Context, value types.List, path string, diags *diag.Diagnostics) []string {
+	if value.IsNull() || value.IsUnknown() {
+		return nil
+	}
+
+	var values []string
+	diags.Append(value.ElementsAs(ctx, &values, false)...)
+	if diags.HasError() {
+		diags.AddError("Invalid list value", fmt.Sprintf("Unable to decode `%s` into a string slice.", path))
 	}
 
 	return values
@@ -151,6 +202,10 @@ func int64PointerValue(value types.Int64) *int64 {
 
 	contents := value.ValueInt64()
 	return &contents
+}
+
+func boolValueOrFalse(value types.Bool) bool {
+	return !value.IsNull() && !value.IsUnknown() && value.ValueBool()
 }
 
 func nullableString(value *string) types.String {

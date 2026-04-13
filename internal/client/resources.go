@@ -115,12 +115,17 @@ type FirewallZone struct {
 }
 
 type FirewallPolicyAction struct {
-	Type string `json:"type"`
+	Type               string `json:"type"`
+	AllowReturnTraffic *bool  `json:"allowReturnTraffic,omitempty"`
 }
 
 type FirewallPolicyNetworkFilter struct {
 	NetworkIDs    []string `json:"networkIds"`
 	MatchOpposite bool     `json:"matchOpposite"`
+}
+
+type FirewallPolicyMACAddressListFilter struct {
+	MacAddresses []string `json:"macAddresses"`
 }
 
 type PortMatch struct {
@@ -130,11 +135,18 @@ type PortMatch struct {
 	Stop  *int64 `json:"stop,omitempty"`
 }
 
+type TrafficMatchingItem struct {
+	Type  string `json:"type"`
+	Value any    `json:"value,omitempty"`
+	Start any    `json:"start,omitempty"`
+	Stop  any    `json:"stop,omitempty"`
+}
+
 type TrafficMatchingList struct {
-	ID    string      `json:"id,omitempty"`
-	Type  string      `json:"type"`
-	Name  string      `json:"name"`
-	Items []PortMatch `json:"items,omitempty"`
+	ID    string                `json:"id,omitempty"`
+	Type  string                `json:"type"`
+	Name  string                `json:"name"`
+	Items []TrafficMatchingItem `json:"items,omitempty"`
 }
 
 type FirewallPolicyPortFilter struct {
@@ -144,10 +156,58 @@ type FirewallPolicyPortFilter struct {
 	TrafficMatchingListID *string     `json:"trafficMatchingListId,omitempty"`
 }
 
+type FirewallPolicyIPAddressFilter struct {
+	Type                  string                `json:"type"`
+	MatchOpposite         bool                  `json:"matchOpposite"`
+	Items                 []TrafficMatchingItem `json:"items,omitempty"`
+	TrafficMatchingListID *string               `json:"trafficMatchingListId,omitempty"`
+}
+
+type FirewallPolicyIPv6IIDFilter struct {
+	IPv6IID       string `json:"ipv6Iid"`
+	MatchOpposite bool   `json:"matchOpposite"`
+}
+
+type FirewallPolicyRegionFilter struct {
+	Regions []string `json:"regions"`
+}
+
+type FirewallPolicyVPNServerFilter struct {
+	VPNServerIDs  []string `json:"vpnServerIds"`
+	MatchOpposite bool     `json:"matchOpposite"`
+}
+
+type FirewallPolicySiteToSiteVPNTunnelFilter struct {
+	SiteToSiteVPNTunnelID string `json:"siteToSiteVpnTunnelId"`
+}
+
+type FirewallPolicyDomainFilter struct {
+	Type    string   `json:"type"`
+	Domains []string `json:"domains"`
+}
+
+type FirewallPolicyApplicationFilter struct {
+	ApplicationIDs []int64 `json:"applicationIds"`
+}
+
+type FirewallPolicyApplicationCategoryFilter struct {
+	ApplicationCategoryIDs []int64 `json:"applicationCategoryIds"`
+}
+
 type FirewallPolicyTrafficFilter struct {
-	Type          string                       `json:"type"`
-	NetworkFilter *FirewallPolicyNetworkFilter `json:"networkFilter,omitempty"`
-	PortFilter    *FirewallPolicyPortFilter    `json:"portFilter,omitempty"`
+	Type                      string                                   `json:"type"`
+	NetworkFilter             *FirewallPolicyNetworkFilter             `json:"networkFilter,omitempty"`
+	MACAddress                *string                                  `json:"-"`
+	MACAddressFilter          *FirewallPolicyMACAddressListFilter      `json:"-"`
+	PortFilter                *FirewallPolicyPortFilter                `json:"portFilter,omitempty"`
+	IPAddressFilter           *FirewallPolicyIPAddressFilter           `json:"ipAddressFilter,omitempty"`
+	IPv6IIDFilter             *FirewallPolicyIPv6IIDFilter             `json:"ipv6IidFilter,omitempty"`
+	RegionFilter              *FirewallPolicyRegionFilter              `json:"regionFilter,omitempty"`
+	VPNServerFilter           *FirewallPolicyVPNServerFilter           `json:"vpnServerFilter,omitempty"`
+	SiteToSiteVPNTunnelFilter *FirewallPolicySiteToSiteVPNTunnelFilter `json:"siteToSiteVpnTunnelFilter,omitempty"`
+	DomainFilter              *FirewallPolicyDomainFilter              `json:"domainFilter,omitempty"`
+	ApplicationFilter         *FirewallPolicyApplicationFilter         `json:"applicationFilter,omitempty"`
+	ApplicationCategoryFilter *FirewallPolicyApplicationCategoryFilter `json:"applicationCategoryFilter,omitempty"`
 }
 
 type FirewallPolicyEndpoint struct {
@@ -156,7 +216,38 @@ type FirewallPolicyEndpoint struct {
 }
 
 type FirewallPolicyIPProtocolScope struct {
-	IPVersion string `json:"ipVersion"`
+	IPVersion      string                        `json:"ipVersion"`
+	ProtocolFilter *FirewallPolicyProtocolFilter `json:"protocolFilter,omitempty"`
+}
+
+type FirewallPolicyNamedProtocol struct {
+	Name string `json:"name"`
+}
+
+type FirewallPolicyProtocolPreset struct {
+	Name string `json:"name"`
+}
+
+type FirewallPolicyProtocolFilter struct {
+	Type           string                        `json:"type"`
+	MatchOpposite  *bool                         `json:"matchOpposite,omitempty"`
+	Protocol       *FirewallPolicyNamedProtocol  `json:"protocol,omitempty"`
+	ProtocolNumber *int64                        `json:"protocolNumber,omitempty"`
+	Preset         *FirewallPolicyProtocolPreset `json:"preset,omitempty"`
+}
+
+type FirewallScheduleTime struct {
+	StartTime string `json:"startTime"`
+	StopTime  string `json:"stopTime"`
+}
+
+type FirewallSchedule struct {
+	Mode         string                `json:"mode"`
+	TimeFilter   *FirewallScheduleTime `json:"timeFilter,omitempty"`
+	RepeatOnDays []string              `json:"repeatOnDays,omitempty"`
+	Date         *string               `json:"date,omitempty"`
+	StartDate    *string               `json:"startDate,omitempty"`
+	StopDate     *string               `json:"stopDate,omitempty"`
 }
 
 type FirewallPolicy struct {
@@ -172,7 +263,7 @@ type FirewallPolicy struct {
 	ConnectionStateFilter []string                       `json:"connectionStateFilter,omitempty"`
 	IPsecFilter           *string                        `json:"ipsecFilter,omitempty"`
 	LoggingEnabled        bool                           `json:"loggingEnabled"`
-	Schedule              map[string]any                 `json:"schedule,omitempty"`
+	Schedule              *FirewallSchedule              `json:"schedule,omitempty"`
 	Metadata              map[string]any                 `json:"metadata,omitempty"`
 }
 
@@ -219,17 +310,16 @@ func (c *Client) GetNetwork(ctx context.Context, siteID, networkID string) (*Net
 		return nil, fmt.Errorf("get network: %w", err)
 	}
 
-	details, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
 
-	network, err := transcode[Network](details)
+	network, err := decodeBody[Network](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate network details: %w", err)
+		return nil, fmt.Errorf("decode network details: %w", err)
 	}
 
-	return &network, nil
+	return network, nil
 }
 
 func (c *Client) UpdateNetwork(ctx context.Context, siteID, networkID string, request Network) (*Network, error) {
@@ -579,27 +669,26 @@ func (c *Client) CreateFirewallPolicy(ctx context.Context, siteID string, reques
 		return nil, fmt.Errorf("create firewall policy site id: %w", err)
 	}
 
-	body, err := transcode[generated.CreateFirewallPolicyJSONRequestBody](request)
+	body, err := jsonBodyReader(request)
 	if err != nil {
-		return nil, fmt.Errorf("translate create firewall policy request: %w", err)
+		return nil, fmt.Errorf("encode create firewall policy request: %w", err)
 	}
 
-	response, err := c.apiClient.CreateFirewallPolicyWithResponse(ctx, siteUUID, body)
+	response, err := c.apiClient.CreateFirewallPolicyWithBodyWithResponse(ctx, siteUUID, "application/json", body)
 	if err != nil {
 		return nil, fmt.Errorf("create firewall policy: %w", err)
 	}
 
-	created, err := requireJSON(response.StatusCode(), response.Body, response.JSON201, http.StatusCreated)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusCreated); err != nil {
 		return nil, err
 	}
 
-	policy, err := transcode[FirewallPolicy](created)
+	policy, err := decodeBody[FirewallPolicy](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate created firewall policy: %w", err)
+		return nil, fmt.Errorf("decode created firewall policy: %w", err)
 	}
 
-	return &policy, nil
+	return policy, nil
 }
 
 func (c *Client) GetFirewallPolicy(ctx context.Context, siteID, firewallPolicyID string) (*FirewallPolicy, error) {
@@ -617,17 +706,16 @@ func (c *Client) GetFirewallPolicy(ctx context.Context, siteID, firewallPolicyID
 		return nil, fmt.Errorf("get firewall policy: %w", err)
 	}
 
-	details, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
 
-	policy, err := transcode[FirewallPolicy](details)
+	policy, err := decodeBody[FirewallPolicy](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate firewall policy: %w", err)
+		return nil, fmt.Errorf("decode firewall policy: %w", err)
 	}
 
-	return &policy, nil
+	return policy, nil
 }
 
 func (c *Client) UpdateFirewallPolicy(ctx context.Context, siteID, firewallPolicyID string, request FirewallPolicy) (*FirewallPolicy, error) {
@@ -640,27 +728,26 @@ func (c *Client) UpdateFirewallPolicy(ctx context.Context, siteID, firewallPolic
 		return nil, fmt.Errorf("update firewall policy id: %w", err)
 	}
 
-	body, err := transcode[generated.UpdateFirewallPolicyJSONRequestBody](request)
+	body, err := jsonBodyReader(request)
 	if err != nil {
-		return nil, fmt.Errorf("translate update firewall policy request: %w", err)
+		return nil, fmt.Errorf("encode update firewall policy request: %w", err)
 	}
 
-	response, err := c.apiClient.UpdateFirewallPolicyWithResponse(ctx, siteUUID, policyUUID, body)
+	response, err := c.apiClient.UpdateFirewallPolicyWithBodyWithResponse(ctx, siteUUID, policyUUID, "application/json", body)
 	if err != nil {
 		return nil, fmt.Errorf("update firewall policy: %w", err)
 	}
 
-	updated, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
 
-	policy, err := transcode[FirewallPolicy](updated)
+	policy, err := decodeBody[FirewallPolicy](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate updated firewall policy: %w", err)
+		return nil, fmt.Errorf("decode updated firewall policy: %w", err)
 	}
 
-	return &policy, nil
+	return policy, nil
 }
 
 func (c *Client) DeleteFirewallPolicy(ctx context.Context, siteID, firewallPolicyID string) error {
@@ -679,6 +766,44 @@ func (c *Client) DeleteFirewallPolicy(ctx context.Context, siteID, firewallPolic
 	}
 
 	return requireStatus(response.StatusCode(), response.Body, http.StatusOK, http.StatusNoContent)
+}
+
+func (c *Client) ListFirewallPolicies(ctx context.Context, siteID string) ([]FirewallPolicy, error) {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list firewall policies site id: %w", err)
+	}
+
+	var policies []FirewallPolicy
+	offset := 0
+
+	for {
+		response, err := c.apiClient.GetFirewallPoliciesWithResponse(ctx, siteUUID, &generated.GetFirewallPoliciesParams{
+			Limit:  pageParam(defaultPageLimit),
+			Offset: pageParam(offset),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list firewall policies: %w", err)
+		}
+
+		if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
+			return nil, err
+		}
+
+		page, err := decodeBody[page[FirewallPolicy]](response.Body)
+		if err != nil {
+			return nil, fmt.Errorf("decode firewall policy page: %w", err)
+		}
+
+		policies = append(policies, page.Data...)
+		offset += len(page.Data)
+
+		if len(page.Data) == 0 || int64(offset) >= page.TotalCount {
+			break
+		}
+	}
+
+	return policies, nil
 }
 
 func (c *Client) CreateTrafficMatchingList(ctx context.Context, siteID string, request TrafficMatchingList) (*TrafficMatchingList, error) {
