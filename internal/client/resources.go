@@ -182,27 +182,26 @@ func (c *Client) CreateNetwork(ctx context.Context, siteID string, request Netwo
 		return nil, fmt.Errorf("create network site id: %w", err)
 	}
 
-	body, err := transcode[generated.CreateNetworkJSONRequestBody](request)
+	body, err := jsonBodyReader(request)
 	if err != nil {
-		return nil, fmt.Errorf("translate create network request: %w", err)
+		return nil, fmt.Errorf("encode create network request: %w", err)
 	}
 
-	response, err := c.apiClient.CreateNetworkWithResponse(ctx, siteUUID, body)
+	response, err := c.apiClient.CreateNetworkWithBodyWithResponse(ctx, siteUUID, "application/json", body)
 	if err != nil {
 		return nil, fmt.Errorf("create network: %w", err)
 	}
 
-	created, err := requireJSON(response.StatusCode(), response.Body, response.JSON201, http.StatusCreated)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusCreated); err != nil {
 		return nil, err
 	}
 
-	network, err := transcode[Network](created)
+	created, err := decodeBody[Network](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate created network: %w", err)
+		return nil, fmt.Errorf("decode created network: %w", err)
 	}
 
-	return &network, nil
+	return created, nil
 }
 
 func (c *Client) GetNetwork(ctx context.Context, siteID, networkID string) (*Network, error) {
@@ -243,27 +242,26 @@ func (c *Client) UpdateNetwork(ctx context.Context, siteID, networkID string, re
 		return nil, fmt.Errorf("update network id: %w", err)
 	}
 
-	body, err := transcode[generated.UpdateNetworkJSONRequestBody](request)
+	body, err := jsonBodyReader(request)
 	if err != nil {
-		return nil, fmt.Errorf("translate update network request: %w", err)
+		return nil, fmt.Errorf("encode update network request: %w", err)
 	}
 
-	response, err := c.apiClient.UpdateNetworkWithResponse(ctx, siteUUID, networkUUID, body)
+	response, err := c.apiClient.UpdateNetworkWithBodyWithResponse(ctx, siteUUID, networkUUID, "application/json", body)
 	if err != nil {
 		return nil, fmt.Errorf("update network: %w", err)
 	}
 
-	updated, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
 
-	network, err := transcode[Network](updated)
+	updated, err := decodeBody[Network](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate updated network: %w", err)
+		return nil, fmt.Errorf("decode updated network: %w", err)
 	}
 
-	return &network, nil
+	return updated, nil
 }
 
 func (c *Client) DeleteNetwork(ctx context.Context, siteID, networkID string) error {

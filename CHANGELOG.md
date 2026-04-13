@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.1.1] - 2026-04-13
+
+### Fixed
+
+- Network create and update requests now use raw JSON over the generated transport so required fields like `isolationEnabled`, `internetAccessEnabled`, `mdnsForwardingEnabled`, `ipv4Configuration`, and `cellularBackupEnabled` are preserved.
+- Fixed imported network management under Terraform `dev_overrides`, where apply could fail with `api.request.error` because the generated OpenAPI request type dropped required update payload fields.
+
 ## [0.1.0] - 2026-04-12
 
 ### Added
