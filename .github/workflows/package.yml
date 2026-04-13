@@ -1,0 +1,40 @@
+name: Package
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install archive tooling
+        run: sudo apt-get update && sudo apt-get install -y zip
+
+      - name: Build release artifacts
+        env:
+          VERSION: 0.0.0-dev.${{ github.run_number }}
+        run: make release-artifacts VERSION="${VERSION}"
+
+      - name: Upload packaged provider artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-provider-unifi-dist
+          path: dist/release/*
+          if-no-files-found: error
