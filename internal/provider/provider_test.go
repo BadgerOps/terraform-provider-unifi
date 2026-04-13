@@ -46,43 +46,47 @@ type mockUniFiAPI struct {
 	existingSwitchStackLagID      string
 	existingMcLagID               string
 
-	sites                map[string]client.Site
-	networks             map[string]map[string]client.Network
-	wifiBroadcasts       map[string]map[string]client.WifiBroadcast
-	firewallZones        map[string]map[string]client.FirewallZone
-	firewallPolicies     map[string]map[string]client.FirewallPolicy
-	trafficMatchingLists map[string]map[string]client.TrafficMatchingList
-	radiusProfiles       map[string]map[string]client.RadiusProfile
-	deviceTags           map[string]map[string]client.DeviceTag
-	devices              map[string]map[string]client.Device
-	dnsPolicies          map[string]map[string]client.DNSPolicy
-	aclRules             map[string]map[string]client.ACLRule
-	wans                 map[string]map[string]client.WAN
-	switchStacks         map[string]map[string]client.SwitchStack
-	mcLagDomains         map[string]map[string]client.McLagDomain
-	lags                 map[string]map[string]client.Lag
+	sites                   map[string]client.Site
+	networks                map[string]map[string]client.Network
+	wifiBroadcasts          map[string]map[string]client.WifiBroadcast
+	firewallZones           map[string]map[string]client.FirewallZone
+	firewallPolicies        map[string]map[string]client.FirewallPolicy
+	firewallPolicyOrderings map[string]map[string]client.FirewallPolicyOrdering
+	trafficMatchingLists    map[string]map[string]client.TrafficMatchingList
+	radiusProfiles          map[string]map[string]client.RadiusProfile
+	deviceTags              map[string]map[string]client.DeviceTag
+	devices                 map[string]map[string]client.Device
+	dnsPolicies             map[string]map[string]client.DNSPolicy
+	aclRules                map[string]map[string]client.ACLRule
+	aclRuleOrderings        map[string]client.ACLRuleOrdering
+	wans                    map[string]map[string]client.WAN
+	switchStacks            map[string]map[string]client.SwitchStack
+	mcLagDomains            map[string]map[string]client.McLagDomain
+	lags                    map[string]map[string]client.Lag
 }
 
 func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	t.Helper()
 
 	api := &mockUniFiAPI{
-		nextID:               1,
-		sites:                make(map[string]client.Site),
-		networks:             make(map[string]map[string]client.Network),
-		wifiBroadcasts:       make(map[string]map[string]client.WifiBroadcast),
-		firewallZones:        make(map[string]map[string]client.FirewallZone),
-		firewallPolicies:     make(map[string]map[string]client.FirewallPolicy),
-		trafficMatchingLists: make(map[string]map[string]client.TrafficMatchingList),
-		radiusProfiles:       make(map[string]map[string]client.RadiusProfile),
-		deviceTags:           make(map[string]map[string]client.DeviceTag),
-		devices:              make(map[string]map[string]client.Device),
-		dnsPolicies:          make(map[string]map[string]client.DNSPolicy),
-		aclRules:             make(map[string]map[string]client.ACLRule),
-		wans:                 make(map[string]map[string]client.WAN),
-		switchStacks:         make(map[string]map[string]client.SwitchStack),
-		mcLagDomains:         make(map[string]map[string]client.McLagDomain),
-		lags:                 make(map[string]map[string]client.Lag),
+		nextID:                  1,
+		sites:                   make(map[string]client.Site),
+		networks:                make(map[string]map[string]client.Network),
+		wifiBroadcasts:          make(map[string]map[string]client.WifiBroadcast),
+		firewallZones:           make(map[string]map[string]client.FirewallZone),
+		firewallPolicies:        make(map[string]map[string]client.FirewallPolicy),
+		firewallPolicyOrderings: make(map[string]map[string]client.FirewallPolicyOrdering),
+		trafficMatchingLists:    make(map[string]map[string]client.TrafficMatchingList),
+		radiusProfiles:          make(map[string]map[string]client.RadiusProfile),
+		deviceTags:              make(map[string]map[string]client.DeviceTag),
+		devices:                 make(map[string]map[string]client.Device),
+		dnsPolicies:             make(map[string]map[string]client.DNSPolicy),
+		aclRules:                make(map[string]map[string]client.ACLRule),
+		aclRuleOrderings:        make(map[string]client.ACLRuleOrdering),
+		wans:                    make(map[string]map[string]client.WAN),
+		switchStacks:            make(map[string]map[string]client.SwitchStack),
+		mcLagDomains:            make(map[string]map[string]client.McLagDomain),
+		lags:                    make(map[string]map[string]client.Lag),
 	}
 
 	api.siteID = api.newID()
@@ -95,6 +99,7 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	api.wifiBroadcasts[api.siteID] = make(map[string]client.WifiBroadcast)
 	api.firewallZones[api.siteID] = make(map[string]client.FirewallZone)
 	api.firewallPolicies[api.siteID] = make(map[string]client.FirewallPolicy)
+	api.firewallPolicyOrderings[api.siteID] = make(map[string]client.FirewallPolicyOrdering)
 	api.trafficMatchingLists[api.siteID] = make(map[string]client.TrafficMatchingList)
 	api.radiusProfiles[api.siteID] = make(map[string]client.RadiusProfile)
 	api.deviceTags[api.siteID] = make(map[string]client.DeviceTag)
@@ -180,6 +185,12 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	}
 	api.existingFirewallPolicyID = existingFirewallPolicy.ID
 	api.firewallPolicies[api.siteID][existingFirewallPolicy.ID] = existingFirewallPolicy
+	api.firewallPolicyOrderings[api.siteID][firewallPolicyOrderingKey(existingZone.ID, existingZone.ID)] = client.FirewallPolicyOrdering{
+		OrderedFirewallPolicyIDs: client.FirewallPolicyOrderedIDs{
+			BeforeSystemDefined: []string{existingFirewallPolicy.ID},
+		},
+	}
+	api.reindexFirewallPolicies(api.siteID, existingZone.ID, existingZone.ID)
 
 	existingTrafficMatchingList := client.TrafficMatchingList{
 		ID:   api.newID(),
@@ -224,6 +235,10 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	}
 	api.existingACLRuleID = existingACLRule.ID
 	api.aclRules[api.siteID][existingACLRule.ID] = existingACLRule
+	api.aclRuleOrderings[api.siteID] = client.ACLRuleOrdering{
+		OrderedACLRuleIDs: []string{existingACLRule.ID},
+	}
+	api.reindexACLRules(api.siteID)
 
 	existingRadiusProfile := client.RadiusProfile{
 		ID:   api.newID(),
@@ -337,6 +352,193 @@ func (api *mockUniFiAPI) newID() string {
 	return id
 }
 
+func firewallPolicyOrderingKey(sourceZoneID, destinationZoneID string) string {
+	return sourceZoneID + "/" + destinationZoneID
+}
+
+func removeString(values []string, target string) []string {
+	output := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != target {
+			output = append(output, value)
+		}
+	}
+
+	return output
+}
+
+func appendMissingIDs(existing []string, candidates []string) []string {
+	allowed := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		allowed[candidate] = struct{}{}
+	}
+
+	seen := make(map[string]struct{}, len(existing))
+	output := make([]string, 0, len(candidates))
+	for _, value := range existing {
+		if _, ok := allowed[value]; !ok {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		output = append(output, value)
+		seen[value] = struct{}{}
+	}
+
+	for _, candidate := range candidates {
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		output = append(output, candidate)
+		seen[candidate] = struct{}{}
+	}
+
+	return output
+}
+
+func (api *mockUniFiAPI) orderedACLRuleIDs(siteID string) []string {
+	var remaining []client.ACLRule
+	for _, rule := range api.aclRules[siteID] {
+		remaining = append(remaining, rule)
+	}
+	sort.Slice(remaining, func(i, j int) bool {
+		if remaining[i].Index == remaining[j].Index {
+			return remaining[i].ID < remaining[j].ID
+		}
+		return remaining[i].Index < remaining[j].Index
+	})
+
+	candidates := make([]string, 0, len(remaining))
+	for _, rule := range remaining {
+		candidates = append(candidates, rule.ID)
+	}
+
+	return appendMissingIDs(api.aclRuleOrderings[siteID].OrderedACLRuleIDs, candidates)
+}
+
+func (api *mockUniFiAPI) reindexACLRules(siteID string) {
+	orderedIDs := api.orderedACLRuleIDs(siteID)
+	api.aclRuleOrderings[siteID] = client.ACLRuleOrdering{
+		OrderedACLRuleIDs: orderedIDs,
+	}
+
+	for index, ruleID := range orderedIDs {
+		rule, ok := api.aclRules[siteID][ruleID]
+		if !ok {
+			continue
+		}
+		rule.Index = int64(index)
+		api.aclRules[siteID][ruleID] = rule
+	}
+}
+
+func (api *mockUniFiAPI) firewallPolicyPairIDs(siteID, sourceZoneID, destinationZoneID string) []string {
+	var policies []client.FirewallPolicy
+	for _, policy := range api.firewallPolicies[siteID] {
+		if policy.Source == nil || policy.Destination == nil {
+			continue
+		}
+		if policy.Source.ZoneID != sourceZoneID || policy.Destination.ZoneID != destinationZoneID {
+			continue
+		}
+		policies = append(policies, policy)
+	}
+	sort.Slice(policies, func(i, j int) bool {
+		if policies[i].Index == policies[j].Index {
+			return policies[i].ID < policies[j].ID
+		}
+		return policies[i].Index < policies[j].Index
+	})
+
+	ids := make([]string, 0, len(policies))
+	for _, policy := range policies {
+		ids = append(ids, policy.ID)
+	}
+
+	return ids
+}
+
+func (api *mockUniFiAPI) firewallPolicyOrdering(siteID, sourceZoneID, destinationZoneID string) client.FirewallPolicyOrdering {
+	key := firewallPolicyOrderingKey(sourceZoneID, destinationZoneID)
+	ordering := api.firewallPolicyOrderings[siteID][key]
+	pairIDs := api.firewallPolicyPairIDs(siteID, sourceZoneID, destinationZoneID)
+	if len(ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined) == 0 && len(ordering.OrderedFirewallPolicyIDs.AfterSystemDefined) == 0 {
+		return client.FirewallPolicyOrdering{
+			OrderedFirewallPolicyIDs: client.FirewallPolicyOrderedIDs{
+				BeforeSystemDefined: pairIDs,
+			},
+		}
+	}
+
+	allowed := make(map[string]struct{}, len(pairIDs))
+	for _, id := range pairIDs {
+		allowed[id] = struct{}{}
+	}
+
+	var beforeIDs []string
+	for _, id := range ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined {
+		if _, ok := allowed[id]; ok {
+			beforeIDs = append(beforeIDs, id)
+		}
+	}
+
+	var afterIDs []string
+	for _, id := range ordering.OrderedFirewallPolicyIDs.AfterSystemDefined {
+		if _, ok := allowed[id]; ok {
+			afterIDs = append(afterIDs, id)
+		}
+	}
+
+	used := make(map[string]struct{}, len(beforeIDs)+len(afterIDs))
+	for _, id := range beforeIDs {
+		used[id] = struct{}{}
+	}
+	for _, id := range afterIDs {
+		used[id] = struct{}{}
+	}
+
+	for _, id := range pairIDs {
+		if _, ok := used[id]; ok {
+			continue
+		}
+		beforeIDs = append(beforeIDs, id)
+	}
+
+	return client.FirewallPolicyOrdering{
+		OrderedFirewallPolicyIDs: client.FirewallPolicyOrderedIDs{
+			BeforeSystemDefined: beforeIDs,
+			AfterSystemDefined:  afterIDs,
+		},
+	}
+}
+
+func (api *mockUniFiAPI) reindexFirewallPolicies(siteID, sourceZoneID, destinationZoneID string) {
+	key := firewallPolicyOrderingKey(sourceZoneID, destinationZoneID)
+	ordering := api.firewallPolicyOrdering(siteID, sourceZoneID, destinationZoneID)
+	api.firewallPolicyOrderings[siteID][key] = ordering
+
+	index := 0
+	for _, policyID := range ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined {
+		policy, ok := api.firewallPolicies[siteID][policyID]
+		if !ok {
+			continue
+		}
+		policy.Index = int64(index)
+		api.firewallPolicies[siteID][policyID] = policy
+		index++
+	}
+	for _, policyID := range ordering.OrderedFirewallPolicyIDs.AfterSystemDefined {
+		policy, ok := api.firewallPolicies[siteID][policyID]
+		if !ok {
+			continue
+		}
+		policy.Index = int64(index)
+		api.firewallPolicies[siteID][policyID] = policy
+		index++
+	}
+}
+
 func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Request) {
 	if request.Header.Get("X-API-KEY") != "test-key" {
 		writer.WriteHeader(http.StatusUnauthorized)
@@ -380,6 +582,9 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 	case len(segments) == 5 && segments[3] == "firewall" && segments[4] == "policies":
 		api.handleFirewallPolicies(writer, request, segments[2])
 		return
+	case len(segments) == 6 && segments[3] == "firewall" && segments[4] == "policies" && segments[5] == "ordering":
+		api.handleFirewallPolicyOrdering(writer, request, segments[2])
+		return
 	case len(segments) == 6 && segments[3] == "firewall" && segments[4] == "policies":
 		api.handleFirewallPolicy(writer, request, segments[2], segments[5])
 		return
@@ -421,6 +626,9 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 		return
 	case len(segments) == 4 && segments[3] == "acl-rules":
 		api.handleACLRules(writer, request, segments[2])
+		return
+	case len(segments) == 5 && segments[3] == "acl-rules" && segments[4] == "ordering":
+		api.handleACLRuleOrdering(writer, request, segments[2])
 		return
 	case len(segments) == 5 && segments[3] == "acl-rules":
 		api.handleACLRule(writer, request, segments[2], segments[4])
@@ -601,15 +809,24 @@ func (api *mockUniFiAPI) handleFirewallPolicies(writer http.ResponseWriter, requ
 			policies = append(policies, policy)
 		}
 		sort.Slice(policies, func(i, j int) bool {
-			return policies[i].ID < policies[j].ID
+			if policies[i].Index == policies[j].Index {
+				return policies[i].ID < policies[j].ID
+			}
+			return policies[i].Index < policies[j].Index
 		})
 		writePage(writer, request, policies)
 	case http.MethodPost:
 		var policy client.FirewallPolicy
 		api.decodeRequest(writer, request, &policy)
 		policy.ID = api.newID()
-		policy.Index = int64(len(api.firewallPolicies[siteID]))
 		api.firewallPolicies[siteID][policy.ID] = policy
+		if policy.Source != nil && policy.Destination != nil {
+			key := firewallPolicyOrderingKey(policy.Source.ZoneID, policy.Destination.ZoneID)
+			ordering := api.firewallPolicyOrderings[siteID][key]
+			ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined = append(ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined, policy.ID)
+			api.firewallPolicyOrderings[siteID][key] = ordering
+			api.reindexFirewallPolicies(siteID, policy.Source.ZoneID, policy.Destination.ZoneID)
+		}
 		api.writeJSON(writer, http.StatusCreated, policy)
 	default:
 		writer.WriteHeader(http.StatusMethodNotAllowed)
@@ -632,13 +849,80 @@ func (api *mockUniFiAPI) handleFirewallPolicy(writer http.ResponseWriter, reques
 	case http.MethodPut:
 		var updated client.FirewallPolicy
 		api.decodeRequest(writer, request, &updated)
+		oldSourceZoneID := ""
+		oldDestinationZoneID := ""
+		if policy.Source != nil {
+			oldSourceZoneID = policy.Source.ZoneID
+		}
+		if policy.Destination != nil {
+			oldDestinationZoneID = policy.Destination.ZoneID
+		}
+		newSourceZoneID := ""
+		newDestinationZoneID := ""
+		if updated.Source != nil {
+			newSourceZoneID = updated.Source.ZoneID
+		}
+		if updated.Destination != nil {
+			newDestinationZoneID = updated.Destination.ZoneID
+		}
 		updated.ID = policyID
-		updated.Index = policy.Index
 		api.firewallPolicies[siteID][policyID] = updated
+		if oldSourceZoneID != "" && oldDestinationZoneID != "" && (oldSourceZoneID != newSourceZoneID || oldDestinationZoneID != newDestinationZoneID) {
+			key := firewallPolicyOrderingKey(oldSourceZoneID, oldDestinationZoneID)
+			ordering := api.firewallPolicyOrderings[siteID][key]
+			ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined = removeString(ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined, policyID)
+			ordering.OrderedFirewallPolicyIDs.AfterSystemDefined = removeString(ordering.OrderedFirewallPolicyIDs.AfterSystemDefined, policyID)
+			api.firewallPolicyOrderings[siteID][key] = ordering
+			api.reindexFirewallPolicies(siteID, oldSourceZoneID, oldDestinationZoneID)
+		}
+		if newSourceZoneID != "" && newDestinationZoneID != "" {
+			key := firewallPolicyOrderingKey(newSourceZoneID, newDestinationZoneID)
+			ordering := api.firewallPolicyOrderings[siteID][key]
+			if oldSourceZoneID != newSourceZoneID || oldDestinationZoneID != newDestinationZoneID {
+				ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined = append(ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined, policyID)
+			}
+			api.firewallPolicyOrderings[siteID][key] = ordering
+			api.reindexFirewallPolicies(siteID, newSourceZoneID, newDestinationZoneID)
+			updated = api.firewallPolicies[siteID][policyID]
+		}
 		api.writeJSON(writer, http.StatusOK, updated)
 	case http.MethodDelete:
 		delete(api.firewallPolicies[siteID], policyID)
+		if policy.Source != nil && policy.Destination != nil {
+			key := firewallPolicyOrderingKey(policy.Source.ZoneID, policy.Destination.ZoneID)
+			ordering := api.firewallPolicyOrderings[siteID][key]
+			ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined = removeString(ordering.OrderedFirewallPolicyIDs.BeforeSystemDefined, policyID)
+			ordering.OrderedFirewallPolicyIDs.AfterSystemDefined = removeString(ordering.OrderedFirewallPolicyIDs.AfterSystemDefined, policyID)
+			api.firewallPolicyOrderings[siteID][key] = ordering
+			api.reindexFirewallPolicies(siteID, policy.Source.ZoneID, policy.Destination.ZoneID)
+		}
 		writer.WriteHeader(http.StatusOK)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleFirewallPolicyOrdering(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	sourceZoneID := request.URL.Query().Get("sourceFirewallZoneId")
+	destinationZoneID := request.URL.Query().Get("destinationFirewallZoneId")
+	if sourceZoneID == "" || destinationZoneID == "" {
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	switch request.Method {
+	case http.MethodGet:
+		api.writeJSON(writer, http.StatusOK, api.firewallPolicyOrdering(siteID, sourceZoneID, destinationZoneID))
+	case http.MethodPut:
+		var ordering client.FirewallPolicyOrdering
+		api.decodeRequest(writer, request, &ordering)
+		key := firewallPolicyOrderingKey(sourceZoneID, destinationZoneID)
+		api.firewallPolicyOrderings[siteID][key] = ordering
+		api.reindexFirewallPolicies(siteID, sourceZoneID, destinationZoneID)
+		api.writeJSON(writer, http.StatusOK, api.firewallPolicyOrderings[siteID][key])
 	default:
 		writer.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -910,15 +1194,22 @@ func (api *mockUniFiAPI) handleACLRules(writer http.ResponseWriter, request *htt
 			rules = append(rules, rule)
 		}
 		sort.Slice(rules, func(i, j int) bool {
-			return rules[i].ID < rules[j].ID
+			if rules[i].Index == rules[j].Index {
+				return rules[i].ID < rules[j].ID
+			}
+			return rules[i].Index < rules[j].Index
 		})
 		writePage(writer, request, rules)
 	case http.MethodPost:
 		var rule client.ACLRule
 		api.decodeRequest(writer, request, &rule)
 		rule.ID = api.newID()
-		rule.Index = int64(len(api.aclRules[siteID]))
 		api.aclRules[siteID][rule.ID] = rule
+		ordering := api.aclRuleOrderings[siteID]
+		ordering.OrderedACLRuleIDs = append(ordering.OrderedACLRuleIDs, rule.ID)
+		api.aclRuleOrderings[siteID] = ordering
+		api.reindexACLRules(siteID)
+		rule = api.aclRules[siteID][rule.ID]
 		api.writeJSON(writer, http.StatusCreated, rule)
 	default:
 		writer.WriteHeader(http.StatusMethodNotAllowed)
@@ -942,12 +1233,37 @@ func (api *mockUniFiAPI) handleACLRule(writer http.ResponseWriter, request *http
 		var updated client.ACLRule
 		api.decodeRequest(writer, request, &updated)
 		updated.ID = aclRuleID
-		updated.Index = rule.Index
 		api.aclRules[siteID][aclRuleID] = updated
+		api.reindexACLRules(siteID)
+		updated = api.aclRules[siteID][aclRuleID]
 		api.writeJSON(writer, http.StatusOK, updated)
 	case http.MethodDelete:
 		delete(api.aclRules[siteID], aclRuleID)
+		ordering := api.aclRuleOrderings[siteID]
+		ordering.OrderedACLRuleIDs = removeString(ordering.OrderedACLRuleIDs, aclRuleID)
+		api.aclRuleOrderings[siteID] = ordering
+		api.reindexACLRules(siteID)
 		writer.WriteHeader(http.StatusOK)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleACLRuleOrdering(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		api.writeJSON(writer, http.StatusOK, client.ACLRuleOrdering{
+			OrderedACLRuleIDs: api.orderedACLRuleIDs(siteID),
+		})
+	case http.MethodPut:
+		var ordering client.ACLRuleOrdering
+		api.decodeRequest(writer, request, &ordering)
+		api.aclRuleOrderings[siteID] = ordering
+		api.reindexACLRules(siteID)
+		api.writeJSON(writer, http.StatusOK, api.aclRuleOrderings[siteID])
 	default:
 		writer.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -1028,6 +1344,29 @@ func testImportCompositeID(resourceName string, siteID string) resource.ImportSt
 		}
 
 		return fmt.Sprintf("%s/%s", siteID, resourceState.Primary.ID), nil
+	}
+}
+
+func testACLRuleOrderingImportID(siteID string) resource.ImportStateIdFunc {
+	return func(_ *tfstate.State) (string, error) {
+		return siteID, nil
+	}
+}
+
+func testFirewallPolicyOrderingImportID(resourceName string, siteID string) resource.ImportStateIdFunc {
+	return func(state *tfstate.State) (string, error) {
+		resourceState, ok := state.RootModule().Resources[resourceName]
+		if !ok {
+			return "", fmt.Errorf("resource %s not found in state", resourceName)
+		}
+
+		sourceZoneID := resourceState.Primary.Attributes["source_zone_id"]
+		destinationZoneID := resourceState.Primary.Attributes["destination_zone_id"]
+		if sourceZoneID == "" || destinationZoneID == "" {
+			return "", fmt.Errorf("resource %s is missing zone IDs", resourceName)
+		}
+
+		return fmt.Sprintf("%s/%s/%s", siteID, sourceZoneID, destinationZoneID), nil
 	}
 }
 
@@ -1571,6 +1910,75 @@ resource "unifi_acl_rule" "test" {
 	})
 }
 
+func TestAccResourceACLRuleOrdering(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_acl_rule_ordering.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_acl_rule" "allow_web" {
+  site_id = data.unifi_site.main.id
+  type    = "IPV4"
+  enabled = true
+  name    = "allow-web"
+  action  = "ALLOW"
+
+  source_ip_filter = {
+    type                    = "IP_ADDRESSES_OR_SUBNETS"
+    ip_addresses_or_subnets = ["10.10.0.0/16"]
+  }
+
+  destination_ip_filter = {
+    type                    = "IP_ADDRESSES_OR_SUBNETS"
+    ip_addresses_or_subnets = ["192.168.10.0/24"]
+  }
+}
+
+resource "unifi_acl_rule" "block_dns" {
+  site_id = data.unifi_site.main.id
+  type    = "IPV4"
+  enabled = true
+  name    = "block-dns"
+  action  = "BLOCK"
+
+  source_ip_filter = {
+    type                    = "IP_ADDRESSES_OR_SUBNETS"
+    ip_addresses_or_subnets = ["10.20.0.0/16"]
+  }
+
+  destination_ip_filter = {
+    type  = "PORTS"
+    ports = [53]
+  }
+}
+
+resource "unifi_acl_rule_ordering" "test" {
+  site_id              = data.unifi_site.main.id
+  ordered_acl_rule_ids = [unifi_acl_rule.block_dns.id, unifi_acl_rule.allow_web.id]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrPair(resourceName, "ordered_acl_rule_ids.0", "unifi_acl_rule.block_dns", "id"),
+					resource.TestCheckResourceAttrPair(resourceName, "ordered_acl_rule_ids.1", "unifi_acl_rule.allow_web", "id"),
+					resource.TestCheckResourceAttr("unifi_acl_rule.block_dns", "index", "0"),
+					resource.TestCheckResourceAttr("unifi_acl_rule.allow_web", "index", "1"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateIdFunc: testACLRuleOrderingImportID(api.siteID),
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 func TestAccResourceFirewallPolicy(t *testing.T) {
 	api := newMockUniFiAPI(t)
 	defer api.Close()
@@ -1752,6 +2160,93 @@ resource "unifi_firewall_policy" "test" {
 				ImportStateIdFunc:       testImportCompositeID(resourceName, api.siteID),
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"index"},
+			},
+		},
+	})
+}
+
+func TestAccResourceFirewallPolicyOrdering(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_firewall_policy_ordering.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_network" "trusted" {
+  site_id    = data.unifi_site.main.id
+  management = "UNMANAGED"
+  name       = "trusted"
+  enabled    = true
+  vlan_id    = 70
+}
+
+resource "unifi_network" "iot" {
+  site_id    = data.unifi_site.main.id
+  management = "UNMANAGED"
+  name       = "iot"
+  enabled    = true
+  vlan_id    = 71
+}
+
+resource "unifi_firewall_zone" "trusted" {
+  site_id     = data.unifi_site.main.id
+  name        = "trusted"
+  network_ids = [unifi_network.trusted.id]
+}
+
+resource "unifi_firewall_zone" "iot" {
+  site_id     = data.unifi_site.main.id
+  name        = "iot"
+  network_ids = [unifi_network.iot.id]
+}
+
+resource "unifi_firewall_policy" "allow_https" {
+  site_id             = data.unifi_site.main.id
+  enabled             = true
+  name                = "allow-https"
+  action              = "ALLOW"
+  source_zone_id      = unifi_firewall_zone.trusted.id
+  destination_zone_id = unifi_firewall_zone.iot.id
+  ip_version          = "IPV4"
+  logging_enabled     = false
+}
+
+resource "unifi_firewall_policy" "block_dns" {
+  site_id             = data.unifi_site.main.id
+  enabled             = true
+  name                = "block-dns"
+  action              = "BLOCK"
+  source_zone_id      = unifi_firewall_zone.trusted.id
+  destination_zone_id = unifi_firewall_zone.iot.id
+  ip_version          = "IPV4"
+  logging_enabled     = true
+}
+
+resource "unifi_firewall_policy_ordering" "test" {
+  site_id                           = data.unifi_site.main.id
+  source_zone_id                    = unifi_firewall_zone.trusted.id
+  destination_zone_id               = unifi_firewall_zone.iot.id
+  before_system_defined_policy_ids  = [unifi_firewall_policy.block_dns.id, unifi_firewall_policy.allow_https.id]
+  after_system_defined_policy_ids   = []
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrPair(resourceName, "before_system_defined_policy_ids.0", "unifi_firewall_policy.block_dns", "id"),
+					resource.TestCheckResourceAttrPair(resourceName, "before_system_defined_policy_ids.1", "unifi_firewall_policy.allow_https", "id"),
+					resource.TestCheckResourceAttr(resourceName, "after_system_defined_policy_ids.#", "0"),
+					resource.TestCheckResourceAttr("unifi_firewall_policy.block_dns", "index", "0"),
+					resource.TestCheckResourceAttr("unifi_firewall_policy.allow_https", "index", "1"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateIdFunc: testFirewallPolicyOrderingImportID(resourceName, api.siteID),
+				ImportStateVerify: true,
 			},
 		},
 	})

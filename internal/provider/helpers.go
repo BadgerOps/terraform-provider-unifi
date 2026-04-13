@@ -68,6 +68,10 @@ func stringSetValue(ctx context.Context, values []string) (types.Set, diag.Diagn
 	return types.SetValueFrom(ctx, types.StringType, values)
 }
 
+func stringListValue(ctx context.Context, values []string) (types.List, diag.Diagnostics) {
+	return types.ListValueFrom(ctx, types.StringType, values)
+}
+
 func float64SetValue(ctx context.Context, values []float64) (types.Set, diag.Diagnostics) {
 	if len(values) == 0 {
 		return types.SetNull(types.Float64Type), nil
@@ -93,6 +97,20 @@ func setToStrings(ctx context.Context, value types.Set, path string, diags *diag
 	diags.Append(value.ElementsAs(ctx, &values, false)...)
 	if diags.HasError() {
 		diags.AddError("Invalid set value", fmt.Sprintf("Unable to decode `%s` into a string slice.", path))
+	}
+
+	return values
+}
+
+func listToStrings(ctx context.Context, value types.List, path string, diags *diag.Diagnostics) []string {
+	if value.IsNull() || value.IsUnknown() {
+		return nil
+	}
+
+	var values []string
+	diags.Append(value.ElementsAs(ctx, &values, false)...)
+	if diags.HasError() {
+		diags.AddError("Invalid list value", fmt.Sprintf("Unable to decode `%s` into a string slice.", path))
 	}
 
 	return values

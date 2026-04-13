@@ -109,8 +109,10 @@ func (p *unifiProvider) Resources(_ context.Context) []func() resource.Resource 
 		NewWifiBroadcastResource,
 		NewFirewallZoneResource,
 		NewFirewallPolicyResource,
+		NewFirewallPolicyOrderingResource,
 		NewTrafficMatchingListResource,
 		NewDNSPolicyResource,
 		NewACLRuleResource,
+		NewACLRuleOrderingResource,
 	}
 }
