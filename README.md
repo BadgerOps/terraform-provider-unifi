@@ -15,6 +15,11 @@ This repository implements the new provider shape described in the adjacent Badg
 - Data source: `unifi_traffic_matching_list`
 - Data source: `unifi_dns_policy`
 - Data source: `unifi_acl_rule`
+- Data source: `unifi_vpn_server`
+- Data source: `unifi_site_to_site_vpn_tunnel`
+- Data source: `unifi_dpi_application`
+- Data source: `unifi_dpi_application_category`
+- Data source: `unifi_country`
 - Data source: `unifi_radius_profile`
 - Data source: `unifi_device_tag`
 - Data source: `unifi_wan`

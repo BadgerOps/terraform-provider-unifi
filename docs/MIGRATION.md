@@ -54,6 +54,11 @@ The provider includes read-only data sources that can help identify current IDs 
 - `unifi_traffic_matching_list`
 - `unifi_dns_policy`
 - `unifi_acl_rule`
+- `unifi_vpn_server`
+- `unifi_site_to_site_vpn_tunnel`
+- `unifi_dpi_application`
+- `unifi_dpi_application_category`
+- `unifi_country`
 - `unifi_radius_profile`
 - `unifi_device_tag`
 - `unifi_wan`

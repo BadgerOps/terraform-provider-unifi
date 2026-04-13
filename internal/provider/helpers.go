@@ -49,6 +49,36 @@ func validateIDOrNameLookup(id, name types.String) error {
 	return nil
 }
 
+func validateInt64OrNameLookup(id types.Int64, name types.String) error {
+	lookupCount := 0
+	if !id.IsNull() {
+		lookupCount++
+	}
+	if !name.IsNull() && name.ValueString() != "" {
+		lookupCount++
+	}
+	if lookupCount != 1 {
+		return fmt.Errorf("exactly one of `id` or `name` must be set")
+	}
+
+	return nil
+}
+
+func validateCodeOrNameLookup(code, name types.String) error {
+	lookupCount := 0
+	if !code.IsNull() && code.ValueString() != "" {
+		lookupCount++
+	}
+	if !name.IsNull() && name.ValueString() != "" {
+		lookupCount++
+	}
+	if lookupCount != 1 {
+		return fmt.Errorf("exactly one of `code` or `name` must be set")
+	}
+
+	return nil
+}
+
 func importCompositeID(ctx context.Context, request resource.ImportStateRequest, response *resource.ImportStateResponse) {
 	siteID, resourceID, err := parseCompositeImportID(request.ID)
 	if err != nil {

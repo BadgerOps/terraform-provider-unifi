@@ -39,6 +39,11 @@ type mockUniFiAPI struct {
 	existingACLRuleID             string
 	existingRadiusProfileID       string
 	existingDeviceTagID           string
+	existingVPNServerID           string
+	existingSiteToSiteTunnelID    string
+	existingDPIApplicationID      int64
+	existingDPICategoryID         int64
+	existingCountryCode           string
 	existingSwitchDeviceID        string
 	existingWANID                 string
 	existingSwitchStackID         string
@@ -46,47 +51,57 @@ type mockUniFiAPI struct {
 	existingSwitchStackLagID      string
 	existingMcLagID               string
 
-	sites                   map[string]client.Site
-	networks                map[string]map[string]client.Network
-	wifiBroadcasts          map[string]map[string]client.WifiBroadcast
-	firewallZones           map[string]map[string]client.FirewallZone
-	firewallPolicies        map[string]map[string]client.FirewallPolicy
-	firewallPolicyOrderings map[string]map[string]client.FirewallPolicyOrdering
-	trafficMatchingLists    map[string]map[string]client.TrafficMatchingList
-	radiusProfiles          map[string]map[string]client.RadiusProfile
-	deviceTags              map[string]map[string]client.DeviceTag
-	devices                 map[string]map[string]client.Device
-	dnsPolicies             map[string]map[string]client.DNSPolicy
-	aclRules                map[string]map[string]client.ACLRule
-	aclRuleOrderings        map[string]client.ACLRuleOrdering
-	wans                    map[string]map[string]client.WAN
-	switchStacks            map[string]map[string]client.SwitchStack
-	mcLagDomains            map[string]map[string]client.McLagDomain
-	lags                    map[string]map[string]client.Lag
+	sites                    map[string]client.Site
+	networks                 map[string]map[string]client.Network
+	wifiBroadcasts           map[string]map[string]client.WifiBroadcast
+	firewallZones            map[string]map[string]client.FirewallZone
+	firewallPolicies         map[string]map[string]client.FirewallPolicy
+	firewallPolicyOrderings  map[string]map[string]client.FirewallPolicyOrdering
+	trafficMatchingLists     map[string]map[string]client.TrafficMatchingList
+	radiusProfiles           map[string]map[string]client.RadiusProfile
+	deviceTags               map[string]map[string]client.DeviceTag
+	vpnServers               map[string]map[string]client.VPNServer
+	siteToSiteVPNTunnels     map[string]map[string]client.SiteToSiteVPNTunnel
+	devices                  map[string]map[string]client.Device
+	dpiApplications          map[int64]client.DPIApplication
+	dpiApplicationCategories map[int64]client.DPIApplicationCategory
+	countries                map[string]client.Country
+	dnsPolicies              map[string]map[string]client.DNSPolicy
+	aclRules                 map[string]map[string]client.ACLRule
+	aclRuleOrderings         map[string]client.ACLRuleOrdering
+	wans                     map[string]map[string]client.WAN
+	switchStacks             map[string]map[string]client.SwitchStack
+	mcLagDomains             map[string]map[string]client.McLagDomain
+	lags                     map[string]map[string]client.Lag
 }
 
 func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	t.Helper()
 
 	api := &mockUniFiAPI{
-		nextID:                  1,
-		sites:                   make(map[string]client.Site),
-		networks:                make(map[string]map[string]client.Network),
-		wifiBroadcasts:          make(map[string]map[string]client.WifiBroadcast),
-		firewallZones:           make(map[string]map[string]client.FirewallZone),
-		firewallPolicies:        make(map[string]map[string]client.FirewallPolicy),
-		firewallPolicyOrderings: make(map[string]map[string]client.FirewallPolicyOrdering),
-		trafficMatchingLists:    make(map[string]map[string]client.TrafficMatchingList),
-		radiusProfiles:          make(map[string]map[string]client.RadiusProfile),
-		deviceTags:              make(map[string]map[string]client.DeviceTag),
-		devices:                 make(map[string]map[string]client.Device),
-		dnsPolicies:             make(map[string]map[string]client.DNSPolicy),
-		aclRules:                make(map[string]map[string]client.ACLRule),
-		aclRuleOrderings:        make(map[string]client.ACLRuleOrdering),
-		wans:                    make(map[string]map[string]client.WAN),
-		switchStacks:            make(map[string]map[string]client.SwitchStack),
-		mcLagDomains:            make(map[string]map[string]client.McLagDomain),
-		lags:                    make(map[string]map[string]client.Lag),
+		nextID:                   1,
+		sites:                    make(map[string]client.Site),
+		networks:                 make(map[string]map[string]client.Network),
+		wifiBroadcasts:           make(map[string]map[string]client.WifiBroadcast),
+		firewallZones:            make(map[string]map[string]client.FirewallZone),
+		firewallPolicies:         make(map[string]map[string]client.FirewallPolicy),
+		firewallPolicyOrderings:  make(map[string]map[string]client.FirewallPolicyOrdering),
+		trafficMatchingLists:     make(map[string]map[string]client.TrafficMatchingList),
+		radiusProfiles:           make(map[string]map[string]client.RadiusProfile),
+		deviceTags:               make(map[string]map[string]client.DeviceTag),
+		vpnServers:               make(map[string]map[string]client.VPNServer),
+		siteToSiteVPNTunnels:     make(map[string]map[string]client.SiteToSiteVPNTunnel),
+		devices:                  make(map[string]map[string]client.Device),
+		dpiApplications:          make(map[int64]client.DPIApplication),
+		dpiApplicationCategories: make(map[int64]client.DPIApplicationCategory),
+		countries:                make(map[string]client.Country),
+		dnsPolicies:              make(map[string]map[string]client.DNSPolicy),
+		aclRules:                 make(map[string]map[string]client.ACLRule),
+		aclRuleOrderings:         make(map[string]client.ACLRuleOrdering),
+		wans:                     make(map[string]map[string]client.WAN),
+		switchStacks:             make(map[string]map[string]client.SwitchStack),
+		mcLagDomains:             make(map[string]map[string]client.McLagDomain),
+		lags:                     make(map[string]map[string]client.Lag),
 	}
 
 	api.siteID = api.newID()
@@ -103,6 +118,8 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	api.trafficMatchingLists[api.siteID] = make(map[string]client.TrafficMatchingList)
 	api.radiusProfiles[api.siteID] = make(map[string]client.RadiusProfile)
 	api.deviceTags[api.siteID] = make(map[string]client.DeviceTag)
+	api.vpnServers[api.siteID] = make(map[string]client.VPNServer)
+	api.siteToSiteVPNTunnels[api.siteID] = make(map[string]client.SiteToSiteVPNTunnel)
 	api.devices[api.siteID] = make(map[string]client.Device)
 	api.dnsPolicies[api.siteID] = make(map[string]client.DNSPolicy)
 	api.aclRules[api.siteID] = make(map[string]client.ACLRule)
@@ -254,6 +271,46 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	}
 	api.existingDeviceTagID = existingDeviceTag.ID
 	api.deviceTags[api.siteID][existingDeviceTag.ID] = existingDeviceTag
+
+	existingVPNServer := client.VPNServer{
+		ID:       api.newID(),
+		Enabled:  true,
+		Name:     "existing-vpn-server",
+		Type:     "OPENVPN",
+		Metadata: client.ReferenceMetadata{Origin: "user"},
+	}
+	api.existingVPNServerID = existingVPNServer.ID
+	api.vpnServers[api.siteID][existingVPNServer.ID] = existingVPNServer
+
+	existingSiteToSiteTunnel := client.SiteToSiteVPNTunnel{
+		ID:       api.newID(),
+		Name:     "existing-site-to-site",
+		Type:     "SITE_TO_SITE",
+		Metadata: client.ReferenceMetadata{Origin: "user"},
+	}
+	api.existingSiteToSiteTunnelID = existingSiteToSiteTunnel.ID
+	api.siteToSiteVPNTunnels[api.siteID][existingSiteToSiteTunnel.ID] = existingSiteToSiteTunnel
+
+	existingDPIApplication := client.DPIApplication{
+		ID:   720973,
+		Name: "Zoom",
+	}
+	api.existingDPIApplicationID = existingDPIApplication.ID
+	api.dpiApplications[existingDPIApplication.ID] = existingDPIApplication
+
+	existingDPICategory := client.DPIApplicationCategory{
+		ID:   5,
+		Name: "Business tools",
+	}
+	api.existingDPICategoryID = existingDPICategory.ID
+	api.dpiApplicationCategories[existingDPICategory.ID] = existingDPICategory
+
+	existingCountry := client.Country{
+		Code: "US",
+		Name: "United States",
+	}
+	api.existingCountryCode = existingCountry.Code
+	api.countries[existingCountry.Code] = existingCountry
 
 	existingSwitchDevice := client.Device{
 		ID:                api.newID(),
@@ -552,7 +609,24 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 
 	trimmedPath := strings.TrimPrefix(request.URL.Path, "/integration")
 	segments := strings.Split(strings.Trim(trimmedPath, "/"), "/")
-	if len(segments) < 2 || segments[0] != "v1" || segments[1] != "sites" {
+	if len(segments) < 1 || segments[0] != "v1" {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	switch {
+	case len(segments) == 2 && segments[1] == "countries":
+		api.handleCountries(writer, request)
+		return
+	case len(segments) == 3 && segments[1] == "dpi" && segments[2] == "applications":
+		api.handleDPIApplications(writer, request)
+		return
+	case len(segments) == 3 && segments[1] == "dpi" && segments[2] == "categories":
+		api.handleDPIApplicationCategories(writer, request)
+		return
+	}
+
+	if len(segments) < 2 || segments[1] != "sites" {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -596,6 +670,12 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 		return
 	case len(segments) == 5 && segments[3] == "radius" && segments[4] == "profiles":
 		api.handleRadiusProfiles(writer, request, segments[2])
+		return
+	case len(segments) == 5 && segments[3] == "vpn" && segments[4] == "servers":
+		api.handleVPNServers(writer, request, segments[2])
+		return
+	case len(segments) == 5 && segments[3] == "vpn" && segments[4] == "site-to-site-tunnels":
+		api.handleSiteToSiteVPNTunnels(writer, request, segments[2])
 		return
 	case len(segments) == 4 && segments[3] == "device-tags":
 		api.handleDeviceTags(writer, request, segments[2])
@@ -999,6 +1079,44 @@ func (api *mockUniFiAPI) handleRadiusProfiles(writer http.ResponseWriter, reques
 	}
 }
 
+func (api *mockUniFiAPI) handleVPNServers(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var servers []client.VPNServer
+		for _, server := range api.vpnServers[siteID] {
+			servers = append(servers, server)
+		}
+		sort.Slice(servers, func(i, j int) bool {
+			return servers[i].ID < servers[j].ID
+		})
+		writePage(writer, request, servers)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleSiteToSiteVPNTunnels(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var tunnels []client.SiteToSiteVPNTunnel
+		for _, tunnel := range api.siteToSiteVPNTunnels[siteID] {
+			tunnels = append(tunnels, tunnel)
+		}
+		sort.Slice(tunnels, func(i, j int) bool {
+			return tunnels[i].ID < tunnels[j].ID
+		})
+		writePage(writer, request, tunnels)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
 func (api *mockUniFiAPI) handleDeviceTags(writer http.ResponseWriter, request *http.Request, siteID string) {
 	api.mu.Lock()
 	defer api.mu.Unlock()
@@ -1013,6 +1131,63 @@ func (api *mockUniFiAPI) handleDeviceTags(writer http.ResponseWriter, request *h
 			return tags[i].ID < tags[j].ID
 		})
 		writePage(writer, request, tags)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleCountries(writer http.ResponseWriter, request *http.Request) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var countries []client.Country
+		for _, country := range api.countries {
+			countries = append(countries, country)
+		}
+		sort.Slice(countries, func(i, j int) bool {
+			return countries[i].Code < countries[j].Code
+		})
+		writePage(writer, request, countries)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleDPIApplications(writer http.ResponseWriter, request *http.Request) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var applications []client.DPIApplication
+		for _, application := range api.dpiApplications {
+			applications = append(applications, application)
+		}
+		sort.Slice(applications, func(i, j int) bool {
+			return applications[i].ID < applications[j].ID
+		})
+		writePage(writer, request, applications)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleDPIApplicationCategories(writer http.ResponseWriter, request *http.Request) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var categories []client.DPIApplicationCategory
+		for _, category := range api.dpiApplicationCategories {
+			categories = append(categories, category)
+		}
+		sort.Slice(categories, func(i, j int) bool {
+			return categories[i].ID < categories[j].ID
+		})
+		writePage(writer, request, categories)
 	default:
 		writer.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -1430,6 +1605,28 @@ data "unifi_device_tag" "existing" {
   name    = "existing-tag"
 }
 
+data "unifi_vpn_server" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "existing-vpn-server"
+}
+
+data "unifi_site_to_site_vpn_tunnel" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "existing-site-to-site"
+}
+
+data "unifi_dpi_application" "existing" {
+  name = "Zoom"
+}
+
+data "unifi_dpi_application_category" "existing" {
+  id = 5
+}
+
+data "unifi_country" "existing" {
+  code = "US"
+}
+
 data "unifi_wan" "existing" {
   site_id = data.unifi_site.main.id
   name    = "Internet 1"
@@ -1487,6 +1684,19 @@ data "unifi_lag" "existing" {
 					resource.TestCheckResourceAttr("data.unifi_device_tag.existing", "id", api.existingDeviceTagID),
 					resource.TestCheckResourceAttr("data.unifi_device_tag.existing", "name", "existing-tag"),
 					resource.TestCheckResourceAttr("data.unifi_device_tag.existing", "device_ids.#", "1"),
+					resource.TestCheckResourceAttr("data.unifi_vpn_server.existing", "id", api.existingVPNServerID),
+					resource.TestCheckResourceAttr("data.unifi_vpn_server.existing", "type", "OPENVPN"),
+					resource.TestCheckResourceAttr("data.unifi_vpn_server.existing", "enabled", "true"),
+					resource.TestCheckResourceAttr("data.unifi_vpn_server.existing", "origin", "user"),
+					resource.TestCheckResourceAttr("data.unifi_site_to_site_vpn_tunnel.existing", "id", api.existingSiteToSiteTunnelID),
+					resource.TestCheckResourceAttr("data.unifi_site_to_site_vpn_tunnel.existing", "type", "SITE_TO_SITE"),
+					resource.TestCheckResourceAttr("data.unifi_site_to_site_vpn_tunnel.existing", "origin", "user"),
+					resource.TestCheckResourceAttr("data.unifi_dpi_application.existing", "id", fmt.Sprintf("%d", api.existingDPIApplicationID)),
+					resource.TestCheckResourceAttr("data.unifi_dpi_application.existing", "name", "Zoom"),
+					resource.TestCheckResourceAttr("data.unifi_dpi_application_category.existing", "id", fmt.Sprintf("%d", api.existingDPICategoryID)),
+					resource.TestCheckResourceAttr("data.unifi_dpi_application_category.existing", "name", "Business tools"),
+					resource.TestCheckResourceAttr("data.unifi_country.existing", "code", api.existingCountryCode),
+					resource.TestCheckResourceAttr("data.unifi_country.existing", "name", "United States"),
 					resource.TestCheckResourceAttr("data.unifi_wan.existing", "id", api.existingWANID),
 					resource.TestCheckResourceAttr("data.unifi_wan.existing", "name", "Internet 1"),
 					resource.TestCheckResourceAttr("data.unifi_switch_stack.existing", "id", api.existingSwitchStackID),
