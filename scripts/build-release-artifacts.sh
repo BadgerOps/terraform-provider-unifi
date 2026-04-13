@@ -10,6 +10,8 @@ fi
 version="$1"
 dist_dir="${2:-dist/release}"
 repo_root="$(pwd)"
+work_dir="$(mktemp -d)"
+trap 'rm -rf "${work_dir}"' EXIT
 
 provider_type="unifi"
 provider_host="registry.terraform.io"
@@ -27,7 +29,7 @@ platforms=(
 rm -rf "${dist_dir}"
 mkdir -p "${dist_dir}"
 
-mirror_root="${dist_dir}/terraform-mirror/${provider_host}/${provider_namespace}/${provider_type}/${version}"
+mirror_root="${work_dir}/terraform-mirror/${provider_host}/${provider_namespace}/${provider_type}/${version}"
 
 for platform in "${platforms[@]}"; do
   goos="${platform%/*}"
@@ -38,7 +40,7 @@ for platform in "${platforms[@]}"; do
     ext=".exe"
   fi
 
-  build_dir="${dist_dir}/build/${target}"
+  build_dir="${work_dir}/build/${target}"
   archive_name="${provider_name}_${version}_${target}.zip"
   binary_name="${provider_name}_v${version}${ext}"
 
@@ -60,7 +62,7 @@ for platform in "${platforms[@]}"; do
 done
 
 mirror_bundle="${dist_dir}/${provider_name}_${version}_terraform-mirror.tar.gz"
-tar -C "${dist_dir}" -czf "${mirror_bundle}" terraform-mirror
+tar -C "${work_dir}" -czf "${mirror_bundle}" terraform-mirror
 
 (
   cd "${dist_dir}"
