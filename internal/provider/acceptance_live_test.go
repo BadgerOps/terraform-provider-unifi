@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -229,7 +230,7 @@ func TestAccLiveResourceFirewallZone(t *testing.T) {
 	t.Parallel()
 
 	config := requireLiveAcceptanceConfig(t)
-	requireZoneFirewallConfigured(t)
+	requireZoneFirewallConfigured(t, config)
 	resourceName := "unifi_firewall_zone.test"
 	networkName := liveAcceptanceName(config, "zone-net")
 	zoneName := liveAcceptanceName(config, "zone")
@@ -296,7 +297,7 @@ func TestAccLiveDataSourceFirewallZone(t *testing.T) {
 	t.Parallel()
 
 	config := requireLiveAcceptanceConfig(t)
-	requireZoneFirewallConfigured(t)
+	requireZoneFirewallConfigured(t, config)
 	resourceName := "unifi_firewall_zone.test"
 	dataSourceName := "data.unifi_firewall_zone.lookup"
 	networkName := liveAcceptanceName(config, "zone-ds-net")
@@ -343,7 +344,7 @@ func TestAccLiveResourceFirewallPolicy(t *testing.T) {
 	t.Parallel()
 
 	config := requireLiveAcceptanceConfig(t)
-	requireZoneFirewallConfigured(t)
+	requireZoneFirewallConfigured(t, config)
 	resourceName := "unifi_firewall_policy.test"
 	sourceNetworkName := liveAcceptanceName(config, "policy-src-net")
 	destinationNetworkName := liveAcceptanceName(config, "policy-dst-net")
@@ -918,12 +919,28 @@ func parseEnvBool(key string) bool {
 	}
 }
 
-func requireZoneFirewallConfigured(t *testing.T) {
+func requireZoneFirewallConfigured(t *testing.T, config liveAcceptanceConfig) {
 	t.Helper()
 
 	if !parseEnvBool("UNIFI_TEST_ENABLE_ZONE_FIREWALL") {
 		t.Skip("set UNIFI_TEST_ENABLE_ZONE_FIREWALL=1 to run zone firewall live acceptance tests")
 	}
+
+	apiClient, err := newLiveDestroyCheckClient(config)
+	if err != nil {
+		t.Fatalf("build client for zone firewall capability check: %v", err)
+	}
+
+	_, err = apiClient.ListFirewallZones(context.Background(), resolveLiveSiteID(t, config))
+	if err == nil {
+		return
+	}
+
+	if isZoneFirewallNotConfigured(err) {
+		t.Skip("Zone Based Firewall is not configured on the target site")
+	}
+
+	t.Fatalf("check zone firewall capability: %v", err)
 }
 
 func requireWifiPassphrase(t *testing.T) string {
@@ -1231,6 +1248,11 @@ func newLiveDestroyCheckClient(config liveAcceptanceConfig) (*client.Client, err
 	}
 
 	return apiClient, nil
+}
+
+func isZoneFirewallNotConfigured(err error) bool {
+	var clientErr *client.Error
+	return errors.As(err, &clientErr) && clientErr.Code == "api.firewall.zone-based-firewall-not-configured"
 }
 
 func requireRadiusProfile(t *testing.T, config liveAcceptanceConfig) client.RadiusProfile {
