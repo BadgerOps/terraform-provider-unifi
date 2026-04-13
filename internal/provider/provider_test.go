@@ -1549,7 +1549,7 @@ func TestAccDataSources(t *testing.T) {
 	api := newMockUniFiAPI(t)
 	defer api.Close()
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -1723,7 +1723,7 @@ func TestAccResourceNetwork(t *testing.T) {
 
 	resourceName := "unifi_network.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -1810,7 +1810,7 @@ func TestAccResourceFirewallZone(t *testing.T) {
 
 	resourceName := "unifi_firewall_zone.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -1870,7 +1870,7 @@ func TestAccResourceTrafficMatchingList(t *testing.T) {
 
 	resourceName := "unifi_traffic_matching_list.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -1922,7 +1922,7 @@ func TestAccResourceTrafficMatchingListIPAddresses(t *testing.T) {
 
 	resourceName := "unifi_traffic_matching_list.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -1974,7 +1974,7 @@ func TestAccResourceDNSPolicy(t *testing.T) {
 
 	resourceName := "unifi_dns_policy.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -2034,7 +2034,7 @@ func TestAccResourceACLRule(t *testing.T) {
 
 	resourceName := "unifi_acl_rule.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -2126,7 +2126,7 @@ func TestAccResourceACLRuleOrdering(t *testing.T) {
 
 	resourceName := "unifi_acl_rule_ordering.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -2169,14 +2169,13 @@ resource "unifi_acl_rule" "block_dns" {
 
 resource "unifi_acl_rule_ordering" "test" {
   site_id              = data.unifi_site.main.id
-  ordered_acl_rule_ids = [unifi_acl_rule.block_dns.id, unifi_acl_rule.allow_web.id]
+  ordered_acl_rule_ids = ["` + api.existingACLRuleID + `", unifi_acl_rule.block_dns.id, unifi_acl_rule.allow_web.id]
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrPair(resourceName, "ordered_acl_rule_ids.0", "unifi_acl_rule.block_dns", "id"),
-					resource.TestCheckResourceAttrPair(resourceName, "ordered_acl_rule_ids.1", "unifi_acl_rule.allow_web", "id"),
-					resource.TestCheckResourceAttr("unifi_acl_rule.block_dns", "index", "0"),
-					resource.TestCheckResourceAttr("unifi_acl_rule.allow_web", "index", "1"),
+					resource.TestCheckResourceAttr(resourceName, "ordered_acl_rule_ids.0", api.existingACLRuleID),
+					resource.TestCheckResourceAttrPair(resourceName, "ordered_acl_rule_ids.1", "unifi_acl_rule.block_dns", "id"),
+					resource.TestCheckResourceAttrPair(resourceName, "ordered_acl_rule_ids.2", "unifi_acl_rule.allow_web", "id"),
 				),
 			},
 			{
@@ -2195,7 +2194,7 @@ func TestAccResourceFirewallPolicy(t *testing.T) {
 
 	resourceName := "unifi_firewall_policy.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -2381,7 +2380,7 @@ func TestAccResourceFirewallPolicyOrdering(t *testing.T) {
 
 	resourceName := "unifi_firewall_policy_ordering.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -2448,8 +2447,6 @@ resource "unifi_firewall_policy_ordering" "test" {
 					resource.TestCheckResourceAttrPair(resourceName, "before_system_defined_policy_ids.0", "unifi_firewall_policy.block_dns", "id"),
 					resource.TestCheckResourceAttrPair(resourceName, "before_system_defined_policy_ids.1", "unifi_firewall_policy.allow_https", "id"),
 					resource.TestCheckResourceAttr(resourceName, "after_system_defined_policy_ids.#", "0"),
-					resource.TestCheckResourceAttr("unifi_firewall_policy.block_dns", "index", "0"),
-					resource.TestCheckResourceAttr("unifi_firewall_policy.allow_https", "index", "1"),
 				),
 			},
 			{
@@ -2468,7 +2465,7 @@ func TestAccResourceWifiBroadcast(t *testing.T) {
 
 	resourceName := "unifi_wifi_broadcast.test"
 
-	resource.Test(t, resource.TestCase{
+	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{

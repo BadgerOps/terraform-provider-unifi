@@ -99,6 +99,9 @@ func stringSetValue(ctx context.Context, values []string) (types.Set, diag.Diagn
 }
 
 func stringListValue(ctx context.Context, values []string) (types.List, diag.Diagnostics) {
+	if values == nil {
+		values = []string{}
+	}
 	return types.ListValueFrom(ctx, types.StringType, values)
 }
 

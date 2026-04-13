@@ -310,17 +310,16 @@ func (c *Client) GetNetwork(ctx context.Context, siteID, networkID string) (*Net
 		return nil, fmt.Errorf("get network: %w", err)
 	}
 
-	details, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
 
-	network, err := transcode[Network](details)
+	network, err := decodeBody[Network](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate network details: %w", err)
+		return nil, fmt.Errorf("decode network details: %w", err)
 	}
 
-	return &network, nil
+	return network, nil
 }
 
 func (c *Client) UpdateNetwork(ctx context.Context, siteID, networkID string, request Network) (*Network, error) {

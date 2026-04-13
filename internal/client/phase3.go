@@ -153,17 +153,16 @@ func (c *Client) GetLag(ctx context.Context, siteID, lagID string) (*Lag, error)
 		return nil, fmt.Errorf("get lag: %w", err)
 	}
 
-	details, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
 
-	lag, err := transcode[Lag](details)
+	lag, err := decodeBody[Lag](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate lag: %w", err)
+		return nil, fmt.Errorf("decode lag: %w", err)
 	}
 
-	return &lag, nil
+	return lag, nil
 }
 
 func (c *Client) ListMcLagDomains(ctx context.Context, siteID string) ([]McLagDomain, error) {
