@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.1] - 2026-04-13
+
+### Fixed
+
+- Removed the temporary legacy-provider migration document and updated the repository docs to align with the shared BadgerOps plan and the committed UniFi OpenAPI snapshot as the source of truth.
+- Added repo-local pre-commit and CI version-drift checks so README examples, the Terraform example configuration, and local validation wiring stay in sync with the current `CHANGELOG.md` release version.
+- Updated Terraform example validation to derive the local mirror version from `CHANGELOG.md` instead of a hardcoded provider version.
+
 ## [0.2.0] - 2026-04-13
 
 ### Added

@@ -34,11 +34,16 @@ jobs:
         with:
           tflint_version: v0.61.0
 
+      - name: Read release version from changelog
+        id: changelog
+        run: bash ./scripts/read-changelog-release.sh CHANGELOG.md >> "${GITHUB_OUTPUT}"
+
       - name: Build local provider mirror
         run: |
-          mirror_dir="${RUNNER_TEMP}/tf-mirror/registry.terraform.io/badgerops/unifi/0.0.1/linux_amd64"
+          version="${{ steps.changelog.outputs.version }}"
+          mirror_dir="${RUNNER_TEMP}/tf-mirror/registry.terraform.io/badgerops/unifi/${version}/linux_amd64"
           mkdir -p "${mirror_dir}"
-          go build -o "${mirror_dir}/terraform-provider-unifi_v0.0.1" .
+          go build -o "${mirror_dir}/terraform-provider-unifi_v${version}" .
 
       - name: Configure Terraform provider mirror
         run: |

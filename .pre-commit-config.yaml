@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: sync-version-references
+        name: Sync version references from CHANGELOG.md
+        entry: ./scripts/sync-version.sh --check
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -2,7 +2,7 @@
 
 Terraform provider for the current UniFi Network integration API.
 
-This repository implements the new provider shape described in the adjacent BadgerOps design docs. It targets the OpenAPI-backed integration endpoints shipped by current UniFi Network releases instead of the older private controller API.
+This repository follows the shared BadgerOps plan and the committed UniFi Network OpenAPI snapshot. It targets the OpenAPI-backed integration endpoints shipped by current UniFi Network releases instead of the older private controller API.
 
 ## Current scope
 
@@ -61,7 +61,7 @@ terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
-      version = "0.1.0"
+      version = "0.2.1"
     }
   }
 }
@@ -92,7 +92,7 @@ provider_installation {
 Then build the binary in the repo root:
 
 ```bash
-go build -o terraform-provider-unifi_v0.1.0 .
+go build -o terraform-provider-unifi_v0.2.1 .
 ```
 
 For CI and internal shared usage, use the packaged filesystem mirror bundle produced by the release workflow:
@@ -140,10 +140,6 @@ Resources that belong to a site use composite import IDs:
 - `unifi_acl_rule`: `<site_id>/<acl_rule_id>`
 - `unifi_acl_rule_ordering`: `<site_id>`
 
-## Migration
-
-Migration guidance for users coming from older UniFi Terraform providers is in [`docs/MIGRATION.md`](./docs/MIGRATION.md).
-
 ## Development
 
 If you use Nix, enter the pinned development shell with:
@@ -182,11 +178,21 @@ Useful local commands:
 make fmt
 make test
 make build
-make release-artifacts VERSION=0.1.0
+make sync-version
+make check-version-drift
+make release-artifacts VERSION=0.2.1
 make terraform-fmt-check
 make openapi-generate
 make testacc
 ```
+
+If you use `pre-commit`, install the repo hooks with:
+
+```bash
+pre-commit install
+```
+
+The version-drift hook derives the current release from [`CHANGELOG.md`](./CHANGELOG.md) and updates checked-in references before the commit is finalized.
 
 The [`examples/basic-site`](./examples/basic-site) configuration exercises the provider source address used by the final registry namespace and is validated in CI via a Terraform development override.
 

@@ -29,6 +29,9 @@ jobs:
       - name: Check formatting
         run: make gofmt-check
 
+      - name: Check version drift
+        run: make check-version-drift
+
       - name: Vet
         run: make vet
 
