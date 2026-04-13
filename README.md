@@ -190,6 +190,13 @@ make testacc
 
 The [`examples/basic-site`](./examples/basic-site) configuration exercises the provider source address used by the final registry namespace and is validated in CI via a Terraform development override.
 
+### Pull Requests
+
+Every pull request must update [`CHANGELOG.md`](./CHANGELOG.md).
+
+- Bump the version for the next release entry on the branch.
+- Add a concise summary of the user-visible changes shipped by the PR.
+
 ## Live Acceptance Tests
 
 The repo also includes live controller-backed acceptance tests under `internal/provider`. These are separate from the mock-backed provider tests and only run when `TF_ACC=1` is set.
