@@ -85,10 +85,10 @@ Then build the binary in the repo root:
 go build -o terraform-provider-unifi_v0.1.0 .
 ```
 
-For CI and internal shared usage, use the packaged filesystem mirror bundle produced by the repo workflows:
+For CI and internal shared usage, use the packaged filesystem mirror bundle produced by the release workflow:
 
-- `.github/workflows/package.yml` builds snapshot artifacts on pull requests, `master`, and manual runs
-- `.github/workflows/release.yml` builds tagged releases and publishes GitHub release assets
+- `.github/workflows/release.yml` reads the current version and notes from `CHANGELOG.md`
+- when a change lands on `master`, it builds release artifacts and publishes GitHub release assets for the current changelog version
 - `terraform-provider-unifi_<version>_terraform-mirror.tar.gz` is the recommended internal-consumption artifact
 
 Extract that mirror bundle onto the runner and point Terraform at it:
