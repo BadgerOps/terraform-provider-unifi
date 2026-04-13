@@ -33,7 +33,10 @@ type mockUniFiAPI struct {
 	siteID                        string
 	existingNetworkID             string
 	existingZoneID                string
+	existingFirewallPolicyID      string
 	existingTrafficMatchingListID string
+	existingDNSPolicyID           string
+	existingACLRuleID             string
 	existingRadiusProfileID       string
 	existingDeviceTagID           string
 	existingSwitchDeviceID        string
@@ -131,17 +134,96 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	api.existingZoneID = existingZone.ID
 	api.firewallZones[api.siteID][existingZone.ID] = existingZone
 
+	existingFirewallPolicy := client.FirewallPolicy{
+		ID:          api.newID(),
+		Enabled:     true,
+		Name:        "existing-policy",
+		Description: stringPtr("existing firewall policy"),
+		Action: &client.FirewallPolicyAction{
+			Type:               "ALLOW",
+			AllowReturnTraffic: boolPtr(true),
+		},
+		Source: &client.FirewallPolicyEndpoint{
+			ZoneID: existingZone.ID,
+			TrafficFilter: &client.FirewallPolicyTrafficFilter{
+				Type: "NETWORK",
+				NetworkFilter: &client.FirewallPolicyNetworkFilter{
+					NetworkIDs:    []string{existingNetwork.ID},
+					MatchOpposite: false,
+				},
+			},
+		},
+		Destination: &client.FirewallPolicyEndpoint{
+			ZoneID: existingZone.ID,
+			TrafficFilter: &client.FirewallPolicyTrafficFilter{
+				Type: "PORT",
+				PortFilter: &client.FirewallPolicyPortFilter{
+					Type:          "PORTS",
+					MatchOpposite: false,
+					Items: []client.PortMatch{
+						portNumberMatch(443),
+					},
+				},
+			},
+		},
+		IPProtocolScope: &client.FirewallPolicyIPProtocolScope{
+			IPVersion: "IPV4",
+			ProtocolFilter: &client.FirewallPolicyProtocolFilter{
+				Type:          "NAMED_PROTOCOL",
+				Protocol:      &client.FirewallPolicyNamedProtocol{Name: "tcp"},
+				MatchOpposite: boolPtr(false),
+			},
+		},
+		ConnectionStateFilter: []string{"NEW", "ESTABLISHED"},
+		LoggingEnabled:        true,
+		Index:                 0,
+	}
+	api.existingFirewallPolicyID = existingFirewallPolicy.ID
+	api.firewallPolicies[api.siteID][existingFirewallPolicy.ID] = existingFirewallPolicy
+
 	existingTrafficMatchingList := client.TrafficMatchingList{
 		ID:   api.newID(),
 		Type: "PORTS",
 		Name: "existing-web-ports",
-		Items: []client.PortMatch{
-			portNumberMatch(80),
-			portRangeMatch(443, 444),
+		Items: []client.TrafficMatchingItem{
+			portNumberTrafficMatch(80),
+			portRangeTrafficMatch(443, 444),
 		},
 	}
 	api.existingTrafficMatchingListID = existingTrafficMatchingList.ID
 	api.trafficMatchingLists[api.siteID][existingTrafficMatchingList.ID] = existingTrafficMatchingList
+
+	existingDNSPolicy := client.DNSPolicy{
+		ID:       api.newID(),
+		Type:     "TXT_RECORD",
+		Enabled:  true,
+		Domain:   stringPtr("existing.example.internal"),
+		Text:     stringPtr("existing"),
+		Metadata: map[string]any{"origin": "user"},
+	}
+	api.existingDNSPolicyID = existingDNSPolicy.ID
+	api.dnsPolicies[api.siteID][existingDNSPolicy.ID] = existingDNSPolicy
+
+	existingACLRule := client.ACLRule{
+		ID:      api.newID(),
+		Type:    "IPV4",
+		Enabled: true,
+		Name:    "existing-acl",
+		Action:  "BLOCK",
+		EnforcingDeviceFilter: &client.ACLRuleDeviceFilter{
+			Type:      "DEVICES",
+			DeviceIDs: []string{api.newID()},
+		},
+		ProtocolFilter: []string{"TCP"},
+		SourceFilter: &client.ACLRuleEndpointFilter{
+			Type:                 "IP_ADDRESSES_OR_SUBNETS",
+			IPAddressesOrSubnets: []string{"10.0.0.0/8"},
+			PortFilter:           []int64{443},
+		},
+		Index: 0,
+	}
+	api.existingACLRuleID = existingACLRule.ID
+	api.aclRules[api.siteID][existingACLRule.ID] = existingACLRule
 
 	existingRadiusProfile := client.RadiusProfile{
 		ID:   api.newID(),
@@ -978,9 +1060,25 @@ data "unifi_firewall_zone" "existing" {
   name    = "existing-zone"
 }
 
+data "unifi_firewall_policy" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "existing-policy"
+}
+
 data "unifi_traffic_matching_list" "existing" {
   site_id = data.unifi_site.main.id
   name    = "existing-web-ports"
+}
+
+data "unifi_dns_policy" "existing" {
+  site_id = data.unifi_site.main.id
+  domain  = "existing.example.internal"
+  type    = "TXT_RECORD"
+}
+
+data "unifi_acl_rule" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "existing-acl"
 }
 
 data "unifi_radius_profile" "existing" {
@@ -1030,10 +1128,21 @@ data "unifi_lag" "existing" {
 					resource.TestCheckResourceAttr("data.unifi_firewall_zone.existing", "id", api.existingZoneID),
 					resource.TestCheckResourceAttr("data.unifi_firewall_zone.existing", "name", "existing-zone"),
 					resource.TestCheckTypeSetElemAttr("data.unifi_firewall_zone.existing", "network_ids.*", api.existingNetworkID),
+					resource.TestCheckResourceAttr("data.unifi_firewall_policy.existing", "id", api.existingFirewallPolicyID),
+					resource.TestCheckResourceAttr("data.unifi_firewall_policy.existing", "action", "ALLOW"),
+					resource.TestCheckResourceAttr("data.unifi_firewall_policy.existing", "source_filter.type", "NETWORK"),
+					resource.TestCheckResourceAttr("data.unifi_firewall_policy.existing", "destination_filter.type", "PORT"),
+					resource.TestCheckResourceAttr("data.unifi_firewall_policy.existing", "protocol_filter.type", "NAMED_PROTOCOL"),
 					resource.TestCheckResourceAttr("data.unifi_traffic_matching_list.existing", "id", api.existingTrafficMatchingListID),
 					resource.TestCheckResourceAttr("data.unifi_traffic_matching_list.existing", "type", "PORTS"),
 					resource.TestCheckTypeSetElemAttr("data.unifi_traffic_matching_list.existing", "ports.*", "80"),
 					resource.TestCheckTypeSetElemAttr("data.unifi_traffic_matching_list.existing", "ports.*", "443-444"),
+					resource.TestCheckResourceAttr("data.unifi_dns_policy.existing", "id", api.existingDNSPolicyID),
+					resource.TestCheckResourceAttr("data.unifi_dns_policy.existing", "type", "TXT_RECORD"),
+					resource.TestCheckResourceAttr("data.unifi_dns_policy.existing", "text", "existing"),
+					resource.TestCheckResourceAttr("data.unifi_acl_rule.existing", "id", api.existingACLRuleID),
+					resource.TestCheckResourceAttr("data.unifi_acl_rule.existing", "type", "IPV4"),
+					resource.TestCheckTypeSetElemAttr("data.unifi_acl_rule.existing", "protocol_filter.*", "TCP"),
 					resource.TestCheckResourceAttr("data.unifi_radius_profile.existing", "id", api.existingRadiusProfileID),
 					resource.TestCheckResourceAttr("data.unifi_radius_profile.existing", "name", "existing-radius"),
 					resource.TestCheckResourceAttr("data.unifi_device_tag.existing", "id", api.existingDeviceTagID),
@@ -1258,6 +1367,58 @@ resource "unifi_traffic_matching_list" "test" {
 	})
 }
 
+func TestAccResourceTrafficMatchingListIPAddresses(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_traffic_matching_list.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_traffic_matching_list" "test" {
+  site_id        = data.unifi_site.main.id
+  type           = "IPV4_ADDRESSES"
+  name           = "protected-ipv4"
+  ipv4_addresses = ["192.168.1.10", "192.168.1.0/24", "192.168.1.20-192.168.1.30"]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "type", "IPV4_ADDRESSES"),
+					resource.TestCheckResourceAttr(resourceName, "name", "protected-ipv4"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ipv4_addresses.*", "192.168.1.10"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ipv4_addresses.*", "192.168.1.0/24"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ipv4_addresses.*", "192.168.1.20-192.168.1.30"),
+				),
+			},
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_traffic_matching_list" "test" {
+  site_id        = data.unifi_site.main.id
+  type           = "IPV6_ADDRESSES"
+  name           = "protected-ipv6"
+  ipv6_addresses = ["2001:db8::10", "2001:db8::/64"]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "type", "IPV6_ADDRESSES"),
+					resource.TestCheckResourceAttr(resourceName, "name", "protected-ipv6"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ipv6_addresses.*", "2001:db8::10"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "ipv6_addresses.*", "2001:db8::/64"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateIdFunc: testImportCompositeID(resourceName, api.siteID),
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 func TestAccResourceDNSPolicy(t *testing.T) {
 	api := newMockUniFiAPI(t)
 	defer api.Close()
@@ -1450,21 +1611,51 @@ resource "unifi_firewall_zone" "iot" {
 }
 
 resource "unifi_firewall_policy" "test" {
-  site_id                 = data.unifi_site.main.id
-  enabled                 = true
-  name                    = "trusted-to-iot"
-  action                  = "ALLOW"
-  source_zone_id          = unifi_firewall_zone.trusted.id
-  destination_zone_id     = unifi_firewall_zone.iot.id
-  destination_network_ids = [unifi_network.iot.id]
-  ip_version              = "IPV4_AND_IPV6"
+  site_id              = data.unifi_site.main.id
+  enabled              = true
+  name                 = "trusted-to-iot"
+  action               = "ALLOW"
+  allow_return_traffic = true
+  source_zone_id       = unifi_firewall_zone.trusted.id
+  source_filter = {
+    type                   = "NETWORK"
+    network_ids            = [unifi_network.trusted.id]
+    network_match_opposite = false
+  }
+  destination_zone_id = unifi_firewall_zone.iot.id
+  destination_filter = {
+    type                      = "IP_ADDRESS"
+    ip_addresses              = ["10.61.0.0/24"]
+    ip_address_match_opposite = false
+    port_filter = {
+      type           = "PORTS"
+      match_opposite = false
+      ports          = ["443", "8443-8444"]
+    }
+  }
+  ip_version = "IPV4"
+  protocol_filter = {
+    type           = "NAMED_PROTOCOL"
+    named_protocol = "tcp"
+    match_opposite = false
+  }
+  connection_state_filter = ["NEW"]
   logging_enabled         = false
+  schedule = {
+    mode       = "EVERY_DAY"
+    start_time = "08:00"
+    stop_time  = "18:00"
+  }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted-to-iot"),
 					resource.TestCheckResourceAttr(resourceName, "action", "ALLOW"),
-					resource.TestCheckResourceAttr(resourceName, "destination_network_ids.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "allow_return_traffic", "true"),
+					resource.TestCheckResourceAttr(resourceName, "source_filter.type", "NETWORK"),
+					resource.TestCheckResourceAttr(resourceName, "destination_filter.type", "IP_ADDRESS"),
+					resource.TestCheckResourceAttr(resourceName, "protocol_filter.type", "NAMED_PROTOCOL"),
+					resource.TestCheckResourceAttr(resourceName, "schedule.mode", "EVERY_DAY"),
 				),
 			},
 			{
@@ -1505,28 +1696,54 @@ resource "unifi_traffic_matching_list" "web" {
 }
 
 resource "unifi_firewall_policy" "test" {
-  site_id             = data.unifi_site.main.id
-  enabled             = true
-  name                = "trusted-to-iot-updated"
-  action              = "BLOCK"
-  source_zone_id      = unifi_firewall_zone.trusted.id
-  destination_zone_id = unifi_firewall_zone.iot.id
-  destination_port_filter = {
-    type                     = "TRAFFIC_MATCHING_LIST"
-    traffic_matching_list_id = unifi_traffic_matching_list.web.id
-    match_opposite           = true
+  site_id         = data.unifi_site.main.id
+  enabled         = true
+  name            = "trusted-to-iot-updated"
+  action          = "BLOCK"
+  source_zone_id  = unifi_firewall_zone.trusted.id
+  source_filter = {
+    type                      = "VPN_SERVER"
+    vpn_server_ids            = ["00000000-0000-0000-0000-000000009999"]
+    vpn_server_match_opposite = true
+    port_filter = {
+      type                     = "TRAFFIC_MATCHING_LIST"
+      traffic_matching_list_id = unifi_traffic_matching_list.web.id
+      match_opposite           = true
+    }
   }
-  ip_version      = "IPV4_AND_IPV6"
+  destination_zone_id = unifi_firewall_zone.iot.id
+  destination_filter = {
+    type    = "DOMAIN"
+    domains = ["example.com", "api.example.com"]
+    port_filter = {
+      type           = "PORTS"
+      match_opposite = false
+      ports          = ["443"]
+    }
+  }
+  ip_version = "IPV4_AND_IPV6"
+  protocol_filter = {
+    type        = "PRESET"
+    preset_name = "TCP_UDP"
+  }
   logging_enabled = true
+  schedule = {
+    mode           = "CUSTOM"
+    repeat_on_days = ["MONDAY", "WEDNESDAY"]
+    start_date     = "2026-01-01"
+    stop_date      = "2026-12-31"
+  }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted-to-iot-updated"),
 					resource.TestCheckResourceAttr(resourceName, "action", "BLOCK"),
 					resource.TestCheckResourceAttr(resourceName, "logging_enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "destination_port_filter.type", "TRAFFIC_MATCHING_LIST"),
-					resource.TestCheckResourceAttrPair(resourceName, "destination_port_filter.traffic_matching_list_id", "unifi_traffic_matching_list.web", "id"),
-					resource.TestCheckResourceAttr(resourceName, "destination_port_filter.match_opposite", "true"),
+					resource.TestCheckResourceAttr(resourceName, "source_filter.type", "VPN_SERVER"),
+					resource.TestCheckResourceAttrPair(resourceName, "source_filter.port_filter.traffic_matching_list_id", "unifi_traffic_matching_list.web", "id"),
+					resource.TestCheckResourceAttr(resourceName, "destination_filter.type", "DOMAIN"),
+					resource.TestCheckResourceAttr(resourceName, "protocol_filter.type", "PRESET"),
+					resource.TestCheckResourceAttr(resourceName, "schedule.mode", "CUSTOM"),
 				),
 			},
 			{
@@ -1696,10 +1913,17 @@ func portNumberMatch(value int64) client.PortMatch {
 	}
 }
 
-func portRangeMatch(start, stop int64) client.PortMatch {
-	return client.PortMatch{
+func portNumberTrafficMatch(value int64) client.TrafficMatchingItem {
+	return client.TrafficMatchingItem{
+		Type:  "PORT_NUMBER",
+		Value: value,
+	}
+}
+
+func portRangeTrafficMatch(start, stop int64) client.TrafficMatchingItem {
+	return client.TrafficMatchingItem{
 		Type:  "PORT_NUMBER_RANGE",
-		Start: int64Ptr(start),
-		Stop:  int64Ptr(stop),
+		Start: start,
+		Stop:  stop,
 	}
 }

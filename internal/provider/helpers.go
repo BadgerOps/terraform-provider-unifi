@@ -153,6 +153,10 @@ func int64PointerValue(value types.Int64) *int64 {
 	return &contents
 }
 
+func boolValueOrFalse(value types.Bool) bool {
+	return !value.IsNull() && !value.IsUnknown() && value.ValueBool()
+}
+
 func nullableString(value *string) types.String {
 	if value == nil {
 		return types.StringNull()

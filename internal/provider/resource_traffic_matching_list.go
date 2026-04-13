@@ -24,11 +24,13 @@ type trafficMatchingListResource struct {
 }
 
 type trafficMatchingListResourceModel struct {
-	ID     types.String `tfsdk:"id"`
-	SiteID types.String `tfsdk:"site_id"`
-	Type   types.String `tfsdk:"type"`
-	Name   types.String `tfsdk:"name"`
-	Ports  types.Set    `tfsdk:"ports"`
+	ID            types.String `tfsdk:"id"`
+	SiteID        types.String `tfsdk:"site_id"`
+	Type          types.String `tfsdk:"type"`
+	Name          types.String `tfsdk:"name"`
+	Ports         types.Set    `tfsdk:"ports"`
+	IPv4Addresses types.Set    `tfsdk:"ipv4_addresses"`
+	IPv6Addresses types.Set    `tfsdk:"ipv6_addresses"`
 }
 
 func NewTrafficMatchingListResource() resource.Resource {
@@ -41,7 +43,7 @@ func (r *trafficMatchingListResource) Metadata(_ context.Context, request resour
 
 func (r *trafficMatchingListResource) Schema(_ context.Context, _ resource.SchemaRequest, response *resource.SchemaResponse) {
 	response.Schema = schema.Schema{
-		MarkdownDescription: "Manage a UniFi traffic matching list. The current provider implementation supports `type = \"PORTS\"`.",
+		MarkdownDescription: "Manage a UniFi traffic matching list.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -51,7 +53,7 @@ func (r *trafficMatchingListResource) Schema(_ context.Context, _ resource.Schem
 			},
 			"type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Traffic matching list type. Currently only `PORTS` is supported.",
+				MarkdownDescription: "Traffic matching list type. Supported values: `PORTS`, `IPV4_ADDRESSES`, `IPV6_ADDRESSES`.",
 			},
 			"name": schema.StringAttribute{
 				Required: true,
@@ -60,6 +62,16 @@ func (r *trafficMatchingListResource) Schema(_ context.Context, _ resource.Schem
 				Optional:            true,
 				ElementType:         types.StringType,
 				MarkdownDescription: "Port numbers or ranges such as `80`, `443`, or `10000-20000`. Required when `type` is `PORTS`.",
+			},
+			"ipv4_addresses": schema.SetAttribute{
+				Optional:            true,
+				ElementType:         types.StringType,
+				MarkdownDescription: "IPv4 addresses, CIDR subnets, or ranges such as `192.168.1.10`, `192.168.1.0/24`, or `192.168.1.10-192.168.1.20`. Required when `type` is `IPV4_ADDRESSES`.",
+			},
+			"ipv6_addresses": schema.SetAttribute{
+				Optional:            true,
+				ElementType:         types.StringType,
+				MarkdownDescription: "IPv6 addresses or CIDR subnets such as `2001:db8::10` or `2001:db8::/64`. Required when `type` is `IPV6_ADDRESSES`.",
 			},
 		},
 	}
@@ -156,20 +168,53 @@ func expandTrafficMatchingList(ctx context.Context, model trafficMatchingListRes
 		Name: model.Name.ValueString(),
 	}
 
-	if result.Type != "PORTS" {
-		diags.AddError("Unsupported traffic matching list type", "The current provider implementation only supports `PORTS` traffic matching lists.")
-		return result
-	}
-
 	ports := setToStrings(ctx, model.Ports, "ports", diags)
-	if len(ports) == 0 {
-		diags.AddError("Missing ports", "`ports` must contain at least one port or range when `type` is `PORTS`.")
+	ipv4Addresses := setToStrings(ctx, model.IPv4Addresses, "ipv4_addresses", diags)
+	ipv6Addresses := setToStrings(ctx, model.IPv6Addresses, "ipv6_addresses", diags)
+	if diags.HasError() {
 		return result
 	}
 
-	items, err := expandPortMatches(ports)
+	var (
+		values []string
+		path   string
+	)
+
+	switch result.Type {
+	case "PORTS":
+		values = ports
+		path = "ports"
+		if len(ipv4Addresses) > 0 || len(ipv6Addresses) > 0 {
+			diags.AddError("Invalid traffic matching list configuration", "`ipv4_addresses` and `ipv6_addresses` are only valid for IP-based traffic matching lists.")
+			return result
+		}
+	case "IPV4_ADDRESSES":
+		values = ipv4Addresses
+		path = "ipv4_addresses"
+		if len(ports) > 0 || len(ipv6Addresses) > 0 {
+			diags.AddError("Invalid traffic matching list configuration", "`ports` and `ipv6_addresses` are not valid when `type` is `IPV4_ADDRESSES`.")
+			return result
+		}
+	case "IPV6_ADDRESSES":
+		values = ipv6Addresses
+		path = "ipv6_addresses"
+		if len(ports) > 0 || len(ipv4Addresses) > 0 {
+			diags.AddError("Invalid traffic matching list configuration", "`ports` and `ipv4_addresses` are not valid when `type` is `IPV6_ADDRESSES`.")
+			return result
+		}
+	default:
+		diags.AddError("Unsupported traffic matching list type", "Supported traffic matching list types are `PORTS`, `IPV4_ADDRESSES`, and `IPV6_ADDRESSES`.")
+		return result
+	}
+
+	if len(values) == 0 {
+		diags.AddError("Missing traffic matching list items", fmt.Sprintf("`%s` must contain at least one entry when `type` is `%s`.", path, result.Type))
+		return result
+	}
+
+	items, err := expandTrafficMatchingListItems(result.Type, values)
 	if err != nil {
-		diags.AddError("Invalid ports", err.Error())
+		diags.AddError("Invalid traffic matching list items", err.Error())
 		return result
 	}
 	result.Items = items
@@ -178,18 +223,41 @@ func expandTrafficMatchingList(ctx context.Context, model trafficMatchingListRes
 }
 
 func (r *trafficMatchingListResource) writeState(ctx context.Context, state *tfsdk.State, diags *diag.Diagnostics, siteID types.String, list *client.TrafficMatchingList) {
-	ports, diagnostics := stringSetValue(ctx, flattenPortMatches(list.Items))
+	values, err := flattenTrafficMatchingListItems(list.Type, list.Items)
+	if err != nil {
+		diags.AddError("Unable to flatten traffic matching list", err.Error())
+		return
+	}
+
+	ports := types.SetNull(types.StringType)
+	ipv4Addresses := types.SetNull(types.StringType)
+	ipv6Addresses := types.SetNull(types.StringType)
+
+	var diagnostics diag.Diagnostics
+	switch list.Type {
+	case "PORTS":
+		ports, diagnostics = stringSetValue(ctx, values)
+	case "IPV4_ADDRESSES":
+		ipv4Addresses, diagnostics = stringSetValue(ctx, values)
+	case "IPV6_ADDRESSES":
+		ipv6Addresses, diagnostics = stringSetValue(ctx, values)
+	default:
+		diags.AddError("Unsupported traffic matching list type", fmt.Sprintf("Unable to persist unsupported traffic matching list type %q.", list.Type))
+		return
+	}
 	diags.Append(diagnostics...)
 	if diags.HasError() {
 		return
 	}
 
 	model := trafficMatchingListResourceModel{
-		ID:     types.StringValue(list.ID),
-		SiteID: siteID,
-		Type:   types.StringValue(list.Type),
-		Name:   types.StringValue(list.Name),
-		Ports:  ports,
+		ID:            types.StringValue(list.ID),
+		SiteID:        siteID,
+		Type:          types.StringValue(list.Type),
+		Name:          types.StringValue(list.Name),
+		Ports:         ports,
+		IPv4Addresses: ipv4Addresses,
+		IPv6Addresses: ipv6Addresses,
 	}
 
 	diags.Append(state.Set(ctx, &model)...)
