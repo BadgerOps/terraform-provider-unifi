@@ -38,6 +38,7 @@ type wifiBroadcastResourceModel struct {
 	UAPSDEnabled                        types.Bool   `tfsdk:"uapsd_enabled"`
 	MulticastToUnicastConversionEnabled types.Bool   `tfsdk:"multicast_to_unicast_conversion_enabled"`
 	BroadcastingFrequenciesGHz          types.Set    `tfsdk:"broadcasting_frequencies_ghz"`
+	BroadcastingDeviceFilter            types.Object `tfsdk:"broadcasting_device_filter"`
 	AdvertiseDeviceName                 types.Bool   `tfsdk:"advertise_device_name"`
 	ARPProxyEnabled                     types.Bool   `tfsdk:"arp_proxy_enabled"`
 	BandSteeringEnabled                 types.Bool   `tfsdk:"band_steering_enabled"`
@@ -64,6 +65,11 @@ type wifiSecurityConfigurationModel struct {
 	SAEConfiguration          types.Object `tfsdk:"sae_configuration"`
 }
 
+type wifiBroadcastingDeviceFilterModel struct {
+	Type         types.String `tfsdk:"type"`
+	DeviceTagIDs types.Set    `tfsdk:"device_tag_ids"`
+}
+
 func wifiNetworkAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type":       types.StringType,
@@ -87,6 +93,13 @@ func wifiSecurityConfigurationAttrTypes() map[string]attr.Type {
 		"group_rekey_interval_seconds": types.Int64Type,
 		"wpa3_fast_roaming_enabled":    types.BoolType,
 		"sae_configuration":            types.ObjectType{AttrTypes: wifiSAEConfigurationAttrTypes()},
+	}
+}
+
+func wifiBroadcastingDeviceFilterAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"type":           types.StringType,
+		"device_tag_ids": types.SetType{ElemType: types.StringType},
 	}
 }
 
@@ -182,6 +195,19 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 				Optional:    true,
 				ElementType: types.Float64Type,
 			},
+			"broadcasting_device_filter": schema.SingleNestedAttribute{
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{
+						Required:            true,
+						MarkdownDescription: "Broadcasting device filter type. Current supported value: `DEVICE_TAGS`.",
+					},
+					"device_tag_ids": schema.SetAttribute{
+						Optional:    true,
+						ElementType: types.StringType,
+					},
+				},
+			},
 			"advertise_device_name": schema.BoolAttribute{
 				Optional: true,
 			},
@@ -246,6 +272,8 @@ func (r *wifiBroadcastResource) Read(ctx context.Context, request resource.ReadR
 func (r *wifiBroadcastResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
 	var plan wifiBroadcastResourceModel
 	response.Diagnostics.Append(request.Plan.Get(ctx, &plan)...)
+	var state wifiBroadcastResourceModel
+	response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	if response.Diagnostics.HasError() {
 		return
 	}
@@ -255,7 +283,7 @@ func (r *wifiBroadcastResource) Update(ctx context.Context, request resource.Upd
 		return
 	}
 
-	updated, err := r.providerData.client.UpdateWifiBroadcast(ctx, plan.SiteID.ValueString(), plan.ID.ValueString(), apiBroadcast)
+	updated, err := r.providerData.client.UpdateWifiBroadcast(ctx, plan.SiteID.ValueString(), state.ID.ValueString(), apiBroadcast)
 	if err != nil {
 		response.Diagnostics.AddError("Unable to update WiFi broadcast", err.Error())
 		return
@@ -312,6 +340,15 @@ func (r *wifiBroadcastResource) expandWifiBroadcast(ctx context.Context, plan wi
 	var security wifiSecurityConfigurationModel
 	diags.Append(plan.SecurityConfiguration.As(ctx, &security, basetypes.ObjectAsOptions{})...)
 	broadcast.SecurityConfiguration = expandWifiSecurityConfiguration(ctx, security, diags)
+
+	if !plan.BroadcastingDeviceFilter.IsNull() && !plan.BroadcastingDeviceFilter.IsUnknown() {
+		var deviceFilter wifiBroadcastingDeviceFilterModel
+		diags.Append(plan.BroadcastingDeviceFilter.As(ctx, &deviceFilter, basetypes.ObjectAsOptions{})...)
+		broadcast.BroadcastingDeviceFilter = &client.WifiBroadcastingDeviceFilter{
+			Type:         deviceFilter.Type.ValueString(),
+			DeviceTagIDs: setToStrings(ctx, deviceFilter.DeviceTagIDs, "broadcasting_device_filter.device_tag_ids", diags),
+		}
+	}
 
 	return broadcast
 }
@@ -401,6 +438,25 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		}
 	}
 
+	if !plan.BroadcastingDeviceFilter.IsNull() && !plan.BroadcastingDeviceFilter.IsUnknown() {
+		var deviceFilter wifiBroadcastingDeviceFilterModel
+		if diags := plan.BroadcastingDeviceFilter.As(ctx, &deviceFilter, basetypes.ObjectAsOptions{}); diags.HasError() {
+			return fmt.Errorf("unable to decode broadcasting_device_filter block")
+		}
+
+		if deviceFilter.Type.IsNull() || deviceFilter.Type.ValueString() == "" {
+			return fmt.Errorf("broadcasting_device_filter.type must not be empty")
+		}
+
+		if deviceFilter.Type.ValueString() == "DEVICE_TAGS" {
+			if len(setToStrings(ctx, deviceFilter.DeviceTagIDs, "broadcasting_device_filter.device_tag_ids", &diag.Diagnostics{})) == 0 {
+				return fmt.Errorf("broadcasting_device_filter.device_tag_ids must contain at least one device tag id when type is DEVICE_TAGS")
+			}
+		} else if !deviceFilter.DeviceTagIDs.IsNull() && !deviceFilter.DeviceTagIDs.IsUnknown() {
+			return fmt.Errorf("broadcasting_device_filter.device_tag_ids is only supported when broadcasting_device_filter.type is DEVICE_TAGS")
+		}
+	}
+
 	return nil
 }
 
@@ -410,6 +466,8 @@ func (r *wifiBroadcastResource) writeState(ctx context.Context, state *tfsdk.Sta
 	securityConfiguration, diagnostics := flattenWifiSecurityConfiguration(ctx, broadcast.SecurityConfiguration)
 	diags.Append(diagnostics...)
 	broadcastingFrequencies, diagnostics := float64SetValue(ctx, broadcast.BroadcastingFrequenciesGHz)
+	diags.Append(diagnostics...)
+	broadcastingDeviceFilter, diagnostics := flattenWifiBroadcastingDeviceFilter(ctx, broadcast.BroadcastingDeviceFilter)
 	diags.Append(diagnostics...)
 	if diags.HasError() {
 		return
@@ -428,6 +486,7 @@ func (r *wifiBroadcastResource) writeState(ctx context.Context, state *tfsdk.Sta
 		UAPSDEnabled:                        types.BoolValue(broadcast.UAPSDEnabled),
 		MulticastToUnicastConversionEnabled: types.BoolValue(broadcast.MulticastToUnicastConversionEnabled),
 		BroadcastingFrequenciesGHz:          broadcastingFrequencies,
+		BroadcastingDeviceFilter:            broadcastingDeviceFilter,
 		AdvertiseDeviceName:                 nullableBool(broadcast.AdvertiseDeviceName),
 		ARPProxyEnabled:                     nullableBool(broadcast.ARPProxyEnabled),
 		BandSteeringEnabled:                 nullableBool(broadcast.BandSteeringEnabled),
@@ -484,6 +543,25 @@ func flattenWifiSecurityConfiguration(ctx context.Context, security *client.Wifi
 	}
 
 	value, diagnosticsObject := types.ObjectValueFrom(ctx, wifiSecurityConfigurationAttrTypes(), model)
+	diagnostics.Append(diagnosticsObject...)
+	return value, diagnostics
+}
+
+func flattenWifiBroadcastingDeviceFilter(ctx context.Context, filter *client.WifiBroadcastingDeviceFilter) (types.Object, diag.Diagnostics) {
+	var diagnostics diag.Diagnostics
+	if filter == nil {
+		return types.ObjectNull(wifiBroadcastingDeviceFilterAttrTypes()), diagnostics
+	}
+
+	deviceTagIDs, diagnosticsSet := stringSetValue(ctx, filter.DeviceTagIDs)
+	diagnostics.Append(diagnosticsSet...)
+
+	model := wifiBroadcastingDeviceFilterModel{
+		Type:         types.StringValue(filter.Type),
+		DeviceTagIDs: deviceTagIDs,
+	}
+
+	value, diagnosticsObject := types.ObjectValueFrom(ctx, wifiBroadcastingDeviceFilterAttrTypes(), model)
 	diagnostics.Append(diagnosticsObject...)
 	return value, diagnostics
 }

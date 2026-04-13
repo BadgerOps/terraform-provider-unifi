@@ -8,6 +8,7 @@ This repository implements the new provider shape described in the adjacent Badg
 
 - Provider: `badgerops/unifi`
 - Data source: `unifi_site`
+- Data source: `unifi_device`
 - Data source: `unifi_network`
 - Data source: `unifi_firewall_zone`
 - Data source: `unifi_traffic_matching_list`
@@ -87,6 +88,28 @@ nix develop
 
 The Nix shell exposes a `terraform` command via an OpenTofu compatibility wrapper for fast local validation, while CI still runs HashiCorp Terraform `1.14.8`.
 
+If you use `direnv`, the flake also provides `direnv` in the dev shell. A simple local setup is:
+
+```bash
+# .envrc
+use flake
+
+export TF_ACC=1
+export UNIFI_API_URL=https://unifi.example.com
+export UNIFI_API_KEY=replace-me
+export UNIFI_ALLOW_INSECURE=false
+export UNIFI_TEST_SITE_NAME=Terraform Acceptance
+export UNIFI_TEST_NAME_PREFIX=acctest-
+```
+
+Then run:
+
+```bash
+direnv allow
+```
+
+`make testacc` will use `.envrc` when `direnv` is available and will prefer `/usr/bin/terraform` for acceptance runs so the Terraform plugin test framework does not accidentally pick up the OpenTofu compatibility wrapper from the dev shell.
+
 Useful local commands:
 
 ```bash
@@ -95,6 +118,43 @@ make test
 make build
 make terraform-fmt-check
 make openapi-generate
+make testacc
 ```
 
 The [`examples/basic-site`](./examples/basic-site) configuration exercises the provider source address used by the final registry namespace and is validated in CI via a Terraform development override.
+
+## Live Acceptance Tests
+
+The repo also includes live controller-backed acceptance tests under `internal/provider`. These are separate from the mock-backed provider tests and only run when `TF_ACC=1` is set.
+
+Recommended local setup:
+
+```bash
+cp .env.example .env.testacc
+make testacc
+```
+
+If you already use `.env` for another tool such as Docker Compose, keep acceptance settings in a separate file or in `.envrc`.
+
+Required environment variables:
+
+- `UNIFI_API_URL`
+- `UNIFI_API_KEY`
+- exactly one of `UNIFI_TEST_SITE_ID` or `UNIFI_TEST_SITE_NAME`
+
+Optional environment variables:
+
+- `UNIFI_ALLOW_INSECURE`
+- `UNIFI_TEST_NAME_PREFIX`
+- `UNIFI_TEST_WIFI_PASSPHRASE`
+- `UNIFI_TEST_ENABLE_ZONE_FIREWALL`
+
+Use a dedicated disposable UniFi site for these tests. The live suite creates and destroys real resources.
+
+Live test behavior:
+
+- core coverage always runs: `unifi_site`, `unifi_network`, `unifi_traffic_matching_list`, `unifi_dns_policy`, `unifi_acl_rule`
+- switch inventory coverage runs when the target site has at least one adopted device with the `switching` feature
+- WiFi broadcast coverage is skipped unless `UNIFI_TEST_WIFI_PASSPHRASE` is set; when enabled it also exercises `broadcasting_device_filter` with `DEVICE_TAGS`
+- zone firewall coverage is skipped unless `UNIFI_TEST_ENABLE_ZONE_FIREWALL=1` is set
+- inventory-backed data sources such as `unifi_wan`, `unifi_radius_profile`, `unifi_device_tag`, `unifi_switch_stack`, `unifi_mc_lag_domain`, and `unifi_lag` skip when the target site has no matching objects

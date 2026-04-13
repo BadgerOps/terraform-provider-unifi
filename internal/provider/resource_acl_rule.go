@@ -248,6 +248,8 @@ func (r *aclRuleResource) Read(ctx context.Context, request resource.ReadRequest
 func (r *aclRuleResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
 	var plan aclRuleResourceModel
 	response.Diagnostics.Append(request.Plan.Get(ctx, &plan)...)
+	var state aclRuleResourceModel
+	response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	if response.Diagnostics.HasError() {
 		return
 	}
@@ -257,7 +259,7 @@ func (r *aclRuleResource) Update(ctx context.Context, request resource.UpdateReq
 		return
 	}
 
-	updated, err := r.providerData.client.UpdateACLRule(ctx, plan.SiteID.ValueString(), plan.ID.ValueString(), apiRule)
+	updated, err := r.providerData.client.UpdateACLRule(ctx, plan.SiteID.ValueString(), state.ID.ValueString(), apiRule)
 	if err != nil {
 		response.Diagnostics.AddError("Unable to update ACL rule", err.Error())
 		return

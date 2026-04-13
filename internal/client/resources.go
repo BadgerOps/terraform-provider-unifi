@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
+
+	"github.com/badgerops/terraform-provider-unifi/internal/openapi/generated"
 )
 
 type DHCPGuarding struct {
@@ -76,29 +77,34 @@ type WifiSecurityConfiguration struct {
 	WPA3FastRoamingEnabled    *bool             `json:"wpa3FastRoamingEnabled,omitempty"`
 }
 
+type WifiBroadcastingDeviceFilter struct {
+	Type         string   `json:"type"`
+	DeviceTagIDs []string `json:"deviceTagIds,omitempty"`
+}
+
 type WifiBroadcast struct {
-	ID                                  string                     `json:"id,omitempty"`
-	Type                                string                     `json:"type"`
-	Name                                string                     `json:"name"`
-	Enabled                             bool                       `json:"enabled"`
-	Network                             *WifiNetworkReference      `json:"network,omitempty"`
-	SecurityConfiguration               *WifiSecurityConfiguration `json:"securityConfiguration,omitempty"`
-	ClientIsolationEnabled              bool                       `json:"clientIsolationEnabled"`
-	HideName                            bool                       `json:"hideName"`
-	UAPSDEnabled                        bool                       `json:"uapsdEnabled"`
-	MulticastToUnicastConversionEnabled bool                       `json:"multicastToUnicastConversionEnabled"`
-	BroadcastingFrequenciesGHz          []float64                  `json:"broadcastingFrequenciesGHz,omitempty"`
-	AdvertiseDeviceName                 *bool                      `json:"advertiseDeviceName,omitempty"`
-	ARPProxyEnabled                     *bool                      `json:"arpProxyEnabled,omitempty"`
-	BandSteeringEnabled                 *bool                      `json:"bandSteeringEnabled,omitempty"`
-	BSSTransitionEnabled                *bool                      `json:"bssTransitionEnabled,omitempty"`
-	MDNSProxyConfiguration              map[string]any             `json:"mdnsProxyConfiguration,omitempty"`
-	MulticastFilteringPolicy            map[string]any             `json:"multicastFilteringPolicy,omitempty"`
-	BroadcastingDeviceFilter            map[string]any             `json:"broadcastingDeviceFilter,omitempty"`
-	BasicDataRateKbpsByFrequencyGHz     map[string]any             `json:"basicDataRateKbpsByFrequencyGHz,omitempty"`
-	ClientFilteringPolicy               map[string]any             `json:"clientFilteringPolicy,omitempty"`
-	BlackoutScheduleConfiguration       map[string]any             `json:"blackoutScheduleConfiguration,omitempty"`
-	Metadata                            map[string]any             `json:"metadata,omitempty"`
+	ID                                  string                        `json:"id,omitempty"`
+	Type                                string                        `json:"type"`
+	Name                                string                        `json:"name"`
+	Enabled                             bool                          `json:"enabled"`
+	Network                             *WifiNetworkReference         `json:"network,omitempty"`
+	SecurityConfiguration               *WifiSecurityConfiguration    `json:"securityConfiguration,omitempty"`
+	ClientIsolationEnabled              bool                          `json:"clientIsolationEnabled"`
+	HideName                            bool                          `json:"hideName"`
+	UAPSDEnabled                        bool                          `json:"uapsdEnabled"`
+	MulticastToUnicastConversionEnabled bool                          `json:"multicastToUnicastConversionEnabled"`
+	BroadcastingFrequenciesGHz          []float64                     `json:"broadcastingFrequenciesGHz,omitempty"`
+	AdvertiseDeviceName                 *bool                         `json:"advertiseDeviceName,omitempty"`
+	ARPProxyEnabled                     *bool                         `json:"arpProxyEnabled,omitempty"`
+	BandSteeringEnabled                 *bool                         `json:"bandSteeringEnabled,omitempty"`
+	BSSTransitionEnabled                *bool                         `json:"bssTransitionEnabled,omitempty"`
+	MDNSProxyConfiguration              map[string]any                `json:"mdnsProxyConfiguration,omitempty"`
+	MulticastFilteringPolicy            map[string]any                `json:"multicastFilteringPolicy,omitempty"`
+	BroadcastingDeviceFilter            *WifiBroadcastingDeviceFilter `json:"broadcastingDeviceFilter,omitempty"`
+	BasicDataRateKbpsByFrequencyGHz     map[string]any                `json:"basicDataRateKbpsByFrequencyGHz,omitempty"`
+	ClientFilteringPolicy               map[string]any                `json:"clientFilteringPolicy,omitempty"`
+	BlackoutScheduleConfiguration       map[string]any                `json:"blackoutScheduleConfiguration,omitempty"`
+	Metadata                            map[string]any                `json:"metadata,omitempty"`
 }
 
 type FirewallZone struct {
@@ -171,51 +177,145 @@ type FirewallPolicy struct {
 }
 
 func (c *Client) CreateNetwork(ctx context.Context, siteID string, request Network) (*Network, error) {
-	var response Network
-	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/v1/sites/%s/networks", siteID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("create network site id: %w", err)
+	}
+
+	body, err := transcode[generated.CreateNetworkJSONRequestBody](request)
+	if err != nil {
+		return nil, fmt.Errorf("translate create network request: %w", err)
+	}
+
+	response, err := c.apiClient.CreateNetworkWithResponse(ctx, siteUUID, body)
+	if err != nil {
+		return nil, fmt.Errorf("create network: %w", err)
+	}
+
+	created, err := requireJSON(response.StatusCode(), response.Body, response.JSON201, http.StatusCreated)
+	if err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	network, err := transcode[Network](created)
+	if err != nil {
+		return nil, fmt.Errorf("translate created network: %w", err)
+	}
+
+	return &network, nil
 }
 
 func (c *Client) GetNetwork(ctx context.Context, siteID, networkID string) (*Network, error) {
-	var response Network
-	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/networks/%s", siteID, networkID), nil, nil, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("get network site id: %w", err)
+	}
+	networkUUID, err := parseUUID(networkID)
+	if err != nil {
+		return nil, fmt.Errorf("get network id: %w", err)
+	}
+
+	response, err := c.apiClient.GetNetworkDetailsWithResponse(ctx, siteUUID, networkUUID)
+	if err != nil {
+		return nil, fmt.Errorf("get network: %w", err)
+	}
+
+	details, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+	if err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	network, err := transcode[Network](details)
+	if err != nil {
+		return nil, fmt.Errorf("translate network details: %w", err)
+	}
+
+	return &network, nil
 }
 
 func (c *Client) UpdateNetwork(ctx context.Context, siteID, networkID string, request Network) (*Network, error) {
-	var response Network
-	if err := c.do(ctx, http.MethodPut, fmt.Sprintf("/v1/sites/%s/networks/%s", siteID, networkID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("update network site id: %w", err)
+	}
+	networkUUID, err := parseUUID(networkID)
+	if err != nil {
+		return nil, fmt.Errorf("update network id: %w", err)
+	}
+
+	body, err := transcode[generated.UpdateNetworkJSONRequestBody](request)
+	if err != nil {
+		return nil, fmt.Errorf("translate update network request: %w", err)
+	}
+
+	response, err := c.apiClient.UpdateNetworkWithResponse(ctx, siteUUID, networkUUID, body)
+	if err != nil {
+		return nil, fmt.Errorf("update network: %w", err)
+	}
+
+	updated, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+	if err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	network, err := transcode[Network](updated)
+	if err != nil {
+		return nil, fmt.Errorf("translate updated network: %w", err)
+	}
+
+	return &network, nil
 }
 
 func (c *Client) DeleteNetwork(ctx context.Context, siteID, networkID string) error {
-	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/networks/%s", siteID, networkID), nil, nil, nil)
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return fmt.Errorf("delete network site id: %w", err)
+	}
+	networkUUID, err := parseUUID(networkID)
+	if err != nil {
+		return fmt.Errorf("delete network id: %w", err)
+	}
+
+	response, err := c.apiClient.DeleteNetworkWithResponse(ctx, siteUUID, networkUUID, nil)
+	if err != nil {
+		return fmt.Errorf("delete network: %w", err)
+	}
+
+	return requireStatus(response.StatusCode(), response.Body, http.StatusOK, http.StatusNoContent)
 }
 
 func (c *Client) ListNetworks(ctx context.Context, siteID string) ([]Network, error) {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list networks site id: %w", err)
+	}
+
 	var networks []Network
 	offset := 0
 
 	for {
-		var response page[Network]
-		query := url.Values{}
-		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
-		query.Set("offset", fmt.Sprintf("%d", offset))
+		response, err := c.apiClient.GetNetworksOverviewPageWithResponse(ctx, siteUUID, &generated.GetNetworksOverviewPageParams{
+			Limit:  pageParam(defaultPageLimit),
+			Offset: pageParam(offset),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list networks: %w", err)
+		}
 
-		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/networks", siteID), query, nil, &response); err != nil {
+		page, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+		if err != nil {
 			return nil, err
 		}
 
-		networks = append(networks, response.Data...)
-		offset += len(response.Data)
+		batch, err := transcode[[]Network](page.Data)
+		if err != nil {
+			return nil, fmt.Errorf("translate network page: %w", err)
+		}
 
-		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+		networks = append(networks, batch...)
+		offset += len(batch)
+
+		if len(batch) == 0 || int64(offset) >= page.TotalCount {
 			break
 		}
 	}
@@ -224,79 +324,250 @@ func (c *Client) ListNetworks(ctx context.Context, siteID string) ([]Network, er
 }
 
 func (c *Client) CreateWifiBroadcast(ctx context.Context, siteID string, request WifiBroadcast) (*WifiBroadcast, error) {
-	var response WifiBroadcast
-	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/v1/sites/%s/wifi/broadcasts", siteID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("create wifi broadcast site id: %w", err)
+	}
+
+	body, err := jsonBodyReader(request)
+	if err != nil {
+		return nil, fmt.Errorf("encode create wifi broadcast request: %w", err)
+	}
+
+	response, err := c.apiClient.CreateWifiBroadcastWithBodyWithResponse(ctx, siteUUID, "application/json", body)
+	if err != nil {
+		return nil, fmt.Errorf("create wifi broadcast: %w", err)
+	}
+
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusCreated); err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	broadcast, err := decodeBody[WifiBroadcast](response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("decode created wifi broadcast: %w", err)
+	}
+
+	return broadcast, nil
 }
 
 func (c *Client) GetWifiBroadcast(ctx context.Context, siteID, wifiBroadcastID string) (*WifiBroadcast, error) {
-	var response WifiBroadcast
-	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/wifi/broadcasts/%s", siteID, wifiBroadcastID), nil, nil, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("get wifi broadcast site id: %w", err)
+	}
+	broadcastUUID, err := parseUUID(wifiBroadcastID)
+	if err != nil {
+		return nil, fmt.Errorf("get wifi broadcast id: %w", err)
+	}
+
+	response, err := c.apiClient.GetWifiBroadcastDetailsWithResponse(ctx, siteUUID, broadcastUUID)
+	if err != nil {
+		return nil, fmt.Errorf("get wifi broadcast: %w", err)
+	}
+
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	broadcast, err := decodeBody[WifiBroadcast](response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("decode wifi broadcast details: %w", err)
+	}
+
+	return broadcast, nil
 }
 
 func (c *Client) UpdateWifiBroadcast(ctx context.Context, siteID, wifiBroadcastID string, request WifiBroadcast) (*WifiBroadcast, error) {
-	var response WifiBroadcast
-	if err := c.do(ctx, http.MethodPut, fmt.Sprintf("/v1/sites/%s/wifi/broadcasts/%s", siteID, wifiBroadcastID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("update wifi broadcast site id: %w", err)
+	}
+	broadcastUUID, err := parseUUID(wifiBroadcastID)
+	if err != nil {
+		return nil, fmt.Errorf("update wifi broadcast id: %w", err)
+	}
+
+	body, err := jsonBodyReader(request)
+	if err != nil {
+		return nil, fmt.Errorf("encode update wifi broadcast request: %w", err)
+	}
+
+	response, err := c.apiClient.UpdateWifiBroadcastWithBodyWithResponse(ctx, siteUUID, broadcastUUID, "application/json", body)
+	if err != nil {
+		return nil, fmt.Errorf("update wifi broadcast: %w", err)
+	}
+
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	broadcast, err := decodeBody[WifiBroadcast](response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("decode updated wifi broadcast: %w", err)
+	}
+
+	return broadcast, nil
 }
 
 func (c *Client) DeleteWifiBroadcast(ctx context.Context, siteID, wifiBroadcastID string) error {
-	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/wifi/broadcasts/%s", siteID, wifiBroadcastID), nil, nil, nil)
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return fmt.Errorf("delete wifi broadcast site id: %w", err)
+	}
+	broadcastUUID, err := parseUUID(wifiBroadcastID)
+	if err != nil {
+		return fmt.Errorf("delete wifi broadcast id: %w", err)
+	}
+
+	response, err := c.apiClient.DeleteWifiBroadcastWithResponse(ctx, siteUUID, broadcastUUID, nil)
+	if err != nil {
+		return fmt.Errorf("delete wifi broadcast: %w", err)
+	}
+
+	return requireStatus(response.StatusCode(), response.Body, http.StatusOK, http.StatusNoContent)
 }
 
 func (c *Client) CreateFirewallZone(ctx context.Context, siteID string, request FirewallZone) (*FirewallZone, error) {
-	var response FirewallZone
-	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/v1/sites/%s/firewall/zones", siteID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("create firewall zone site id: %w", err)
+	}
+
+	body, err := transcode[generated.CreateFirewallZoneJSONRequestBody](request)
+	if err != nil {
+		return nil, fmt.Errorf("translate create firewall zone request: %w", err)
+	}
+
+	response, err := c.apiClient.CreateFirewallZoneWithResponse(ctx, siteUUID, body)
+	if err != nil {
+		return nil, fmt.Errorf("create firewall zone: %w", err)
+	}
+
+	created, err := requireJSON(response.StatusCode(), response.Body, response.JSON201, http.StatusCreated)
+	if err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	zone, err := transcode[FirewallZone](created)
+	if err != nil {
+		return nil, fmt.Errorf("translate created firewall zone: %w", err)
+	}
+
+	return &zone, nil
 }
 
 func (c *Client) GetFirewallZone(ctx context.Context, siteID, firewallZoneID string) (*FirewallZone, error) {
-	var response FirewallZone
-	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/firewall/zones/%s", siteID, firewallZoneID), nil, nil, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("get firewall zone site id: %w", err)
+	}
+	zoneUUID, err := parseUUID(firewallZoneID)
+	if err != nil {
+		return nil, fmt.Errorf("get firewall zone id: %w", err)
+	}
+
+	response, err := c.apiClient.GetFirewallZoneWithResponse(ctx, siteUUID, zoneUUID)
+	if err != nil {
+		return nil, fmt.Errorf("get firewall zone: %w", err)
+	}
+
+	details, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+	if err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	zone, err := transcode[FirewallZone](details)
+	if err != nil {
+		return nil, fmt.Errorf("translate firewall zone: %w", err)
+	}
+
+	return &zone, nil
 }
 
 func (c *Client) UpdateFirewallZone(ctx context.Context, siteID, firewallZoneID string, request FirewallZone) (*FirewallZone, error) {
-	var response FirewallZone
-	if err := c.do(ctx, http.MethodPut, fmt.Sprintf("/v1/sites/%s/firewall/zones/%s", siteID, firewallZoneID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("update firewall zone site id: %w", err)
+	}
+	zoneUUID, err := parseUUID(firewallZoneID)
+	if err != nil {
+		return nil, fmt.Errorf("update firewall zone id: %w", err)
+	}
+
+	body, err := transcode[generated.UpdateFirewallZoneJSONRequestBody](request)
+	if err != nil {
+		return nil, fmt.Errorf("translate update firewall zone request: %w", err)
+	}
+
+	response, err := c.apiClient.UpdateFirewallZoneWithResponse(ctx, siteUUID, zoneUUID, body)
+	if err != nil {
+		return nil, fmt.Errorf("update firewall zone: %w", err)
+	}
+
+	updated, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+	if err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	zone, err := transcode[FirewallZone](updated)
+	if err != nil {
+		return nil, fmt.Errorf("translate updated firewall zone: %w", err)
+	}
+
+	return &zone, nil
 }
 
 func (c *Client) DeleteFirewallZone(ctx context.Context, siteID, firewallZoneID string) error {
-	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/firewall/zones/%s", siteID, firewallZoneID), nil, nil, nil)
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return fmt.Errorf("delete firewall zone site id: %w", err)
+	}
+	zoneUUID, err := parseUUID(firewallZoneID)
+	if err != nil {
+		return fmt.Errorf("delete firewall zone id: %w", err)
+	}
+
+	response, err := c.apiClient.DeleteFirewallZoneWithResponse(ctx, siteUUID, zoneUUID)
+	if err != nil {
+		return fmt.Errorf("delete firewall zone: %w", err)
+	}
+
+	return requireStatus(response.StatusCode(), response.Body, http.StatusOK, http.StatusNoContent)
 }
 
 func (c *Client) ListFirewallZones(ctx context.Context, siteID string) ([]FirewallZone, error) {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list firewall zones site id: %w", err)
+	}
+
 	var zones []FirewallZone
 	offset := 0
 
 	for {
-		var response page[FirewallZone]
-		query := url.Values{}
-		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
-		query.Set("offset", fmt.Sprintf("%d", offset))
+		response, err := c.apiClient.GetFirewallZonesWithResponse(ctx, siteUUID, &generated.GetFirewallZonesParams{
+			Limit:  pageParam(defaultPageLimit),
+			Offset: pageParam(offset),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list firewall zones: %w", err)
+		}
 
-		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/firewall/zones", siteID), query, nil, &response); err != nil {
+		page, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+		if err != nil {
 			return nil, err
 		}
 
-		zones = append(zones, response.Data...)
-		offset += len(response.Data)
+		batch, err := transcode[[]FirewallZone](page.Data)
+		if err != nil {
+			return nil, fmt.Errorf("translate firewall zone page: %w", err)
+		}
 
-		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+		zones = append(zones, batch...)
+		offset += len(batch)
+
+		if len(batch) == 0 || int64(offset) >= page.TotalCount {
 			break
 		}
 	}
@@ -305,86 +576,252 @@ func (c *Client) ListFirewallZones(ctx context.Context, siteID string) ([]Firewa
 }
 
 func (c *Client) CreateFirewallPolicy(ctx context.Context, siteID string, request FirewallPolicy) (*FirewallPolicy, error) {
-	var response FirewallPolicy
-	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/v1/sites/%s/firewall/policies", siteID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("create firewall policy site id: %w", err)
+	}
+
+	body, err := transcode[generated.CreateFirewallPolicyJSONRequestBody](request)
+	if err != nil {
+		return nil, fmt.Errorf("translate create firewall policy request: %w", err)
+	}
+
+	response, err := c.apiClient.CreateFirewallPolicyWithResponse(ctx, siteUUID, body)
+	if err != nil {
+		return nil, fmt.Errorf("create firewall policy: %w", err)
+	}
+
+	created, err := requireJSON(response.StatusCode(), response.Body, response.JSON201, http.StatusCreated)
+	if err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	policy, err := transcode[FirewallPolicy](created)
+	if err != nil {
+		return nil, fmt.Errorf("translate created firewall policy: %w", err)
+	}
+
+	return &policy, nil
 }
 
 func (c *Client) GetFirewallPolicy(ctx context.Context, siteID, firewallPolicyID string) (*FirewallPolicy, error) {
-	var response FirewallPolicy
-	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/firewall/policies/%s", siteID, firewallPolicyID), nil, nil, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("get firewall policy site id: %w", err)
+	}
+	policyUUID, err := parseUUID(firewallPolicyID)
+	if err != nil {
+		return nil, fmt.Errorf("get firewall policy id: %w", err)
+	}
+
+	response, err := c.apiClient.GetFirewallPolicyWithResponse(ctx, siteUUID, policyUUID)
+	if err != nil {
+		return nil, fmt.Errorf("get firewall policy: %w", err)
+	}
+
+	details, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+	if err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	policy, err := transcode[FirewallPolicy](details)
+	if err != nil {
+		return nil, fmt.Errorf("translate firewall policy: %w", err)
+	}
+
+	return &policy, nil
 }
 
 func (c *Client) UpdateFirewallPolicy(ctx context.Context, siteID, firewallPolicyID string, request FirewallPolicy) (*FirewallPolicy, error) {
-	var response FirewallPolicy
-	if err := c.do(ctx, http.MethodPut, fmt.Sprintf("/v1/sites/%s/firewall/policies/%s", siteID, firewallPolicyID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("update firewall policy site id: %w", err)
+	}
+	policyUUID, err := parseUUID(firewallPolicyID)
+	if err != nil {
+		return nil, fmt.Errorf("update firewall policy id: %w", err)
+	}
+
+	body, err := transcode[generated.UpdateFirewallPolicyJSONRequestBody](request)
+	if err != nil {
+		return nil, fmt.Errorf("translate update firewall policy request: %w", err)
+	}
+
+	response, err := c.apiClient.UpdateFirewallPolicyWithResponse(ctx, siteUUID, policyUUID, body)
+	if err != nil {
+		return nil, fmt.Errorf("update firewall policy: %w", err)
+	}
+
+	updated, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+	if err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	policy, err := transcode[FirewallPolicy](updated)
+	if err != nil {
+		return nil, fmt.Errorf("translate updated firewall policy: %w", err)
+	}
+
+	return &policy, nil
 }
 
 func (c *Client) DeleteFirewallPolicy(ctx context.Context, siteID, firewallPolicyID string) error {
-	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/firewall/policies/%s", siteID, firewallPolicyID), nil, nil, nil)
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return fmt.Errorf("delete firewall policy site id: %w", err)
+	}
+	policyUUID, err := parseUUID(firewallPolicyID)
+	if err != nil {
+		return fmt.Errorf("delete firewall policy id: %w", err)
+	}
+
+	response, err := c.apiClient.DeleteFirewallPolicyWithResponse(ctx, siteUUID, policyUUID)
+	if err != nil {
+		return fmt.Errorf("delete firewall policy: %w", err)
+	}
+
+	return requireStatus(response.StatusCode(), response.Body, http.StatusOK, http.StatusNoContent)
 }
 
 func (c *Client) CreateTrafficMatchingList(ctx context.Context, siteID string, request TrafficMatchingList) (*TrafficMatchingList, error) {
-	var response TrafficMatchingList
-	if err := c.do(ctx, http.MethodPost, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists", siteID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("create traffic matching list site id: %w", err)
+	}
+
+	body, err := jsonBodyReader(request)
+	if err != nil {
+		return nil, fmt.Errorf("encode create traffic matching list request: %w", err)
+	}
+
+	response, err := c.apiClient.CreateTrafficMatchingListWithBodyWithResponse(ctx, siteUUID, "application/json", body)
+	if err != nil {
+		return nil, fmt.Errorf("create traffic matching list: %w", err)
+	}
+
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusCreated); err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	list, err := decodeBody[TrafficMatchingList](response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("decode created traffic matching list: %w", err)
+	}
+
+	return list, nil
 }
 
 func (c *Client) GetTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string) (*TrafficMatchingList, error) {
-	var response TrafficMatchingList
-	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, nil, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("get traffic matching list site id: %w", err)
+	}
+	listUUID, err := parseUUID(trafficMatchingListID)
+	if err != nil {
+		return nil, fmt.Errorf("get traffic matching list id: %w", err)
+	}
+
+	response, err := c.apiClient.GetTrafficMatchingListWithResponse(ctx, siteUUID, listUUID)
+	if err != nil {
+		return nil, fmt.Errorf("get traffic matching list: %w", err)
+	}
+
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	list, err := decodeBody[TrafficMatchingList](response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("decode traffic matching list: %w", err)
+	}
+
+	return list, nil
 }
 
 func (c *Client) UpdateTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string, request TrafficMatchingList) (*TrafficMatchingList, error) {
-	var response TrafficMatchingList
-	if err := c.do(ctx, http.MethodPut, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, request, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("update traffic matching list site id: %w", err)
+	}
+	listUUID, err := parseUUID(trafficMatchingListID)
+	if err != nil {
+		return nil, fmt.Errorf("update traffic matching list id: %w", err)
+	}
+
+	body, err := jsonBodyReader(request)
+	if err != nil {
+		return nil, fmt.Errorf("encode update traffic matching list request: %w", err)
+	}
+
+	response, err := c.apiClient.UpdateTrafficMatchingListWithBodyWithResponse(ctx, siteUUID, listUUID, "application/json", body)
+	if err != nil {
+		return nil, fmt.Errorf("update traffic matching list: %w", err)
+	}
+
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	list, err := decodeBody[TrafficMatchingList](response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("decode updated traffic matching list: %w", err)
+	}
+
+	return list, nil
 }
 
 func (c *Client) DeleteTrafficMatchingList(ctx context.Context, siteID, trafficMatchingListID string) error {
-	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists/%s", siteID, trafficMatchingListID), nil, nil, nil)
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return fmt.Errorf("delete traffic matching list site id: %w", err)
+	}
+	listUUID, err := parseUUID(trafficMatchingListID)
+	if err != nil {
+		return fmt.Errorf("delete traffic matching list id: %w", err)
+	}
+
+	response, err := c.apiClient.DeleteTrafficMatchingListWithResponse(ctx, siteUUID, listUUID)
+	if err != nil {
+		return fmt.Errorf("delete traffic matching list: %w", err)
+	}
+
+	return requireStatus(response.StatusCode(), response.Body, http.StatusOK, http.StatusNoContent)
 }
 
 func (c *Client) ListTrafficMatchingLists(ctx context.Context, siteID string) ([]TrafficMatchingList, error) {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list traffic matching lists site id: %w", err)
+	}
+
 	var lists []TrafficMatchingList
 	offset := 0
 
 	for {
-		var response page[TrafficMatchingList]
-		query := url.Values{}
-		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
-		query.Set("offset", fmt.Sprintf("%d", offset))
+		response, err := c.apiClient.GetTrafficMatchingListsWithResponse(ctx, siteUUID, &generated.GetTrafficMatchingListsParams{
+			Limit:  pageParam(defaultPageLimit),
+			Offset: pageParam(offset),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list traffic matching lists: %w", err)
+		}
 
-		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/traffic-matching-lists", siteID), query, nil, &response); err != nil {
+		if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 			return nil, err
 		}
 
-		lists = append(lists, response.Data...)
-		offset += len(response.Data)
+		page, err := decodeBody[page[TrafficMatchingList]](response.Body)
+		if err != nil {
+			return nil, fmt.Errorf("decode traffic matching list page: %w", err)
+		}
 
-		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+		lists = append(lists, page.Data...)
+		offset += len(page.Data)
+
+		if len(page.Data) == 0 || int64(offset) >= page.TotalCount {
 			break
 		}
 	}
 
 	return lists, nil
-}
-
-func (c *Client) GetWithQuery(ctx context.Context, requestPath string, query url.Values, out any) error {
-	return c.do(ctx, http.MethodGet, requestPath, query, nil, out)
 }

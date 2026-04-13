@@ -36,6 +36,7 @@ type mockUniFiAPI struct {
 	existingTrafficMatchingListID string
 	existingRadiusProfileID       string
 	existingDeviceTagID           string
+	existingSwitchDeviceID        string
 	existingWANID                 string
 	existingSwitchStackID         string
 	existingMcLagDomainID         string
@@ -50,6 +51,7 @@ type mockUniFiAPI struct {
 	trafficMatchingLists map[string]map[string]client.TrafficMatchingList
 	radiusProfiles       map[string]map[string]client.RadiusProfile
 	deviceTags           map[string]map[string]client.DeviceTag
+	devices              map[string]map[string]client.Device
 	dnsPolicies          map[string]map[string]client.DNSPolicy
 	aclRules             map[string]map[string]client.ACLRule
 	wans                 map[string]map[string]client.WAN
@@ -71,6 +73,7 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 		trafficMatchingLists: make(map[string]map[string]client.TrafficMatchingList),
 		radiusProfiles:       make(map[string]map[string]client.RadiusProfile),
 		deviceTags:           make(map[string]map[string]client.DeviceTag),
+		devices:              make(map[string]map[string]client.Device),
 		dnsPolicies:          make(map[string]map[string]client.DNSPolicy),
 		aclRules:             make(map[string]map[string]client.ACLRule),
 		wans:                 make(map[string]map[string]client.WAN),
@@ -92,6 +95,7 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	api.trafficMatchingLists[api.siteID] = make(map[string]client.TrafficMatchingList)
 	api.radiusProfiles[api.siteID] = make(map[string]client.RadiusProfile)
 	api.deviceTags[api.siteID] = make(map[string]client.DeviceTag)
+	api.devices[api.siteID] = make(map[string]client.Device)
 	api.dnsPolicies[api.siteID] = make(map[string]client.DNSPolicy)
 	api.aclRules[api.siteID] = make(map[string]client.ACLRule)
 	api.wans[api.siteID] = make(map[string]client.WAN)
@@ -153,6 +157,22 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	}
 	api.existingDeviceTagID = existingDeviceTag.ID
 	api.deviceTags[api.siteID][existingDeviceTag.ID] = existingDeviceTag
+
+	existingSwitchDevice := client.Device{
+		ID:                api.newID(),
+		Name:              "core-switch-a",
+		Model:             "USW-Pro-24",
+		MacAddress:        "AA:BB:CC:DD:EE:01",
+		IPAddress:         "10.0.0.10",
+		State:             "ONLINE",
+		Supported:         true,
+		FirmwareUpdatable: false,
+		FirmwareVersion:   stringPtr("7.1.26"),
+		Features:          []string{"switching"},
+		Interfaces:        []string{"ports"},
+	}
+	api.existingSwitchDeviceID = existingSwitchDevice.ID
+	api.devices[api.siteID][existingSwitchDevice.ID] = existingSwitchDevice
 
 	existingWAN := client.WAN{
 		ID:   api.newID(),
@@ -292,6 +312,9 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 		return
 	case len(segments) == 4 && segments[3] == "device-tags":
 		api.handleDeviceTags(writer, request, segments[2])
+		return
+	case len(segments) == 4 && segments[3] == "devices":
+		api.handleDevices(writer, request, segments[2])
 		return
 	case len(segments) == 4 && segments[3] == "wans":
 		api.handleWANs(writer, request, segments[2])
@@ -629,6 +652,25 @@ func (api *mockUniFiAPI) handleDeviceTags(writer http.ResponseWriter, request *h
 	}
 }
 
+func (api *mockUniFiAPI) handleDevices(writer http.ResponseWriter, request *http.Request, siteID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	switch request.Method {
+	case http.MethodGet:
+		var devices []client.Device
+		for _, device := range api.devices[siteID] {
+			devices = append(devices, device)
+		}
+		sort.Slice(devices, func(i, j int) bool {
+			return devices[i].ID < devices[j].ID
+		})
+		writePage(writer, request, devices)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
 func (api *mockUniFiAPI) handleWANs(writer http.ResponseWriter, request *http.Request, siteID string) {
 	api.mu.Lock()
 	defer api.mu.Unlock()
@@ -920,6 +962,12 @@ data "unifi_site" "main" {
   name = "Default"
 }
 
+data "unifi_device" "existing_switch" {
+  site_id          = data.unifi_site.main.id
+  name             = "core-switch-a"
+  required_feature = "switching"
+}
+
 data "unifi_network" "existing" {
   site_id = data.unifi_site.main.id
   name    = "existing-network"
@@ -968,6 +1016,14 @@ data "unifi_lag" "existing" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.unifi_site.main", "id", api.siteID),
 					resource.TestCheckResourceAttr("data.unifi_site.main", "internal_reference", "default"),
+					resource.TestCheckResourceAttr("data.unifi_device.existing_switch", "id", api.existingSwitchDeviceID),
+					resource.TestCheckResourceAttr("data.unifi_device.existing_switch", "name", "core-switch-a"),
+					resource.TestCheckResourceAttr("data.unifi_device.existing_switch", "model", "USW-Pro-24"),
+					resource.TestCheckResourceAttr("data.unifi_device.existing_switch", "mac_address", "AA:BB:CC:DD:EE:01"),
+					resource.TestCheckResourceAttr("data.unifi_device.existing_switch", "ip_address", "10.0.0.10"),
+					resource.TestCheckResourceAttr("data.unifi_device.existing_switch", "state", "ONLINE"),
+					resource.TestCheckTypeSetElemAttr("data.unifi_device.existing_switch", "features.*", "switching"),
+					resource.TestCheckTypeSetElemAttr("data.unifi_device.existing_switch", "interfaces.*", "ports"),
 					resource.TestCheckResourceAttr("data.unifi_network.existing", "id", api.existingNetworkID),
 					resource.TestCheckResourceAttr("data.unifi_network.existing", "management", "GATEWAY"),
 					resource.TestCheckResourceAttr("data.unifi_network.existing", "vlan_id", "200"),
@@ -1503,6 +1559,11 @@ resource "unifi_network" "test" {
   vlan_id                 = 70
 }
 
+data "unifi_device_tag" "existing" {
+  site_id = data.unifi_site.main.id
+  id      = "` + api.existingDeviceTagID + `"
+}
+
 resource "unifi_wifi_broadcast" "test" {
   site_id                                 = data.unifi_site.main.id
   type                                    = "STANDARD"
@@ -1533,11 +1594,18 @@ resource "unifi_wifi_broadcast" "test" {
       sync_time_seconds              = 5
     }
   }
+
+  broadcasting_device_filter = {
+    type           = "DEVICE_TAGS"
+    device_tag_ids = [data.unifi_device_tag.existing.id]
+  }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted"),
 					resource.TestCheckResourceAttr(resourceName, "type", "STANDARD"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.type", "DEVICE_TAGS"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.device_tag_ids.#", "1"),
 				),
 			},
 			{
@@ -1548,6 +1616,11 @@ resource "unifi_network" "test" {
   name                    = "wifi-network"
   enabled                 = true
   vlan_id                 = 70
+}
+
+data "unifi_device_tag" "existing" {
+  site_id = data.unifi_site.main.id
+  id      = "` + api.existingDeviceTagID + `"
 }
 
 resource "unifi_wifi_broadcast" "test" {
@@ -1580,11 +1653,18 @@ resource "unifi_wifi_broadcast" "test" {
       sync_time_seconds              = 5
     }
   }
+
+  broadcasting_device_filter = {
+    type           = "DEVICE_TAGS"
+    device_tag_ids = [data.unifi_device_tag.existing.id]
+  }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted-updated"),
 					resource.TestCheckResourceAttr(resourceName, "hide_name", "true"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.type", "DEVICE_TAGS"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.device_tag_ids.#", "1"),
 				),
 			},
 			{

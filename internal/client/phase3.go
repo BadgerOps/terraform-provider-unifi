@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
+
+	"github.com/badgerops/terraform-provider-unifi/internal/openapi/generated"
 )
 
 type WAN struct {
@@ -60,23 +61,37 @@ type Lag struct {
 }
 
 func (c *Client) ListWANs(ctx context.Context, siteID string) ([]WAN, error) {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list wans site id: %w", err)
+	}
+
 	var wans []WAN
 	offset := 0
 
 	for {
-		var response page[WAN]
-		query := url.Values{}
-		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
-		query.Set("offset", fmt.Sprintf("%d", offset))
+		response, err := c.apiClient.GetWansOverviewPageWithResponse(ctx, siteUUID, &generated.GetWansOverviewPageParams{
+			Limit:  pageParam(defaultPageLimit),
+			Offset: pageParam(offset),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list wans: %w", err)
+		}
 
-		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/wans", siteID), query, nil, &response); err != nil {
+		page, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+		if err != nil {
 			return nil, err
 		}
 
-		wans = append(wans, response.Data...)
-		offset += len(response.Data)
+		batch, err := transcode[[]WAN](page.Data)
+		if err != nil {
+			return nil, fmt.Errorf("translate wan page: %w", err)
+		}
 
-		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+		wans = append(wans, batch...)
+		offset += len(batch)
+
+		if len(batch) == 0 || int64(offset) >= page.TotalCount {
 			break
 		}
 	}
@@ -85,23 +100,37 @@ func (c *Client) ListWANs(ctx context.Context, siteID string) ([]WAN, error) {
 }
 
 func (c *Client) ListSwitchStacks(ctx context.Context, siteID string) ([]SwitchStack, error) {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list switch stacks site id: %w", err)
+	}
+
 	var stacks []SwitchStack
 	offset := 0
 
 	for {
-		var response page[SwitchStack]
-		query := url.Values{}
-		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
-		query.Set("offset", fmt.Sprintf("%d", offset))
+		response, err := c.apiClient.GetSwitchStackPageWithResponse(ctx, siteUUID, &generated.GetSwitchStackPageParams{
+			Limit:  pageParam(defaultPageLimit),
+			Offset: pageParam(offset),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list switch stacks: %w", err)
+		}
 
-		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/switching/switch-stacks", siteID), query, nil, &response); err != nil {
+		page, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+		if err != nil {
 			return nil, err
 		}
 
-		stacks = append(stacks, response.Data...)
-		offset += len(response.Data)
+		batch, err := transcode[[]SwitchStack](page.Data)
+		if err != nil {
+			return nil, fmt.Errorf("translate switch stack page: %w", err)
+		}
 
-		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+		stacks = append(stacks, batch...)
+		offset += len(batch)
+
+		if len(batch) == 0 || int64(offset) >= page.TotalCount {
 			break
 		}
 	}
@@ -110,31 +139,65 @@ func (c *Client) ListSwitchStacks(ctx context.Context, siteID string) ([]SwitchS
 }
 
 func (c *Client) GetLag(ctx context.Context, siteID, lagID string) (*Lag, error) {
-	var response Lag
-	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/switching/lags/%s", siteID, lagID), nil, nil, &response); err != nil {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("get lag site id: %w", err)
+	}
+	lagUUID, err := parseUUID(lagID)
+	if err != nil {
+		return nil, fmt.Errorf("get lag id: %w", err)
+	}
+
+	response, err := c.apiClient.GetLagWithResponse(ctx, siteUUID, lagUUID)
+	if err != nil {
+		return nil, fmt.Errorf("get lag: %w", err)
+	}
+
+	details, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+	if err != nil {
 		return nil, err
 	}
-	return &response, nil
+
+	lag, err := transcode[Lag](details)
+	if err != nil {
+		return nil, fmt.Errorf("translate lag: %w", err)
+	}
+
+	return &lag, nil
 }
 
 func (c *Client) ListMcLagDomains(ctx context.Context, siteID string) ([]McLagDomain, error) {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list mc-lag domains site id: %w", err)
+	}
+
 	var domains []McLagDomain
 	offset := 0
 
 	for {
-		var response page[McLagDomain]
-		query := url.Values{}
-		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
-		query.Set("offset", fmt.Sprintf("%d", offset))
+		response, err := c.apiClient.GetMcLagDomainPageWithResponse(ctx, siteUUID, &generated.GetMcLagDomainPageParams{
+			Limit:  pageParam(defaultPageLimit),
+			Offset: pageParam(offset),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list mc-lag domains: %w", err)
+		}
 
-		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/switching/mc-lag-domains", siteID), query, nil, &response); err != nil {
+		page, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+		if err != nil {
 			return nil, err
 		}
 
-		domains = append(domains, response.Data...)
-		offset += len(response.Data)
+		batch, err := transcode[[]McLagDomain](page.Data)
+		if err != nil {
+			return nil, fmt.Errorf("translate mc-lag domain page: %w", err)
+		}
 
-		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+		domains = append(domains, batch...)
+		offset += len(batch)
+
+		if len(batch) == 0 || int64(offset) >= page.TotalCount {
 			break
 		}
 	}
@@ -143,23 +206,37 @@ func (c *Client) ListMcLagDomains(ctx context.Context, siteID string) ([]McLagDo
 }
 
 func (c *Client) ListLags(ctx context.Context, siteID string) ([]Lag, error) {
+	siteUUID, err := parseUUID(siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list lags site id: %w", err)
+	}
+
 	var lags []Lag
 	offset := 0
 
 	for {
-		var response page[Lag]
-		query := url.Values{}
-		query.Set("limit", fmt.Sprintf("%d", defaultPageLimit))
-		query.Set("offset", fmt.Sprintf("%d", offset))
+		response, err := c.apiClient.GetLagPageWithResponse(ctx, siteUUID, &generated.GetLagPageParams{
+			Limit:  pageParam(defaultPageLimit),
+			Offset: pageParam(offset),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list lags: %w", err)
+		}
 
-		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/v1/sites/%s/switching/lags", siteID), query, nil, &response); err != nil {
+		page, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
+		if err != nil {
 			return nil, err
 		}
 
-		lags = append(lags, response.Data...)
-		offset += len(response.Data)
+		batch, err := transcode[[]Lag](page.Data)
+		if err != nil {
+			return nil, fmt.Errorf("translate lag page: %w", err)
+		}
 
-		if len(response.Data) == 0 || int64(offset) >= response.TotalCount {
+		lags = append(lags, batch...)
+		offset += len(batch)
+
+		if len(batch) == 0 || int64(offset) >= page.TotalCount {
 			break
 		}
 	}

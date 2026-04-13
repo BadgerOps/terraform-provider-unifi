@@ -87,6 +87,7 @@ func (p *unifiProvider) Configure(ctx context.Context, request provider.Configur
 func (p *unifiProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewSiteDataSource,
+		NewDeviceDataSource,
 		NewNetworkDataSource,
 		NewFirewallZoneDataSource,
 		NewTrafficMatchingListDataSource,

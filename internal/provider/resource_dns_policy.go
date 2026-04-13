@@ -163,6 +163,8 @@ func (r *dnsPolicyResource) Read(ctx context.Context, request resource.ReadReque
 func (r *dnsPolicyResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
 	var plan dnsPolicyResourceModel
 	response.Diagnostics.Append(request.Plan.Get(ctx, &plan)...)
+	var state dnsPolicyResourceModel
+	response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	if response.Diagnostics.HasError() {
 		return
 	}
@@ -172,7 +174,7 @@ func (r *dnsPolicyResource) Update(ctx context.Context, request resource.UpdateR
 		return
 	}
 
-	updated, err := r.providerData.client.UpdateDNSPolicy(ctx, plan.SiteID.ValueString(), plan.ID.ValueString(), apiPolicy)
+	updated, err := r.providerData.client.UpdateDNSPolicy(ctx, plan.SiteID.ValueString(), state.ID.ValueString(), apiPolicy)
 	if err != nil {
 		response.Diagnostics.AddError("Unable to update DNS policy", err.Error())
 		return

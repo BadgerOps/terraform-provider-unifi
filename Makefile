@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate
+.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate testacc
 
 fmt:
 	go fmt ./...
@@ -32,3 +32,6 @@ tflint:
 
 openapi-generate:
 	./scripts/generate-openapi.sh
+
+testacc:
+	./scripts/testacc.sh

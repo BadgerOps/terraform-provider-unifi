@@ -1,9 +1,14 @@
 bin/
 dist/
 .direnv/
+.env
+.env.*
+!.env.example
+.envrc
 .terraform/
 .terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 terraform.rc
 .terraformrc
+.envrc

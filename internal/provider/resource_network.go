@@ -262,6 +262,8 @@ func (r *networkResource) Read(ctx context.Context, request resource.ReadRequest
 func (r *networkResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
 	var plan networkResourceModel
 	response.Diagnostics.Append(request.Plan.Get(ctx, &plan)...)
+	var state networkResourceModel
+	response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	if response.Diagnostics.HasError() {
 		return
 	}
@@ -271,7 +273,7 @@ func (r *networkResource) Update(ctx context.Context, request resource.UpdateReq
 		return
 	}
 
-	updated, err := r.providerData.client.UpdateNetwork(ctx, plan.SiteID.ValueString(), plan.ID.ValueString(), apiNetwork)
+	updated, err := r.providerData.client.UpdateNetwork(ctx, plan.SiteID.ValueString(), state.ID.ValueString(), apiNetwork)
 	if err != nil {
 		response.Diagnostics.AddError("Unable to update network", err.Error())
 		return
