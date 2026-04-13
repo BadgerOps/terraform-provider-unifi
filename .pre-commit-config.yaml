@@ -7,3 +7,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: generated-docs
+        name: Check generated docs
+        entry: make docs-check
+        language: system
+        pass_filenames: false
+        always_run: true

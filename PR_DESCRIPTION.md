@@ -1,87 +1,101 @@
-# PR: Align docs to plan and enforce version drift checks
+# PR: Generate Provider Docs And Enforce Docs Drift Checks
 
 ## Summary
 
-This PR removes the temporary migration-focused documentation, realigns the repository docs with the shared BadgerOps plan and the committed OpenAPI snapshot, and adds pre-commit plus CI checks to prevent version drift across checked-in examples and local validation wiring.
+This PR adds generated provider documentation for the current UniFi Terraform surface, checks in the example corpus that drives those docs, and wires doc generation into both local contributor workflow and CI.
 
 ## Why
 
 Before this PR:
 
-- the repo still carried a migration document that was only intended as a temporary test artifact
-- the README, Terraform example, and Terraform validation workflow had drifted to different provider versions
-- there was no repo-managed pre-commit or CI guardrail to keep those checked-in version references aligned with `CHANGELOG.md`
+- the repo had no generated provider docs under `docs/`
+- there was no checked-in contract for provider, resource, data source, and import examples used for documentation
+- there was no dedicated docs generation workflow in CI
+- contributors had no local guardrail to catch docs drift before pushing changes
 
-This PR addresses those gaps by:
+This PR addresses that by:
 
-- removing the migration document and references to it
-- treating the shared plan plus the committed OpenAPI snapshot as the documented source of truth
-- deriving versioned examples and local validation wiring from the current changelog release
+- generating markdown docs from the provider schema and checked-in examples
+- checking in the source inputs used by `tfplugindocs`
+- documenting the generation workflow in the repo itself
+- enforcing docs drift checks in both `pre-commit` and GitHub Actions
 
 ## Main Changes
 
-### 1. Documentation aligned to the plan and OpenAPI snapshot
+### 1. Generated provider documentation added under `docs/`
 
-The README now points at the shared BadgerOps plan and the committed UniFi OpenAPI snapshot instead of the removed migration guidance.
+The repo now checks in generated markdown docs for the provider, all supported resources, and all supported data sources.
 
-Changes include:
+This includes:
 
-- removing the migration section and `docs/MIGRATION.md`
-- updating README wording to match the current project direction
-- updating checked-in version examples to the current release
+- a generated provider landing page with scope and workflow guidance
+- generated resource documentation with example usage and import examples
+- generated data source documentation with example usage
 
 Relevant files:
 
+- [docs/index.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/index.md)
+- [docs/resources/network.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/resources/network.md)
+- [docs/resources/firewall_policy.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/resources/firewall_policy.md)
+- [docs/resources/wifi_broadcast.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/resources/wifi_broadcast.md)
+- [docs/data-sources/site.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/data-sources/site.md)
+- [docs/data-sources/network.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/data-sources/network.md)
+- [docs/data-sources/wifi_broadcast.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/data-sources/wifi_broadcast.md)
+
+### 2. Docs generation inputs checked in and documented
+
+The repo now carries the example corpus and template input used to render the generated markdown.
+
+This includes:
+
+- provider example input
+- resource examples and import examples
+- data source examples
+- a custom provider index template
+- an examples README that explains the generation contract
+
+Relevant files:
+
+- [examples/README.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/README.md)
+- [examples/provider/provider.tf](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/provider/provider.tf)
+- [examples/resources/unifi_network/resource.tf](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/resources/unifi_network/resource.tf)
+- [examples/resources/unifi_network/import.sh](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/resources/unifi_network/import.sh)
+- [examples/data-sources/unifi_site/data-source.tf](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/data-sources/unifi_site/data-source.tf)
+- [templates/index.md.tmpl](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/templates/index.md.tmpl)
+
+### 3. Docs generation workflow added for local development and CI
+
+This PR adds a reproducible docs generation entrypoint plus a dedicated CI workflow.
+
+The new workflow includes:
+
+- `scripts/generate-docs.sh` as the repo-local generator entrypoint
+- `make docs-generate` to regenerate markdown
+- `make docs-check` to regenerate and fail on drift
+- a GitHub Actions docs workflow that runs on pull requests and pushes to `master`
+
+Relevant files:
+
+- [scripts/generate-docs.sh](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/scripts/generate-docs.sh)
+- [Makefile](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/Makefile)
+- [.github/workflows/docs.yml](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/.github/workflows/docs.yml)
 - [README.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/README.md)
-- [docs/MIGRATION.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/MIGRATION.md)
 
-### 2. Version drift checks added for pre-commit and CI
+### 4. Local pre-commit enforcement added for docs drift
 
-This PR adds a repo-local version sync/check script that derives the current provider version from `CHANGELOG.md` and keeps versioned references aligned.
+The repo-local `pre-commit` config now checks generated docs drift in addition to the existing version-drift validation.
 
-The new check covers:
-
-- README provider example version
-- README local build example version
-- README `make release-artifacts` example
-- `examples/basic-site/main.tf`
-
-It is wired into:
-
-- `make sync-version`
-- `make check-version-drift`
-- local `pre-commit`
-- GitHub Actions `go.yml`
+One important workflow detail changed here: the docs check now only diffs actual docs-generation inputs instead of the entire `examples/` tree, so unrelated example files such as `examples/basic-site` do not break the docs job.
 
 Relevant files:
 
-- [scripts/sync-version.sh](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/scripts/sync-version.sh)
 - [.pre-commit-config.yaml](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/.pre-commit-config.yaml)
 - [Makefile](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/Makefile)
-- [.github/workflows/go.yml](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/.github/workflows/go.yml)
-- [flake.nix](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/flake.nix)
-
-### 3. Terraform example validation now follows the changelog version
-
-The Terraform validation workflow no longer hardcodes the provider mirror version. It reads the current release version from `CHANGELOG.md` before building the local mirror used by `terraform init` and `terraform validate`.
-
-Relevant files:
-
-- [.github/workflows/terraform.yml](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/.github/workflows/terraform.yml)
-- [scripts/read-changelog-release.sh](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/scripts/read-changelog-release.sh)
-
-### 4. Shared plan updated with follow-up TODO
-
-The shared plan now carries an explicit short-term TODO for repo-local pre-commit and CI checks that keep versioned references synchronized from `CHANGELOG.md`.
-
-Relevant file:
-
-- [PLAN.md](/home/badger/code/badgerops-unifi-provider/PLAN.md)
 
 ## Validation
 
 Validated locally:
 
-- `make check-version-drift`
+- `make docs-check`
 - `go test ./...`
 - `terraform fmt -check -recursive examples`
