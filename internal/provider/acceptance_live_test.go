@@ -470,6 +470,7 @@ func TestAccLiveResourceWifiBroadcast(t *testing.T) {
 
 	config := requireLiveAcceptanceConfig(t)
 	passphrase := requireWifiPassphrase(t)
+	deviceTags := requireDeviceTags(t, config, 2)
 	resourceName := "unifi_wifi_broadcast.test"
 	broadcastName := liveAcceptanceName(config, "wifi")
 	updatedName := liveAcceptanceName(config, "wifiu")
@@ -502,13 +503,20 @@ resource "unifi_wifi_broadcast" "test" {
     type       = "WPA2_PERSONAL"
     passphrase = %q
   }
+
+  broadcasting_device_filter = {
+    type           = "DEVICE_TAGS"
+    device_tag_ids = [%q]
+  }
 }
-`, broadcastName, passphrase),
+`, broadcastName, passphrase, deviceTags[0].ID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", broadcastName),
 					resource.TestCheckResourceAttr(resourceName, "type", "STANDARD"),
 					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "hide_name", "false"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.type", "DEVICE_TAGS"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.device_tag_ids.#", "1"),
 				),
 			},
 			{
@@ -536,12 +544,18 @@ resource "unifi_wifi_broadcast" "test" {
     type       = "WPA2_PERSONAL"
     passphrase = %q
   }
+
+  broadcasting_device_filter = {
+    type           = "DEVICE_TAGS"
+    device_tag_ids = [%q, %q]
+  }
 }
-`, updatedName, passphrase),
+`, updatedName, passphrase, deviceTags[0].ID, deviceTags[1].ID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", updatedName),
 					resource.TestCheckResourceAttr(resourceName, "hide_name", "true"),
 					resource.TestCheckResourceAttr(resourceName, "band_steering_enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.device_tag_ids.#", "2"),
 				),
 			},
 			{
@@ -1275,6 +1289,10 @@ func requireRadiusProfile(t *testing.T, config liveAcceptanceConfig) client.Radi
 }
 
 func requireDeviceTag(t *testing.T, config liveAcceptanceConfig) client.DeviceTag {
+	return requireDeviceTags(t, config, 1)[0]
+}
+
+func requireDeviceTags(t *testing.T, config liveAcceptanceConfig, minimum int) []client.DeviceTag {
 	t.Helper()
 
 	apiClient, err := newLiveDestroyCheckClient(config)
@@ -1289,8 +1307,11 @@ func requireDeviceTag(t *testing.T, config liveAcceptanceConfig) client.DeviceTa
 	if len(tags) == 0 {
 		t.Skip("no device tags found in the target site")
 	}
+	if len(tags) < minimum {
+		t.Skipf("need at least %d device tags in the target site", minimum)
+	}
 
-	return tags[0]
+	return tags
 }
 
 func requireWAN(t *testing.T, config liveAcceptanceConfig) client.WAN {

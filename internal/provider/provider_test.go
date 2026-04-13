@@ -1559,6 +1559,11 @@ resource "unifi_network" "test" {
   vlan_id                 = 70
 }
 
+data "unifi_device_tag" "existing" {
+  site_id = data.unifi_site.main.id
+  id      = "` + api.existingDeviceTagID + `"
+}
+
 resource "unifi_wifi_broadcast" "test" {
   site_id                                 = data.unifi_site.main.id
   type                                    = "STANDARD"
@@ -1589,11 +1594,18 @@ resource "unifi_wifi_broadcast" "test" {
       sync_time_seconds              = 5
     }
   }
+
+  broadcasting_device_filter = {
+    type           = "DEVICE_TAGS"
+    device_tag_ids = [data.unifi_device_tag.existing.id]
+  }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted"),
 					resource.TestCheckResourceAttr(resourceName, "type", "STANDARD"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.type", "DEVICE_TAGS"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.device_tag_ids.#", "1"),
 				),
 			},
 			{
@@ -1604,6 +1616,11 @@ resource "unifi_network" "test" {
   name                    = "wifi-network"
   enabled                 = true
   vlan_id                 = 70
+}
+
+data "unifi_device_tag" "existing" {
+  site_id = data.unifi_site.main.id
+  id      = "` + api.existingDeviceTagID + `"
 }
 
 resource "unifi_wifi_broadcast" "test" {
@@ -1636,11 +1653,18 @@ resource "unifi_wifi_broadcast" "test" {
       sync_time_seconds              = 5
     }
   }
+
+  broadcasting_device_filter = {
+    type           = "DEVICE_TAGS"
+    device_tag_ids = [data.unifi_device_tag.existing.id]
+  }
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted-updated"),
 					resource.TestCheckResourceAttr(resourceName, "hide_name", "true"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.type", "DEVICE_TAGS"),
+					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.device_tag_ids.#", "1"),
 				),
 			},
 			{

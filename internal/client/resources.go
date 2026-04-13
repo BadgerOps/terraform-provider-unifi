@@ -77,29 +77,34 @@ type WifiSecurityConfiguration struct {
 	WPA3FastRoamingEnabled    *bool             `json:"wpa3FastRoamingEnabled,omitempty"`
 }
 
+type WifiBroadcastingDeviceFilter struct {
+	Type         string   `json:"type"`
+	DeviceTagIDs []string `json:"deviceTagIds,omitempty"`
+}
+
 type WifiBroadcast struct {
-	ID                                  string                     `json:"id,omitempty"`
-	Type                                string                     `json:"type"`
-	Name                                string                     `json:"name"`
-	Enabled                             bool                       `json:"enabled"`
-	Network                             *WifiNetworkReference      `json:"network,omitempty"`
-	SecurityConfiguration               *WifiSecurityConfiguration `json:"securityConfiguration,omitempty"`
-	ClientIsolationEnabled              bool                       `json:"clientIsolationEnabled"`
-	HideName                            bool                       `json:"hideName"`
-	UAPSDEnabled                        bool                       `json:"uapsdEnabled"`
-	MulticastToUnicastConversionEnabled bool                       `json:"multicastToUnicastConversionEnabled"`
-	BroadcastingFrequenciesGHz          []float64                  `json:"broadcastingFrequenciesGHz,omitempty"`
-	AdvertiseDeviceName                 *bool                      `json:"advertiseDeviceName,omitempty"`
-	ARPProxyEnabled                     *bool                      `json:"arpProxyEnabled,omitempty"`
-	BandSteeringEnabled                 *bool                      `json:"bandSteeringEnabled,omitempty"`
-	BSSTransitionEnabled                *bool                      `json:"bssTransitionEnabled,omitempty"`
-	MDNSProxyConfiguration              map[string]any             `json:"mdnsProxyConfiguration,omitempty"`
-	MulticastFilteringPolicy            map[string]any             `json:"multicastFilteringPolicy,omitempty"`
-	BroadcastingDeviceFilter            map[string]any             `json:"broadcastingDeviceFilter,omitempty"`
-	BasicDataRateKbpsByFrequencyGHz     map[string]any             `json:"basicDataRateKbpsByFrequencyGHz,omitempty"`
-	ClientFilteringPolicy               map[string]any             `json:"clientFilteringPolicy,omitempty"`
-	BlackoutScheduleConfiguration       map[string]any             `json:"blackoutScheduleConfiguration,omitempty"`
-	Metadata                            map[string]any             `json:"metadata,omitempty"`
+	ID                                  string                        `json:"id,omitempty"`
+	Type                                string                        `json:"type"`
+	Name                                string                        `json:"name"`
+	Enabled                             bool                          `json:"enabled"`
+	Network                             *WifiNetworkReference         `json:"network,omitempty"`
+	SecurityConfiguration               *WifiSecurityConfiguration    `json:"securityConfiguration,omitempty"`
+	ClientIsolationEnabled              bool                          `json:"clientIsolationEnabled"`
+	HideName                            bool                          `json:"hideName"`
+	UAPSDEnabled                        bool                          `json:"uapsdEnabled"`
+	MulticastToUnicastConversionEnabled bool                          `json:"multicastToUnicastConversionEnabled"`
+	BroadcastingFrequenciesGHz          []float64                     `json:"broadcastingFrequenciesGHz,omitempty"`
+	AdvertiseDeviceName                 *bool                         `json:"advertiseDeviceName,omitempty"`
+	ARPProxyEnabled                     *bool                         `json:"arpProxyEnabled,omitempty"`
+	BandSteeringEnabled                 *bool                         `json:"bandSteeringEnabled,omitempty"`
+	BSSTransitionEnabled                *bool                         `json:"bssTransitionEnabled,omitempty"`
+	MDNSProxyConfiguration              map[string]any                `json:"mdnsProxyConfiguration,omitempty"`
+	MulticastFilteringPolicy            map[string]any                `json:"multicastFilteringPolicy,omitempty"`
+	BroadcastingDeviceFilter            *WifiBroadcastingDeviceFilter `json:"broadcastingDeviceFilter,omitempty"`
+	BasicDataRateKbpsByFrequencyGHz     map[string]any                `json:"basicDataRateKbpsByFrequencyGHz,omitempty"`
+	ClientFilteringPolicy               map[string]any                `json:"clientFilteringPolicy,omitempty"`
+	BlackoutScheduleConfiguration       map[string]any                `json:"blackoutScheduleConfiguration,omitempty"`
+	Metadata                            map[string]any                `json:"metadata,omitempty"`
 }
 
 type FirewallZone struct {
@@ -324,27 +329,26 @@ func (c *Client) CreateWifiBroadcast(ctx context.Context, siteID string, request
 		return nil, fmt.Errorf("create wifi broadcast site id: %w", err)
 	}
 
-	body, err := transcode[generated.CreateWifiBroadcastJSONRequestBody](request)
+	body, err := jsonBodyReader(request)
 	if err != nil {
-		return nil, fmt.Errorf("translate create wifi broadcast request: %w", err)
+		return nil, fmt.Errorf("encode create wifi broadcast request: %w", err)
 	}
 
-	response, err := c.apiClient.CreateWifiBroadcastWithResponse(ctx, siteUUID, body)
+	response, err := c.apiClient.CreateWifiBroadcastWithBodyWithResponse(ctx, siteUUID, "application/json", body)
 	if err != nil {
 		return nil, fmt.Errorf("create wifi broadcast: %w", err)
 	}
 
-	created, err := requireJSON(response.StatusCode(), response.Body, response.JSON201, http.StatusCreated)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusCreated); err != nil {
 		return nil, err
 	}
 
-	broadcast, err := transcode[WifiBroadcast](created)
+	broadcast, err := decodeBody[WifiBroadcast](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate created wifi broadcast: %w", err)
+		return nil, fmt.Errorf("decode created wifi broadcast: %w", err)
 	}
 
-	return &broadcast, nil
+	return broadcast, nil
 }
 
 func (c *Client) GetWifiBroadcast(ctx context.Context, siteID, wifiBroadcastID string) (*WifiBroadcast, error) {
@@ -362,17 +366,16 @@ func (c *Client) GetWifiBroadcast(ctx context.Context, siteID, wifiBroadcastID s
 		return nil, fmt.Errorf("get wifi broadcast: %w", err)
 	}
 
-	details, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
 
-	broadcast, err := transcode[WifiBroadcast](details)
+	broadcast, err := decodeBody[WifiBroadcast](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate wifi broadcast details: %w", err)
+		return nil, fmt.Errorf("decode wifi broadcast details: %w", err)
 	}
 
-	return &broadcast, nil
+	return broadcast, nil
 }
 
 func (c *Client) UpdateWifiBroadcast(ctx context.Context, siteID, wifiBroadcastID string, request WifiBroadcast) (*WifiBroadcast, error) {
@@ -385,27 +388,26 @@ func (c *Client) UpdateWifiBroadcast(ctx context.Context, siteID, wifiBroadcastI
 		return nil, fmt.Errorf("update wifi broadcast id: %w", err)
 	}
 
-	body, err := transcode[generated.UpdateWifiBroadcastJSONRequestBody](request)
+	body, err := jsonBodyReader(request)
 	if err != nil {
-		return nil, fmt.Errorf("translate update wifi broadcast request: %w", err)
+		return nil, fmt.Errorf("encode update wifi broadcast request: %w", err)
 	}
 
-	response, err := c.apiClient.UpdateWifiBroadcastWithResponse(ctx, siteUUID, broadcastUUID, body)
+	response, err := c.apiClient.UpdateWifiBroadcastWithBodyWithResponse(ctx, siteUUID, broadcastUUID, "application/json", body)
 	if err != nil {
 		return nil, fmt.Errorf("update wifi broadcast: %w", err)
 	}
 
-	updated, err := requireJSON(response.StatusCode(), response.Body, response.JSON200, http.StatusOK)
-	if err != nil {
+	if err := requireStatus(response.StatusCode(), response.Body, http.StatusOK); err != nil {
 		return nil, err
 	}
 
-	broadcast, err := transcode[WifiBroadcast](updated)
+	broadcast, err := decodeBody[WifiBroadcast](response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("translate updated wifi broadcast: %w", err)
+		return nil, fmt.Errorf("decode updated wifi broadcast: %w", err)
 	}
 
-	return &broadcast, nil
+	return broadcast, nil
 }
 
 func (c *Client) DeleteWifiBroadcast(ctx context.Context, siteID, wifiBroadcastID string) error {
