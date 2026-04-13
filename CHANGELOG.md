@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.0] - 2026-04-13
+
+### Added
+
+- Firewall policy ordering via `unifi_firewall_policy_ordering`, including support for controller ordering before and after system-defined rules.
+- ACL rule ordering via `unifi_acl_rule_ordering`.
+- Firewall reference data sources: `unifi_vpn_server`, `unifi_site_to_site_vpn_tunnel`, `unifi_dpi_application`, `unifi_dpi_application_category`, and `unifi_country`.
+- Read support for `unifi_firewall_policy`, `unifi_dns_policy`, and `unifi_acl_rule` data sources.
+- Expanded traffic matching list support for IPv4 and IPv6 address entries in addition to ports.
+
+### Changed
+
+- `unifi_firewall_policy` now models the full nested `source_filter` and `destination_filter` structure used by the current UniFi integration API, including port, network, MAC, IP, IPv6 IID, region, VPN, domain, DPI application, and DPI category selectors.
+- Mock Terraform provider tests now run in the default `go test` path instead of being hidden behind `TF_ACC`, substantially increasing normal provider test coverage.
+
 ## [0.1.1] - 2026-04-13
 
 ### Fixed
