@@ -66,9 +66,10 @@ jobs:
           cat > "${notes_file}" <<'EOF'
           ${{ steps.changelog.outputs.notes }}
           EOF
+          mapfile -t release_files < <(find dist/release -maxdepth 1 -type f | sort)
           gh release create "v${{ steps.changelog.outputs.version }}" \
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
             --title "v${{ steps.changelog.outputs.version }}" \
             --notes-file "${notes_file}" \
-            dist/release/*
+            "${release_files[@]}"
