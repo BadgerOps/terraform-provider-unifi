@@ -35,6 +35,7 @@ type mockUniFiAPI struct {
 	existingZoneID                string
 	existingFirewallPolicyID      string
 	existingTrafficMatchingListID string
+	existingWifiBroadcastID       string
 	existingDNSPolicyID           string
 	existingACLRuleID             string
 	existingRadiusProfileID       string
@@ -271,6 +272,36 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	}
 	api.existingDeviceTagID = existingDeviceTag.ID
 	api.deviceTags[api.siteID][existingDeviceTag.ID] = existingDeviceTag
+
+	existingWifiBroadcast := client.WifiBroadcast{
+		ID:      api.newID(),
+		Type:    "STANDARD",
+		Name:    "existing-wifi",
+		Enabled: true,
+		Network: &client.WifiNetworkReference{
+			Type:      "SPECIFIC",
+			NetworkID: existingNetwork.ID,
+		},
+		SecurityConfiguration: &client.WifiSecurityConfiguration{
+			Type:       "WPA2_PERSONAL",
+			Passphrase: stringPtr("existingpass"),
+		},
+		ClientIsolationEnabled:              false,
+		HideName:                            false,
+		UAPSDEnabled:                        true,
+		MulticastToUnicastConversionEnabled: false,
+		BroadcastingFrequenciesGHz:          []float64{2.4, 5},
+		AdvertiseDeviceName:                 boolPtr(false),
+		ARPProxyEnabled:                     boolPtr(false),
+		BandSteeringEnabled:                 boolPtr(true),
+		BSSTransitionEnabled:                boolPtr(true),
+		BroadcastingDeviceFilter: &client.WifiBroadcastingDeviceFilter{
+			Type:         "DEVICE_TAGS",
+			DeviceTagIDs: []string{existingDeviceTag.ID},
+		},
+	}
+	api.existingWifiBroadcastID = existingWifiBroadcast.ID
+	api.wifiBroadcasts[api.siteID][existingWifiBroadcast.ID] = existingWifiBroadcast
 
 	existingVPNServer := client.VPNServer{
 		ID:       api.newID(),
@@ -1569,6 +1600,11 @@ data "unifi_network" "existing" {
   name    = "existing-network"
 }
 
+data "unifi_wifi_broadcast" "existing" {
+  site_id = data.unifi_site.main.id
+  name    = "existing-wifi"
+}
+
 data "unifi_firewall_zone" "existing" {
   site_id = data.unifi_site.main.id
   name    = "existing-zone"
@@ -1661,6 +1697,13 @@ data "unifi_lag" "existing" {
 					resource.TestCheckResourceAttr("data.unifi_network.existing", "id", api.existingNetworkID),
 					resource.TestCheckResourceAttr("data.unifi_network.existing", "management", "GATEWAY"),
 					resource.TestCheckResourceAttr("data.unifi_network.existing", "vlan_id", "200"),
+					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "id", api.existingWifiBroadcastID),
+					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "name", "existing-wifi"),
+					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "type", "STANDARD"),
+					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "network.type", "SPECIFIC"),
+					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "network.network_id", api.existingNetworkID),
+					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "broadcasting_device_filter.type", "DEVICE_TAGS"),
+					resource.TestCheckTypeSetElemAttr("data.unifi_wifi_broadcast.existing", "broadcasting_device_filter.device_tag_ids.*", api.existingDeviceTagID),
 					resource.TestCheckResourceAttr("data.unifi_firewall_zone.existing", "id", api.existingZoneID),
 					resource.TestCheckResourceAttr("data.unifi_firewall_zone.existing", "name", "existing-zone"),
 					resource.TestCheckTypeSetElemAttr("data.unifi_firewall_zone.existing", "network_ids.*", api.existingNetworkID),

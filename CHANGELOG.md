@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.2] - 2026-04-13
+
+### Added
+
+- `unifi_wifi_broadcast` data source for looking up WiFi broadcasts by `id` or `name` within a site.
+
 ## [0.2.1] - 2026-04-13
 
 ### Fixed
