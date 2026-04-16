@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,6 +22,16 @@ import (
 
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"unifi": providerserver.NewProtocol6WithError(New("test")()),
+}
+
+func TestMain(m *testing.M) {
+	if os.Getenv("TF_ACC_TERRAFORM_PATH") == "" {
+		if _, err := os.Stat("/usr/bin/terraform"); err == nil {
+			_ = os.Setenv("TF_ACC_TERRAFORM_PATH", "/usr/bin/terraform")
+		}
+	}
+
+	os.Exit(m.Run())
 }
 
 type mockUniFiAPI struct {
@@ -2275,7 +2286,7 @@ resource "unifi_firewall_policy" "test" {
   enabled              = true
   name                 = "trusted-to-iot"
   action               = "ALLOW"
-  allow_return_traffic = true
+  allow_return_traffic = false
   source_zone_id       = unifi_firewall_zone.trusted.id
   source_filter = {
     type                   = "NETWORK"
@@ -2295,9 +2306,8 @@ resource "unifi_firewall_policy" "test" {
   }
   ip_version = "IPV4"
   protocol_filter = {
-    type           = "NAMED_PROTOCOL"
-    named_protocol = "tcp"
-    match_opposite = false
+    type        = "PRESET"
+    preset_name = "TCP_UDP"
   }
   connection_state_filter = ["NEW"]
   logging_enabled         = false
@@ -2311,10 +2321,10 @@ resource "unifi_firewall_policy" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted-to-iot"),
 					resource.TestCheckResourceAttr(resourceName, "action", "ALLOW"),
-					resource.TestCheckResourceAttr(resourceName, "allow_return_traffic", "true"),
+					resource.TestCheckResourceAttr(resourceName, "allow_return_traffic", "false"),
 					resource.TestCheckResourceAttr(resourceName, "source_filter.type", "NETWORK"),
 					resource.TestCheckResourceAttr(resourceName, "destination_filter.type", "IP_ADDRESS"),
-					resource.TestCheckResourceAttr(resourceName, "protocol_filter.type", "NAMED_PROTOCOL"),
+					resource.TestCheckResourceAttr(resourceName, "protocol_filter.type", "PRESET"),
 					resource.TestCheckResourceAttr(resourceName, "schedule.mode", "EVERY_DAY"),
 				),
 			},
@@ -2457,14 +2467,15 @@ resource "unifi_firewall_zone" "iot" {
 }
 
 resource "unifi_firewall_policy" "allow_https" {
-  site_id             = data.unifi_site.main.id
-  enabled             = true
-  name                = "allow-https"
-  action              = "ALLOW"
-  source_zone_id      = unifi_firewall_zone.trusted.id
-  destination_zone_id = unifi_firewall_zone.iot.id
-  ip_version          = "IPV4"
-  logging_enabled     = false
+  site_id              = data.unifi_site.main.id
+  enabled              = true
+  name                 = "allow-https"
+  action               = "ALLOW"
+  allow_return_traffic = false
+  source_zone_id       = unifi_firewall_zone.trusted.id
+  destination_zone_id  = unifi_firewall_zone.iot.id
+  ip_version           = "IPV4"
+  logging_enabled      = false
 }
 
 resource "unifi_firewall_policy" "block_dns" {

@@ -3,7 +3,7 @@ terraform {
   required_providers {
     unifi = {
       source  = "badgerops/unifi"
-      version = "0.2.3"
+      version = "0.2.4"
     }
   }
 }

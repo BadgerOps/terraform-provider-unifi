@@ -3,7 +3,18 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CACHE_ROOT="${BADGEROPS_TOOL_CACHE_ROOT:-${ROOT_DIR}/.cache/tooling}"
 cd "${ROOT_DIR}"
+
+mkdir -p \
+  "${CACHE_ROOT}/go-tmp" \
+  "${CACHE_ROOT}/go-build" \
+  "${CACHE_ROOT}/go-mod"
+
+export GOTMPDIR="${BADGEROPS_GOTMPDIR:-${CACHE_ROOT}/go-tmp}"
+export TMPDIR="${BADGEROPS_TMPDIR:-${CACHE_ROOT}/go-tmp}"
+export GOCACHE="${BADGEROPS_GOCACHE:-${CACHE_ROOT}/go-build}"
+export GOMODCACHE="${BADGEROPS_GOMODCACHE:-${CACHE_ROOT}/go-mod}"
 
 if [[ -f .envrc ]] && command -v direnv >/dev/null 2>&1 && [[ -z "${BADGEROPS_TESTACC_DIRENV:-}" ]]; then
   exec env BADGEROPS_TESTACC_DIRENV=1 direnv exec . "$0" "$@"

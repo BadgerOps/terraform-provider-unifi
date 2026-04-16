@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -49,7 +50,7 @@ func (r *firewallPolicyResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"allow_return_traffic": schema.BoolAttribute{
 				Optional:            true,
-				MarkdownDescription: "Only valid when `action` is `ALLOW`. Creates the derived reverse policy to allow return traffic.",
+				MarkdownDescription: "Required when `action` is `ALLOW`. Creates the derived reverse policy to allow return traffic. Set this explicitly to `true` or `false` because current UniFi controller builds may reject `ALLOW` rules when the field is omitted.",
 			},
 			"source_zone_id":      schema.StringAttribute{Required: true},
 			"source_filter":       firewallPolicyEndpointFilterSchema("source"),
@@ -69,7 +70,7 @@ func (r *firewallPolicyResource) Schema(_ context.Context, _ resource.SchemaRequ
 					},
 					"named_protocol": schema.StringAttribute{
 						Optional:            true,
-						MarkdownDescription: "Named protocol when `type` is `NAMED_PROTOCOL`.",
+						MarkdownDescription: "Named protocol when `type` is `NAMED_PROTOCOL`. Current UniFi controller builds reliably accept `ICMP` here. For TCP/UDP service rules, prefer `type = PRESET` with `preset_name = \"TCP_UDP\"` plus a nested destination `port_filter`.",
 					},
 					"match_opposite": schema.BoolAttribute{
 						Optional:            true,
@@ -415,6 +416,9 @@ func validateFirewallPolicyBase(plan firewallPolicyModel) error {
 	if plan.Action.ValueString() != "ALLOW" && !plan.AllowReturnTraffic.IsNull() && !plan.AllowReturnTraffic.IsUnknown() {
 		return fmt.Errorf("allow_return_traffic is only valid when action is ALLOW")
 	}
+	if plan.Action.ValueString() == "ALLOW" && (plan.AllowReturnTraffic.IsNull() || plan.AllowReturnTraffic.IsUnknown()) {
+		return fmt.Errorf("allow_return_traffic must be set explicitly when action is ALLOW")
+	}
 
 	switch plan.IPVersion.ValueString() {
 	case "IPV4", "IPV6", "IPV4_AND_IPV6":
@@ -633,7 +637,12 @@ func expandFirewallPolicyProtocolFilter(ctx context.Context, value types.Object,
 			diags.AddError("Invalid firewall policy protocol filter", "protocol_filter.named_protocol is required when protocol_filter.type is NAMED_PROTOCOL")
 			return nil
 		}
-		filter.Protocol = &client.FirewallPolicyNamedProtocol{Name: model.NamedProtocol.ValueString()}
+		normalizedProtocol := strings.ToUpper(strings.TrimSpace(model.NamedProtocol.ValueString()))
+		if normalizedProtocol != "ICMP" {
+			diags.AddError("Invalid firewall policy protocol filter", "protocol_filter.named_protocol currently supports only ICMP on live UniFi controller builds; use protocol_filter = { type = \"PRESET\", preset_name = \"TCP_UDP\" } for TCP/UDP service rules")
+			return nil
+		}
+		filter.Protocol = &client.FirewallPolicyNamedProtocol{Name: normalizedProtocol}
 		matchOpposite := boolValueOrFalse(model.MatchOpposite)
 		filter.MatchOpposite = &matchOpposite
 	case "PROTOCOL_NUMBER":
