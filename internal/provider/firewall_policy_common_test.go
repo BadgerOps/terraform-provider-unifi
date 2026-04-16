@@ -2,9 +2,9 @@ package provider
 
 import (
 	"context"
-	"strings"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
