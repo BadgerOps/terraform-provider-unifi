@@ -13,7 +13,7 @@ Manage a UniFi firewall policy.
 ## Example Usage
 
 ```terraform
-# Manage a firewall policy between source and destination firewall zones.
+# Manage a host-scoped service allow policy between source and destination firewall zones.
 data "unifi_site" "main" {
   name = "Default"
 }
@@ -36,10 +36,10 @@ resource "unifi_network" "trusted" {
   }
 }
 
-resource "unifi_network" "iot" {
+resource "unifi_network" "services" {
   site_id                 = data.unifi_site.main.id
   management              = "GATEWAY"
-  name                    = "iot"
+  name                    = "services"
   enabled                 = true
   vlan_id                 = 30
   isolation_enabled       = true
@@ -60,31 +60,40 @@ resource "unifi_firewall_zone" "trusted" {
   network_ids = [unifi_network.trusted.id]
 }
 
-resource "unifi_firewall_zone" "iot" {
+resource "unifi_firewall_zone" "services" {
   site_id     = data.unifi_site.main.id
-  name        = "iot"
-  network_ids = [unifi_network.iot.id]
+  name        = "services"
+  network_ids = [unifi_network.services.id]
 }
 
-resource "unifi_firewall_policy" "trusted_to_iot" {
+resource "unifi_firewall_policy" "trusted_to_services" {
   site_id              = data.unifi_site.main.id
   enabled              = true
-  name                 = "trusted-to-iot"
+  name                 = "trusted-to-services-host"
   action               = "ALLOW"
-  allow_return_traffic = true
+  allow_return_traffic = false
   source_zone_id       = unifi_firewall_zone.trusted.id
   source_filter = {
     type                   = "NETWORK"
     network_ids            = [unifi_network.trusted.id]
     network_match_opposite = false
   }
-  destination_zone_id = unifi_firewall_zone.iot.id
+  destination_zone_id = unifi_firewall_zone.services.id
   destination_filter = {
-    type                   = "NETWORK"
-    network_ids            = [unifi_network.iot.id]
-    network_match_opposite = false
+    type                      = "IP_ADDRESS"
+    ip_addresses              = ["10.30.0.20"]
+    ip_address_match_opposite = false
+    port_filter = {
+      type           = "PORTS"
+      match_opposite = false
+      ports          = ["53", "80", "443"]
+    }
   }
-  ip_version      = "IPV4_AND_IPV6"
+  ip_version = "IPV4"
+  protocol_filter = {
+    type        = "PRESET"
+    preset_name = "TCP_UDP"
+  }
   logging_enabled = false
 }
 ```
@@ -105,7 +114,7 @@ resource "unifi_firewall_policy" "trusted_to_iot" {
 
 ### Optional
 
-- `allow_return_traffic` (Boolean) Only valid when `action` is `ALLOW`. Creates the derived reverse policy to allow return traffic.
+- `allow_return_traffic` (Boolean) Required when `action` is `ALLOW`. Creates the derived reverse policy to allow return traffic. Set this explicitly to `true` or `false` because current UniFi controller builds may reject `ALLOW` rules when the field is omitted.
 - `connection_state_filter` (Set of String) Optional connection state filter values: `NEW`, `INVALID`, `ESTABLISHED`, `RELATED`.
 - `description` (String)
 - `destination_filter` (Attributes) Optional destination traffic filter. (see [below for nested schema](#nestedatt--destination_filter))
@@ -171,7 +180,7 @@ Required:
 Optional:
 
 - `match_opposite` (Boolean) When true, match all protocols except the selected one. Used by `NAMED_PROTOCOL` and `PROTOCOL_NUMBER`.
-- `named_protocol` (String) Named protocol when `type` is `NAMED_PROTOCOL`.
+- `named_protocol` (String) Named protocol when `type` is `NAMED_PROTOCOL`. Current UniFi controller builds reliably accept `ICMP` here. For TCP/UDP service rules, prefer `type = PRESET` with `preset_name = "TCP_UDP"` plus a nested destination `port_filter`.
 - `preset_name` (String) Preset name when `type` is `PRESET`. Current controller preset is `TCP_UDP`.
 - `protocol_number` (Number) IANA protocol number when `type` is `PROTOCOL_NUMBER`.
 

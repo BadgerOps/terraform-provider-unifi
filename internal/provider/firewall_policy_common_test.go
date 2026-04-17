@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -211,6 +212,71 @@ func TestBuildFirewallPolicyStateModelComplex(t *testing.T) {
 	}
 	if schedule.StartTime.ValueString() != "08:00" || schedule.StopTime.ValueString() != "18:00" {
 		t.Fatalf("schedule time = %s-%s, want 08:00-18:00", schedule.StartTime.ValueString(), schedule.StopTime.ValueString())
+	}
+}
+
+func TestValidateFirewallPolicyBaseRequiresAllowReturnTrafficForAllow(t *testing.T) {
+	t.Parallel()
+
+	err := validateFirewallPolicyBase(firewallPolicyModel{
+		Action:             types.StringValue("ALLOW"),
+		AllowReturnTraffic: types.BoolNull(),
+		IPVersion:          types.StringValue("IPV4"),
+	})
+	if err == nil {
+		t.Fatal("validateFirewallPolicyBase() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "allow_return_traffic must be set explicitly") {
+		t.Fatalf("validateFirewallPolicyBase() error = %q, want explicit allow_return_traffic error", err.Error())
+	}
+}
+
+func TestExpandFirewallPolicyProtocolFilterNamedProtocolValidation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	validValue, diags := types.ObjectValueFrom(ctx, firewallPolicyProtocolFilterAttrTypes(), firewallPolicyProtocolFilterModel{
+		Type:           types.StringValue("NAMED_PROTOCOL"),
+		NamedProtocol:  types.StringValue("icmp"),
+		MatchOpposite:  types.BoolValue(false),
+		ProtocolNumber: types.Int64Null(),
+		PresetName:     types.StringNull(),
+	})
+	if diags.HasError() {
+		t.Fatalf("types.ObjectValueFrom(valid) diagnostics = %v", diags)
+	}
+
+	var expandDiags diag.Diagnostics
+	filter := expandFirewallPolicyProtocolFilter(ctx, validValue, &expandDiags)
+	if expandDiags.HasError() {
+		t.Fatalf("expandFirewallPolicyProtocolFilter(valid) diagnostics = %v", expandDiags)
+	}
+	if filter == nil || filter.Protocol == nil || filter.Protocol.Name != "ICMP" {
+		t.Fatalf("expandFirewallPolicyProtocolFilter(valid) = %#v, want ICMP protocol", filter)
+	}
+
+	invalidValue, diags := types.ObjectValueFrom(ctx, firewallPolicyProtocolFilterAttrTypes(), firewallPolicyProtocolFilterModel{
+		Type:           types.StringValue("NAMED_PROTOCOL"),
+		NamedProtocol:  types.StringValue("tcp"),
+		MatchOpposite:  types.BoolValue(false),
+		ProtocolNumber: types.Int64Null(),
+		PresetName:     types.StringNull(),
+	})
+	if diags.HasError() {
+		t.Fatalf("types.ObjectValueFrom(invalid) diagnostics = %v", diags)
+	}
+
+	expandDiags = nil
+	filter = expandFirewallPolicyProtocolFilter(ctx, invalidValue, &expandDiags)
+	if filter != nil {
+		t.Fatalf("expandFirewallPolicyProtocolFilter(invalid) = %#v, want nil", filter)
+	}
+	if !expandDiags.HasError() {
+		t.Fatal("expandFirewallPolicyProtocolFilter(invalid) diagnostics = nil, want error")
+	}
+	if !strings.Contains(expandDiags[0].Detail(), "currently supports only ICMP") {
+		t.Fatalf("expandFirewallPolicyProtocolFilter(invalid) detail = %q, want ICMP guidance", expandDiags[0].Detail())
 	}
 }
 

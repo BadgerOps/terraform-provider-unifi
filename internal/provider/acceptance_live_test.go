@@ -389,19 +389,43 @@ resource "unifi_firewall_zone" "destination" {
 }
 
 resource "unifi_firewall_policy" "test" {
-  site_id             = data.unifi_site.target.id
-  enabled             = true
-  name                = %q
-  action              = "ALLOW"
-  source_zone_id      = unifi_firewall_zone.source.id
+  site_id              = data.unifi_site.target.id
+  enabled              = true
+  name                 = %q
+  action               = "ALLOW"
+  allow_return_traffic = false
+  source_zone_id       = unifi_firewall_zone.source.id
+  source_filter = {
+    type                   = "NETWORK"
+    network_ids            = [unifi_network.source.id]
+    network_match_opposite = false
+  }
   destination_zone_id = unifi_firewall_zone.destination.id
-  ip_version          = "IPV4"
-  logging_enabled     = false
+  destination_filter = {
+    type                      = "IP_ADDRESS"
+    ip_addresses              = ["10.61.0.0/24"]
+    ip_address_match_opposite = false
+    port_filter = {
+      type           = "PORTS"
+      match_opposite = false
+      ports          = ["443", "8443-8444"]
+    }
+  }
+  ip_version = "IPV4"
+  protocol_filter = {
+    type        = "PRESET"
+    preset_name = "TCP_UDP"
+  }
+  logging_enabled = false
 }
 `, sourceNetworkName, vlanID, destinationNetworkName, vlanID+1, sourceZoneName, destinationZoneName, policyName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "action", "ALLOW"),
+					resource.TestCheckResourceAttr(resourceName, "allow_return_traffic", "false"),
+					resource.TestCheckResourceAttr(resourceName, "source_filter.type", "NETWORK"),
+					resource.TestCheckResourceAttr(resourceName, "destination_filter.type", "IP_ADDRESS"),
+					resource.TestCheckResourceAttr(resourceName, "protocol_filter.type", "PRESET"),
 					resource.TestCheckResourceAttr(resourceName, "ip_version", "IPV4"),
 					resource.TestCheckResourceAttr(resourceName, "logging_enabled", "false"),
 				),

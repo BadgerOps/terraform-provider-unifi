@@ -40,6 +40,26 @@ This repository follows the shared BadgerOps plan and the committed UniFi Networ
 
 The implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough. Firewall policy ordering and ACL rule ordering are managed through dedicated resources because the controller exposes separate ordering endpoints and treats the per-object `index` as read-only state. `unifi_radius_profile`, `unifi_device_tag`, `unifi_wan`, `unifi_switch_stack`, `unifi_mc_lag_domain`, and `unifi_lag` are data sources because the current shipped integration API only exposes read-only endpoints for them.
 
+## Firewall Prerequisite
+
+Zone-based firewall support must be enabled manually in the UniFi Network UI before Terraform can manage:
+
+- `unifi_firewall_zone`
+- `unifi_firewall_policy`
+- `unifi_firewall_policy_ordering`
+
+If zone-based firewall is not enabled on the target site, the controller returns `api.firewall.zone-based-firewall-not-configured` and the firewall resources/data sources in this provider will not work for that site.
+
+## Known UniFi Firewall Quirks
+
+Current UniFi controller builds have a few behaviors worth planning around:
+
+- Treat the system `Internal` zone as read-only. Moving networks by `zone_id` works, but explicit updates to built-in zone membership may be rejected by the controller.
+- Set `allow_return_traffic` explicitly on every `ALLOW` firewall policy. Some controller builds reject filtered `ALLOW` rules when this field is omitted, even if the intended value is `false`.
+- `protocol_filter = { type = "NAMED_PROTOCOL" }` is currently only reliable for `ICMP`. For TCP or UDP service policies, prefer `protocol_filter = { type = "PRESET", preset_name = "TCP_UDP" }` combined with a nested destination `port_filter`.
+- `unifi_firewall_policy_ordering` can manage an existing zone pair correctly, but some controllers appear more reliable when ordering is imported or aligned after policy creation instead of being created first from a blank state.
+- Legacy user-defined firewall policies created outside Terraform may be difficult to import if the controller list endpoints do not expose stable policy IDs.
+
 ## OpenAPI Snapshot
 
 The repo includes a committed OpenAPI snapshot under [`internal/openapi/spec`](./internal/openapi/spec) and a generated client/model package under [`internal/openapi/generated`](./internal/openapi/generated).
@@ -95,7 +115,7 @@ terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
-      version = "0.2.3"
+      version = "0.2.4"
     }
   }
 }
@@ -126,7 +146,7 @@ provider_installation {
 Then build the binary in the repo root:
 
 ```bash
-go build -o terraform-provider-unifi_v0.2.3 .
+go build -o terraform-provider-unifi_v0.2.4 .
 ```
 
 For CI and internal shared usage, use the packaged filesystem mirror bundle produced by the release workflow:
@@ -216,7 +236,7 @@ make sync-version
 make check-version-drift
 make docs-generate
 make docs-check
-make release-artifacts VERSION=0.2.3
+make release-artifacts VERSION=0.2.4
 make terraform-fmt-check
 make openapi-generate
 make testacc

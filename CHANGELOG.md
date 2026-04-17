@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.4] - 2026-04-15
+
+### Changed
+
+- `unifi_firewall_policy` now requires `allow_return_traffic` to be set explicitly when `action = "ALLOW"` so Terraform catches a controller requirement that previously surfaced only as an API error during apply.
+- `unifi_firewall_policy` now rejects `protocol_filter = { type = "NAMED_PROTOCOL", named_protocol = "tcp" }` and similar TCP/UDP variants because current UniFi controller builds only reliably accept `ICMP` for `NAMED_PROTOCOL`.
+
+### Fixed
+
+- Updated firewall policy examples, docs, and acceptance coverage to use the controller-safe `PRESET/TCP_UDP` protocol filter pattern for port-scoped TCP/UDP service rules.
+- Documented live-controller firewall quirks around built-in zones, explicit `allow_return_traffic`, protocol filters, and policy ordering/import behavior.
+
 ## [0.2.3] - 2026-04-13
 
 ### Added

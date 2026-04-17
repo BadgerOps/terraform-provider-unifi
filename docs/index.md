@@ -48,6 +48,16 @@ Read-only data sources:
 - [`unifi_mc_lag_domain`](./data-sources/mc_lag_domain.md)
 - [`unifi_lag`](./data-sources/lag.md)
 
+## Firewall Prerequisite
+
+Zone-based firewall must be enabled manually in the UniFi Network UI before Terraform can manage:
+
+- [`unifi_firewall_zone`](./resources/firewall_zone.md)
+- [`unifi_firewall_policy`](./resources/firewall_policy.md)
+- [`unifi_firewall_policy_ordering`](./resources/firewall_policy_ordering.md)
+
+If zone-based firewall is not enabled on the target site, the controller returns `api.firewall.zone-based-firewall-not-configured` and the firewall resources and data sources in this provider will not work for that site.
+
 ## Example Usage
 ```terraform
 # Configure the UniFi provider with an integration API endpoint and API key.
@@ -55,7 +65,7 @@ terraform {
   required_providers {
     unifi = {
       source  = "badgerops/unifi"
-      version = "0.2.3"
+      version = "0.2.4"
     }
   }
 }

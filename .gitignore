@@ -5,6 +5,7 @@ dist/
 .env.*
 !.env.example
 .envrc
+.cache/
 .terraform/
 .terraform.lock.hcl
 *.tfstate
@@ -13,3 +14,4 @@ terraform.rc
 .terraformrc
 .envrc
 terraform-provider-unifi
+TODO.md
