@@ -2,7 +2,7 @@ SHELL := /usr/bin/env bash
 
 DOCS_TRACKED_PATHS := docs templates examples/README.md examples/provider examples/resources examples/data-sources
 
-.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate docs-generate docs-check testacc release-artifacts sync-version check-version-drift
+.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate docs-generate docs-check testacc release-artifacts sign-release-artifacts sync-version check-version-drift
 
 fmt:
 	go fmt ./...
@@ -54,3 +54,7 @@ testacc:
 release-artifacts:
 	@test -n "$(VERSION)" || (echo "VERSION is required, for example: make release-artifacts VERSION=0.1.0" >&2; exit 1)
 	./scripts/build-release-artifacts.sh "$(VERSION)"
+
+sign-release-artifacts:
+	@test -n "$(VERSION)" || (echo "VERSION is required, for example: make sign-release-artifacts VERSION=0.1.0" >&2; exit 1)
+	./scripts/sign-release-artifacts.sh "$(VERSION)"

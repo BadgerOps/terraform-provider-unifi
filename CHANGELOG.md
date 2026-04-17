@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.6] - 2026-04-17
+
+### Changed
+
+- Terraform Registry release artifacts now include the versioned provider manifest and a signed `SHA256SUMS` file so GitHub releases are ready for Registry ingestion.
+- GitHub release automation now requires the `GPG_PRIVATE_KEY` and `PASSPHRASE` repository secrets and signs the published checksum file during release creation.
+- README release guidance now describes the Registry-compatible release assets and the extra setup needed before the first publish under the `badgerops` namespace.
+
 ## [0.2.5] - 2026-04-17
 
 ### Changed

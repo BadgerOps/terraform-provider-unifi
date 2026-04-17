@@ -26,7 +26,7 @@ jobs:
           cache: true
 
       - name: Install archive tooling
-        run: sudo apt-get update && sudo apt-get install -y zip
+        run: sudo apt-get update && sudo apt-get install -y gnupg zip
 
       - name: Read release metadata from changelog
         id: changelog
@@ -56,6 +56,18 @@ jobs:
       - name: Build release artifacts
         if: steps.exists.outputs.exists == 'false'
         run: make release-artifacts VERSION="${{ steps.changelog.outputs.version }}"
+
+      - name: Sign release artifacts
+        if: steps.exists.outputs.exists == 'false'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          PASSPHRASE: ${{ secrets.PASSPHRASE }}
+        run: |
+          if [[ -z "${GPG_PRIVATE_KEY}" || -z "${PASSPHRASE}" ]]; then
+            echo "GPG_PRIVATE_KEY and PASSPHRASE repository secrets are required for Terraform Registry releases." >&2
+            exit 1
+          fi
+          make sign-release-artifacts VERSION="${{ steps.changelog.outputs.version }}"
 
       - name: Create GitHub release
         if: steps.exists.outputs.exists == 'false'
