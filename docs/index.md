@@ -65,7 +65,7 @@ terraform {
   required_providers {
     unifi = {
       source  = "badgerops/unifi"
-      version = "0.2.6"
+      version = "0.2.7"
     }
   }
 }
@@ -111,5 +111,4 @@ Repository enforcement:
 ### Optional
 
 - `allow_insecure` (Boolean) Disable TLS certificate verification. Only use this against trusted development systems.
-
 

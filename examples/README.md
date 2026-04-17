@@ -2,6 +2,8 @@
 
 This directory is the checked-in input set for generated provider documentation.
 
+This repository is a Terraform provider repository, not a module repository. Any Terraform configuration under `examples/` exists to support generated provider docs or operator reference workflows. Reusable modules that BadgerOps intends to publish should live in separate repositories that follow the Registry module naming convention `terraform-<provider>-<name>`.
+
 `tfplugindocs` reads these paths by convention:
 
 - `provider/provider.tf` for the provider index example
@@ -17,3 +19,5 @@ The generation flow is:
 4. Run `make docs-check` before committing.
 
 Example files should stay minimal, valid, and focused on the intended public workflow for that resource or data source.
+
+Example subdirectories should include a local `README.md` when they contain runnable Terraform configuration so accidental Registry module indexing describes them as examples instead of undocumented internal-only submodules.
