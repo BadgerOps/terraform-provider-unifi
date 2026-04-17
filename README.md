@@ -2,7 +2,7 @@
 
 Terraform provider for the current UniFi Network integration API.
 
-This repository follows the shared BadgerOps plan and the committed UniFi Network OpenAPI snapshot. It targets the OpenAPI-backed integration endpoints shipped by current UniFi Network releases instead of the older private controller API.
+This repository tracks the committed UniFi Network OpenAPI snapshot and targets the OpenAPI-backed integration endpoints shipped by current UniFi Network releases. It intentionally focuses on durable configuration workflows instead of the older private controller API and operational actions.
 
 ## Current scope
 
@@ -105,17 +105,19 @@ make docs-check
 
 Enforcement:
 
-- [docs.yml](./.github/workflows/docs.yml) runs `make docs-check` on pull requests and pushes to `master`
+- CI runs `make docs-check` on pull requests and on pushes to the default branch
 - [`.pre-commit-config.yaml`](./.pre-commit-config.yaml) can run the same docs check locally before commit
 
-## Provider example
+## Install From The Registry
+
+Released versions are published under `badgerops/unifi` and can be installed directly from the Terraform Registry.
 
 ```hcl
 terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
-      version = "0.2.4"
+      version = "0.2.5"
     }
   }
 }
@@ -127,9 +129,7 @@ provider "unifi" {
 }
 ```
 
-## Internal Usage
-
-There are two practical ways to use this provider internally.
+## Local Development Overrides
 
 For local development, use a Terraform CLI development override that points at a directory containing a locally built provider binary:
 
@@ -146,16 +146,14 @@ provider_installation {
 Then build the binary in the repo root:
 
 ```bash
-go build -o terraform-provider-unifi_v0.2.4 .
+go build -o terraform-provider-unifi_v0.2.5 .
 ```
 
-For CI and internal shared usage, use the packaged filesystem mirror bundle produced by the release workflow:
+## Filesystem Mirror Installs
 
-- `.github/workflows/release.yml` reads the current version and notes from `CHANGELOG.md`
-- when a change lands on `master`, it builds release artifacts and publishes GitHub release assets for the current changelog version
-- `terraform-provider-unifi_<version>_terraform-mirror.tar.gz` is the recommended internal-consumption artifact
+Each GitHub release also includes a `terraform-provider-unifi_<version>_terraform-mirror.tar.gz` bundle for air-gapped or mirrored Terraform installs. The release workflow reads the version and notes from `CHANGELOG.md`, builds the cross-platform archives, and packages a ready-to-extract filesystem mirror layout.
 
-Extract that mirror bundle onto the runner and point Terraform at it:
+Extract that mirror bundle and point Terraform at it:
 
 ```hcl
 # terraform.rc
@@ -236,7 +234,7 @@ make sync-version
 make check-version-drift
 make docs-generate
 make docs-check
-make release-artifacts VERSION=0.2.4
+make release-artifacts VERSION=0.2.5
 make terraform-fmt-check
 make openapi-generate
 make testacc

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.5] - 2026-04-17
+
+### Changed
+
+- Renamed internal client and translation files so the repository no longer carries `phase*` or `*_spike` implementation artifacts.
+- Reworked the release-facing docs to lead with public registry usage and describe local development overrides and filesystem mirror installs without internal-only wording.
+- Updated docs generation to export schema through the published `badgerops/unifi` source address instead of relying on `tfplugindocs`' `hashicorp/<name>` default.
+
 ## [0.2.4] - 2026-04-15
 
 ### Changed
