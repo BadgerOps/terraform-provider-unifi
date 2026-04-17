@@ -75,6 +75,6 @@ tar -C "${work_dir}" -czf "${mirror_bundle}" terraform-mirror
 
 (
   cd "${dist_dir}"
-  mapfile -t checksum_inputs < <(printf '%s\n' ./*.zip "${manifest_asset}" | sort)
+  mapfile -t checksum_inputs < <(printf '%s\n' *.zip "${manifest_asset}" | sort)
   sha256sum "${checksum_inputs[@]}" > "${provider_name}_${version}_SHA256SUMS"
 )

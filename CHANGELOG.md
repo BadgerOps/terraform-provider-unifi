@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.8] - 2026-04-17
+
+### Changed
+
+- Fixed release checksum generation so `terraform-provider-unifi_<version>_SHA256SUMS` records zip asset names without a leading `./`, matching the filenames attached to GitHub releases and accepted by Terraform Registry ingestion.
+
 ## [0.2.7] - 2026-04-17
 
 ### Changed
