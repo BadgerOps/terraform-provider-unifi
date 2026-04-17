@@ -9,7 +9,7 @@ description: |-
 
 Terraform provider for the UniFi Network integration API.
 
-This provider follows the committed UniFi OpenAPI snapshot and the shared BadgerOps plan, but it only exposes the parts of the current integration API that make sense for Terraform-managed configuration. Operational actions such as device adoption and controller statistics are intentionally out of scope.
+This provider follows the committed UniFi OpenAPI snapshot and only exposes the parts of the current integration API that make sense for Terraform-managed configuration. Operational actions such as device adoption and controller statistics are intentionally out of scope.
 
 ## Scope
 
@@ -65,7 +65,7 @@ terraform {
   required_providers {
     unifi = {
       source  = "badgerops/unifi"
-      version = "0.2.4"
+      version = "0.2.5"
     }
   }
 }
@@ -95,7 +95,7 @@ Contributor workflow:
 
 Repository enforcement:
 
-- `.github/workflows/docs.yml` runs `make docs-check` on pull requests and pushes to `master`
+- CI runs `make docs-check` on pull requests and on pushes to the default branch
 - `.pre-commit-config.yaml` runs the same check before commits when `pre-commit` is installed
 
 ## Provider Schema
@@ -111,5 +111,4 @@ Repository enforcement:
 ### Optional
 
 - `allow_insecure` (Boolean) Disable TLS certificate verification. Only use this against trusted development systems.
-
 
