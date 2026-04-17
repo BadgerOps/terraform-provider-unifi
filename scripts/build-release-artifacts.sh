@@ -17,6 +17,12 @@ provider_type="unifi"
 provider_host="registry.terraform.io"
 provider_namespace="badgerops"
 provider_name="terraform-provider-${provider_type}"
+manifest_source="${repo_root}/terraform-registry-manifest.json"
+
+if [[ ! -f "${manifest_source}" ]]; then
+  echo "missing Terraform Registry manifest file: ${manifest_source}" >&2
+  exit 1
+fi
 
 platforms=(
   "linux/amd64"
@@ -61,10 +67,14 @@ for platform in "${platforms[@]}"; do
   cp "${dist_dir}/${archive_name}" "${mirror_root}/${target}/${archive_name}"
 done
 
+manifest_asset="${provider_name}_${version}_manifest.json"
+cp "${manifest_source}" "${dist_dir}/${manifest_asset}"
+
 mirror_bundle="${dist_dir}/${provider_name}_${version}_terraform-mirror.tar.gz"
 tar -C "${work_dir}" -czf "${mirror_bundle}" terraform-mirror
 
 (
   cd "${dist_dir}"
-  sha256sum ./*.zip ./*.tar.gz > "${provider_name}_${version}_SHA256SUMS"
+  mapfile -t checksum_inputs < <(printf '%s\n' ./*.zip "${manifest_asset}" | sort)
+  sha256sum "${checksum_inputs[@]}" > "${provider_name}_${version}_SHA256SUMS"
 )

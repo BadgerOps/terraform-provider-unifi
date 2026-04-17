@@ -117,7 +117,7 @@ terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
-      version = "0.2.5"
+      version = "0.2.6"
     }
   }
 }
@@ -146,12 +146,24 @@ provider_installation {
 Then build the binary in the repo root:
 
 ```bash
-go build -o terraform-provider-unifi_v0.2.5 .
+go build -o terraform-provider-unifi_v0.2.6 .
 ```
 
 ## Filesystem Mirror Installs
 
-Each GitHub release also includes a `terraform-provider-unifi_<version>_terraform-mirror.tar.gz` bundle for air-gapped or mirrored Terraform installs. The release workflow reads the version and notes from `CHANGELOG.md`, builds the cross-platform archives, and packages a ready-to-extract filesystem mirror layout.
+Each GitHub release includes:
+
+- platform archives named `terraform-provider-unifi_<version>_<os>_<arch>.zip`
+- a Registry manifest asset named `terraform-provider-unifi_<version>_manifest.json`
+- `terraform-provider-unifi_<version>_SHA256SUMS` plus the detached signature file `terraform-provider-unifi_<version>_SHA256SUMS.sig`
+- a `terraform-provider-unifi_<version>_terraform-mirror.tar.gz` bundle for air-gapped or mirrored Terraform installs
+
+The release workflow reads the version and notes from `CHANGELOG.md`, builds the cross-platform archives, packages the filesystem mirror bundle, and signs the checksum file for Terraform Registry ingestion.
+
+Before the first Registry publish under the `badgerops` namespace:
+
+- add an ASCII-armored public GPG key in the Terraform Registry signing key settings for `badgerops`
+- configure the `GPG_PRIVATE_KEY` and `PASSPHRASE` repository secrets in GitHub Actions
 
 Extract that mirror bundle and point Terraform at it:
 
@@ -234,7 +246,8 @@ make sync-version
 make check-version-drift
 make docs-generate
 make docs-check
-make release-artifacts VERSION=0.2.5
+make release-artifacts VERSION=0.2.6
+make sign-release-artifacts VERSION=0.2.6
 make terraform-fmt-check
 make openapi-generate
 make testacc
