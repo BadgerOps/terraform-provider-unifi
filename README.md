@@ -4,6 +4,8 @@ Terraform provider for the current UniFi Network integration API.
 
 This repository tracks the committed UniFi Network OpenAPI snapshot and targets the OpenAPI-backed integration endpoints shipped by current UniFi Network releases. It intentionally focuses on durable configuration workflows instead of the older private controller API and operational actions.
 
+This repository is the source for the `badgerops/unifi` Terraform provider. It is not intended to be consumed as a Terraform module package. If BadgerOps publishes reusable Terraform modules built on top of this provider, they should live in separate repositories named with the standard module pattern `terraform-<provider>-<name>`.
+
 ## Current scope
 
 - Provider: `badgerops/unifi`
@@ -88,6 +90,8 @@ Generation inputs come from:
 
 The checked-in example contract is documented in [`examples/README.md`](./examples/README.md). Each provider object should have a minimal public-facing example that shows the intended Terraform workflow, not an internal test fixture.
 
+The example directories under [`examples`](./examples) exist to drive generated provider documentation and to provide operator reference configurations. They are examples inside the provider repository, not versioned module entrypoints for Registry consumption.
+
 Generation workflow:
 
 1. Update the schema implementation in [`internal/provider`](./internal/provider).
@@ -117,7 +121,7 @@ terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
-      version = "0.2.6"
+      version = "0.2.7"
     }
   }
 }
@@ -146,7 +150,7 @@ provider_installation {
 Then build the binary in the repo root:
 
 ```bash
-go build -o terraform-provider-unifi_v0.2.6 .
+go build -o terraform-provider-unifi_v0.2.7 .
 ```
 
 ## Filesystem Mirror Installs
@@ -246,8 +250,8 @@ make sync-version
 make check-version-drift
 make docs-generate
 make docs-check
-make release-artifacts VERSION=0.2.6
-make sign-release-artifacts VERSION=0.2.6
+make release-artifacts VERSION=0.2.7
+make sign-release-artifacts VERSION=0.2.7
 make terraform-fmt-check
 make openapi-generate
 make testacc
