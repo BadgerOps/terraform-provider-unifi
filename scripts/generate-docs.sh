@@ -92,3 +92,7 @@ go run "github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@${TFPLUGINDO
   --provider-dir "${ROOT_DIR}" \
   --provider-name "${PROVIDER_NAME}" \
   --providers-schema "${schema_file}"
+
+# Keep the generated provider index on a stable markdown EOF shape. tfplugindocs
+# can emit an extra trailing blank line here, which otherwise causes docs drift.
+perl -0pi -e 's/\n*\z/\n\n/s' "${ROOT_DIR}/docs/index.md"

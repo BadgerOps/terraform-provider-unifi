@@ -10,6 +10,7 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 - Clarified the repository structure so the provider repo is explicitly documented as a provider distribution repository, not a reusable module repository.
 - Added local READMEs for `examples/provider` and `examples/basic-site` so Registry-discovered nested Terraform directories are clearly described as examples rather than undocumented internal-only submodules.
+- Normalized generated `docs/index.md` EOF handling in `scripts/generate-docs.sh` so `make docs-check` does not keep failing on a trailing newline drift in CI.
 
 ## [0.2.6] - 2026-04-17
 
