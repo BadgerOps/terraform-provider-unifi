@@ -26,7 +26,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4.0.0
         with:
-          terraform_version: 1.14.8
+          terraform_version: 1.5.7
           terraform_wrapper: false
 
       - name: Download modules

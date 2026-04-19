@@ -23,6 +23,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4.0.0
+        with:
+          terraform_version: 1.5.7
+          terraform_wrapper: false
+
       - name: Download modules
         run: go mod download
 
@@ -36,7 +42,7 @@ jobs:
         run: make vet
 
       - name: Test
-        run: make test
+        run: TF_ACC_TERRAFORM_PATH="$(command -v terraform)" make test
 
       - name: Build
         run: make build
