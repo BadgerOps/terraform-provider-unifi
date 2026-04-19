@@ -7,13 +7,23 @@ description: |-
 
 # unifi Provider
 
-Terraform provider for the UniFi Network integration API.
+The `badgerops/unifi` provider manages UniFi Network configuration through the UniFi integration API.
 
-This provider follows the committed UniFi OpenAPI snapshot and only exposes the parts of the current integration API that make sense for Terraform-managed configuration. Operational actions such as device adoption and controller statistics are intentionally out of scope.
+Use it when you want Terraform to manage declarative site configuration such as networks, WiFi broadcasts, firewall policy, DNS policy, traffic matching lists, and ACL rules. It is designed for configuration state, not day-2 controller operations such as device adoption, client telemetry, or controller analytics.
 
-## Scope
+This provider follows the committed UniFi OpenAPI snapshot and only exposes the parts of the current integration API that make sense for Terraform-managed configuration.
 
-Managed resources:
+## Requirements
+
+Before using this provider:
+
+- Enable the UniFi Network integration API and create an API key in the UniFi Network UI.
+- Use the base controller URL for `api_url`. The provider appends `/integration` automatically when needed.
+- If you plan to manage zone-based firewall resources, enable zone-based firewall in the UniFi Network UI first.
+
+## Managed Configuration
+
+Managed resources include:
 
 - [`unifi_network`](./resources/network.md)
 - [`unifi_wifi_broadcast`](./resources/wifi_broadcast.md)
@@ -25,7 +35,7 @@ Managed resources:
 - [`unifi_acl_rule`](./resources/acl_rule.md)
 - [`unifi_acl_rule_ordering`](./resources/acl_rule_ordering.md)
 
-Read-only data sources:
+Read-only data sources include:
 
 - [`unifi_site`](./data-sources/site.md)
 - [`unifi_device`](./data-sources/device.md)
@@ -65,7 +75,7 @@ terraform {
   required_providers {
     unifi = {
       source  = "badgerops/unifi"
-      version = "0.2.8"
+      version = "0.2.9"
     }
   }
 }
@@ -76,27 +86,6 @@ provider "unifi" {
   allow_insecure = false
 }
 ```
-
-## Documentation Generation Workflow
-
-The checked-in files under `docs/` are generated from:
-
-- Terraform provider, resource, and data source schemas in `internal/provider`
-- provider, resource, and data source examples under `examples/`
-- resource import examples under `examples/resources`
-- this provider template under `templates/index.md.tmpl`
-
-Contributor workflow:
-
-1. Update schema code and example files together.
-2. Run `make docs-generate` to refresh generated markdown in `docs/`.
-3. Run `make docs-check` to verify `docs/`, `templates/`, and `examples/` are in sync.
-4. Commit both the source changes and the regenerated docs.
-
-Repository enforcement:
-
-- CI runs `make docs-check` on pull requests and on pushes to the default branch
-- `.pre-commit-config.yaml` runs the same check before commits when `pre-commit` is installed
 
 ## Provider Schema
 

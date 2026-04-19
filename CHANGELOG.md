@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.9] - 2026-04-19
+
+### Changed
+
+- Reworked the Terraform Registry provider overview so the generated `docs/index.md` leads with public-facing guidance on what the provider manages, the required UniFi integration API setup, and the main configuration prerequisites.
+- Pinned GitHub Actions Terraform setup to `1.5.7` and updated the Go test workflow to run provider tests against the installed Terraform binary instead of auto-downloading a CLI during test execution.
+
 ## [0.2.8] - 2026-04-17
 
 ### Changed
