@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.9] - 2026-04-19
+
+### Changed
+
+- Reworked the Terraform Registry provider overview so the generated `docs/index.md` leads with public-facing guidance on what the provider manages, the required UniFi integration API setup, and the main configuration prerequisites.
+
 ## [0.2.8] - 2026-04-17
 
 ### Changed
