@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.11] - 2026-04-20
+
+### Fixed
+
+- `unifi_dhcp_reservation` now auto-creates the missing legacy configured-client record for adopted UniFi infrastructure devices before applying the reservation, while retaining coverage for both pre-existing client records and the adopted-device bootstrap path.
+
 ## [0.2.10] - 2026-04-20
 
 ### Added
@@ -13,7 +19,6 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 ### Changed
 
 - Extended the client to derive both the integration API base URL and the legacy `/proxy/network/api` base URL from the configured `api_url` without breaking existing `/proxy/network` and `/integration` input shapes.
-- `unifi_dhcp_reservation` now auto-creates the missing legacy configured-client record for adopted UniFi infrastructure devices before applying the reservation, while retaining coverage for both pre-existing client records and the adopted-device bootstrap path.
 - Added mock-backed provider coverage for DHCP reservation CRUD/import behavior and for `unifi_firewall_policy` rules that use `action = "ALLOW"`, `allow_return_traffic = true`, and a destination `NETWORK` filter.
 - Generated docs and examples now document `unifi_dhcp_reservation` and call out that it is the current exception to the provider's otherwise integration-API-focused surface.
 
