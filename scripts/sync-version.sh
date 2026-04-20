@@ -30,6 +30,8 @@ fi
 managed_files=(
   "README.md"
   "examples/basic-site/main.tf"
+  "examples/provider/provider.tf"
+  "examples/provider/README.md"
 )
 
 tmp_dir=""
@@ -46,11 +48,20 @@ perl -0pi -e '
   s/(source = "badgerops\/unifi"\n      version = ")\d+\.\d+\.\d+(")/${1}'"${version}"'${2}/g;
   s/(go build -o terraform-provider-unifi_v)\d+\.\d+\.\d+( \.)/${1}'"${version}"'${2}/g;
   s/(make release-artifacts VERSION=)\d+\.\d+\.\d+/${1}'"${version}"'/g;
+  s/(make sign-release-artifacts VERSION=)\d+\.\d+\.\d+/${1}'"${version}"'/g;
 ' README.md
 
 perl -0pi -e '
   s/(source  = "badgerops\/unifi"\n      version = ")\d+\.\d+\.\d+(")/${1}'"${version}"'${2}/g;
 ' examples/basic-site/main.tf
+
+perl -0pi -e '
+  s/(source  = "badgerops\/unifi"\n      version = ")\d+\.\d+\.\d+(")/${1}'"${version}"'${2}/g;
+' examples/provider/provider.tf
+
+perl -0pi -e '
+  s/(source  = "badgerops\/unifi"\n      version = ")\d+\.\d+\.\d+(")/${1}'"${version}"'${2}/g;
+' examples/provider/README.md
 
 if [[ "${mode}" == "check" ]]; then
   changed=0

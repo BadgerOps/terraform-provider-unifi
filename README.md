@@ -124,7 +124,7 @@ terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
-      version = "0.2.9"
+      version = "0.2.10"
     }
   }
 }
@@ -153,7 +153,7 @@ provider_installation {
 Then build the binary in the repo root:
 
 ```bash
-go build -o terraform-provider-unifi_v0.2.9 .
+go build -o terraform-provider-unifi_v0.2.10 .
 ```
 
 ## Filesystem Mirror Installs
@@ -253,8 +253,8 @@ make sync-version
 make check-version-drift
 make docs-generate
 make docs-check
-make release-artifacts VERSION=0.2.9
-make sign-release-artifacts VERSION=0.2.9
+make release-artifacts VERSION=0.2.10
+make sign-release-artifacts VERSION=0.2.10
 make terraform-fmt-check
 make openapi-generate
 make testacc
