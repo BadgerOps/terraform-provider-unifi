@@ -23,7 +23,12 @@ type Config struct {
 }
 
 type Client struct {
-	apiClient *generated.ClientWithResponses
+	apiClient          *generated.ClientWithResponses
+	httpClient         *http.Client
+	integrationBaseURL *url.URL
+	legacyBaseURL      *url.URL
+	apiKey             string
+	userAgent          string
 }
 
 type apiError struct {
@@ -54,7 +59,12 @@ func New(config Config) (*Client, error) {
 		return nil, fmt.Errorf("api_key must not be empty")
 	}
 
-	baseURL, err := normalizeBaseURL(config.BaseURL)
+	integrationBaseURL, err := normalizeBaseURL(config.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	legacyBaseURL, err := normalizeLegacyBaseURL(config.BaseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +80,7 @@ func New(config Config) (*Client, error) {
 	}
 
 	apiClient, err := generated.NewClientWithResponses(
-		baseURL.String(),
+		integrationBaseURL.String(),
 		generated.WithHTTPClient(httpClient),
 		generated.WithRequestEditorFn(func(_ context.Context, request *http.Request) error {
 			request.Header.Set("Accept", "application/json")
@@ -87,7 +97,12 @@ func New(config Config) (*Client, error) {
 	}
 
 	return &Client{
-		apiClient: apiClient,
+		apiClient:          apiClient,
+		httpClient:         httpClient,
+		integrationBaseURL: integrationBaseURL,
+		legacyBaseURL:      legacyBaseURL,
+		apiKey:             config.APIKey,
+		userAgent:          config.UserAgent,
 	}, nil
 }
 
@@ -102,13 +117,56 @@ func normalizeBaseURL(raw string) (*url.URL, error) {
 
 	trimmedPath := strings.TrimRight(parsed.Path, "/")
 	if !strings.HasSuffix(trimmedPath, "/integration") {
-		parsed.Path = path.Join(trimmedPath, "integration")
-		if !strings.HasPrefix(parsed.Path, "/") {
-			parsed.Path = "/" + parsed.Path
-		}
+		parsed.Path = joinURLPath(trimmedPath, "integration")
 	}
 
 	return parsed, nil
+}
+
+func normalizeLegacyBaseURL(raw string) (*url.URL, error) {
+	baseURL, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, fmt.Errorf("parse api_url: %w", err)
+	}
+	if baseURL.Scheme == "" || baseURL.Host == "" {
+		return nil, fmt.Errorf("api_url must include scheme and host")
+	}
+
+	trimmedPath := strings.TrimRight(baseURL.Path, "/")
+	switch {
+	case strings.HasSuffix(trimmedPath, "/proxy/network/api"):
+		baseURL.Path = trimmedPath
+	case strings.HasSuffix(trimmedPath, "/proxy/network"):
+		baseURL.Path = joinURLPath(trimmedPath, "api")
+	case strings.HasSuffix(trimmedPath, "/integration"):
+		baseURL.Path = joinURLPath(strings.TrimSuffix(trimmedPath, "/integration"), "proxy", "network", "api")
+	default:
+		baseURL.Path = joinURLPath(trimmedPath, "proxy", "network", "api")
+	}
+
+	return baseURL, nil
+}
+
+func joinURLPath(basePath string, pathElements ...string) string {
+	parts := make([]string, 0, len(pathElements)+1)
+	trimmedBasePath := strings.TrimRight(basePath, "/")
+	if trimmedBasePath != "" {
+		parts = append(parts, trimmedBasePath)
+	}
+	parts = append(parts, pathElements...)
+
+	joined := path.Join(parts...)
+	if joined == "." {
+		joined = ""
+	}
+	if joined == "" {
+		return ""
+	}
+	if !strings.HasPrefix(joined, "/") {
+		joined = "/" + joined
+	}
+
+	return joined
 }
 
 func (c *Client) ListSites(ctx context.Context) ([]Site, error) {
