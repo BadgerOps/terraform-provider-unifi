@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 	"strings"
 )
 
 type DHCPReservation struct {
 	ClientID                  string  `json:"_id,omitempty"`
 	MACAddress                string  `json:"mac"`
+	NetworkID                 *string `json:"network_id,omitempty"`
 	FixedIP                   *string `json:"fixed_ip,omitempty"`
 	Enabled                   bool    `json:"use_fixedip"`
 	Hostname                  *string `json:"hostname,omitempty"`
@@ -24,10 +26,16 @@ type legacyResponse[T any] struct {
 	Data T `json:"data"`
 }
 
+type dhcpReservationCreateRequest struct {
+	MACAddress string  `json:"mac"`
+	Name       *string `json:"name,omitempty"`
+}
+
 type dhcpReservationUpdateRequest struct {
-	ClientID string  `json:"_id"`
-	FixedIP  *string `json:"fixed_ip,omitempty"`
-	Enabled  bool    `json:"use_fixedip"`
+	ClientID  string  `json:"_id"`
+	NetworkID *string `json:"network_id,omitempty"`
+	FixedIP   *string `json:"fixed_ip,omitempty"`
+	Enabled   bool    `json:"use_fixedip"`
 }
 
 func (c *Client) ListDHCPReservations(ctx context.Context, siteID string) ([]DHCPReservation, error) {
@@ -65,7 +73,14 @@ func (c *Client) GetDHCPReservation(ctx context.Context, siteID, macAddress stri
 func (c *Client) UpsertDHCPReservation(ctx context.Context, siteID, macAddress, fixedIP string, enabled bool) (*DHCPReservation, error) {
 	existing, err := c.GetDHCPReservation(ctx, siteID, macAddress)
 	if err != nil {
-		return nil, err
+		if !IsMissingClient(err) {
+			return nil, err
+		}
+
+		existing, err = c.ensureDHCPReservationClient(ctx, siteID, macAddress)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	siteReference, err := c.resolveLegacySiteReference(ctx, siteID)
@@ -73,11 +88,20 @@ func (c *Client) UpsertDHCPReservation(ctx context.Context, siteID, macAddress, 
 		return nil, fmt.Errorf("update dhcp reservation site id: %w", err)
 	}
 
+	networkID, err := c.resolveDHCPReservationNetworkID(ctx, siteID, fixedIP)
+	if err != nil {
+		return nil, err
+	}
+	if networkID == nil {
+		networkID = existing.NetworkID
+	}
+
 	fixedIPValue := strings.TrimSpace(fixedIP)
 	request := dhcpReservationUpdateRequest{
-		ClientID: existing.ClientID,
-		FixedIP:  &fixedIPValue,
-		Enabled:  enabled,
+		ClientID:  existing.ClientID,
+		NetworkID: networkID,
+		FixedIP:   &fixedIPValue,
+		Enabled:   enabled,
 	}
 
 	if err := c.doLegacyRequest(
@@ -91,6 +115,111 @@ func (c *Client) UpsertDHCPReservation(ctx context.Context, siteID, macAddress, 
 	}
 
 	return c.GetDHCPReservation(ctx, siteID, macAddress)
+}
+
+func (c *Client) ensureDHCPReservationClient(ctx context.Context, siteID, macAddress string) (*DHCPReservation, error) {
+	device, err := c.findAdoptedDeviceByMAC(ctx, siteID, macAddress)
+	if err != nil {
+		return nil, fmt.Errorf("prepare dhcp reservation client: %w", err)
+	}
+	if device == nil {
+		return nil, &MissingClientError{
+			SiteID:     siteID,
+			MACAddress: macAddress,
+		}
+	}
+
+	siteReference, err := c.resolveLegacySiteReference(ctx, siteID)
+	if err != nil {
+		return nil, fmt.Errorf("create dhcp reservation client site id: %w", err)
+	}
+
+	request := dhcpReservationCreateRequest{
+		MACAddress: strings.TrimSpace(macAddress),
+		Name:       nonEmptyString(device.Name),
+	}
+
+	if err := c.doLegacyRequestWithExpectedStatus(
+		ctx,
+		http.MethodPost,
+		[]string{"s", siteReference, "rest", "user"},
+		request,
+		nil,
+		http.StatusOK,
+		http.StatusCreated,
+	); err != nil {
+		return nil, fmt.Errorf("create dhcp reservation client: %w", err)
+	}
+
+	return c.GetDHCPReservation(ctx, siteID, macAddress)
+}
+
+func (c *Client) findAdoptedDeviceByMAC(ctx context.Context, siteID, macAddress string) (*Device, error) {
+	devices, err := c.ListDevices(ctx, siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list adopted devices: %w", err)
+	}
+
+	for _, device := range devices {
+		if strings.EqualFold(device.MacAddress, macAddress) {
+			matchedDevice := device
+			return &matchedDevice, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (c *Client) resolveDHCPReservationNetworkID(ctx context.Context, siteID, fixedIP string) (*string, error) {
+	address, err := netip.ParseAddr(strings.TrimSpace(fixedIP))
+	if err != nil {
+		return nil, fmt.Errorf("parse dhcp reservation fixed ip %q: %w", fixedIP, err)
+	}
+
+	networks, err := c.ListNetworks(ctx, siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list dhcp reservation networks: %w", err)
+	}
+
+	for _, network := range networks {
+		detailedNetwork, err := c.GetNetwork(ctx, siteID, network.ID)
+		if err != nil {
+			return nil, fmt.Errorf("get dhcp reservation network %q: %w", network.ID, err)
+		}
+
+		prefix, ok := ipv4Prefix(detailedNetwork.IPv4Configuration)
+		if !ok {
+			continue
+		}
+		if prefix.Contains(address) {
+			networkID := detailedNetwork.ID
+			return &networkID, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func ipv4Prefix(configuration *IPv4Configuration) (netip.Prefix, bool) {
+	if configuration == nil {
+		return netip.Prefix{}, false
+	}
+
+	address, err := netip.ParseAddr(strings.TrimSpace(configuration.HostIPAddress))
+	if err != nil {
+		return netip.Prefix{}, false
+	}
+
+	return netip.PrefixFrom(address, int(configuration.PrefixLength)).Masked(), true
+}
+
+func nonEmptyString(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+
+	return &trimmed
 }
 
 func (c *Client) DeleteDHCPReservation(ctx context.Context, siteID, macAddress string) error {
@@ -142,6 +271,17 @@ func (c *Client) resolveLegacySiteReference(ctx context.Context, siteID string) 
 }
 
 func (c *Client) doLegacyRequest(ctx context.Context, method string, pathElements []string, payload any, target any) error {
+	return c.doLegacyRequestWithExpectedStatus(ctx, method, pathElements, payload, target, http.StatusOK)
+}
+
+func (c *Client) doLegacyRequestWithExpectedStatus(
+	ctx context.Context,
+	method string,
+	pathElements []string,
+	payload any,
+	target any,
+	expectedStatusCodes ...int,
+) error {
 	var bodyReader io.Reader
 	if payload != nil {
 		var err error
@@ -181,7 +321,7 @@ func (c *Client) doLegacyRequest(ctx context.Context, method string, pathElement
 		return fmt.Errorf("read legacy response body: %w", err)
 	}
 
-	if err := requireStatus(response.StatusCode, body, http.StatusOK); err != nil {
+	if err := requireStatus(response.StatusCode, body, expectedStatusCodes...); err != nil {
 		return err
 	}
 

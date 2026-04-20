@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.11] - 2026-04-20
+
+### Fixed
+
+- `unifi_dhcp_reservation` now auto-creates the missing legacy configured-client record for adopted UniFi infrastructure devices before applying the reservation, while retaining coverage for both pre-existing client records and the adopted-device bootstrap path.
+
 ## [0.2.10] - 2026-04-20
 
 ### Added

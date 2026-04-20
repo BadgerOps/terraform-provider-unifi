@@ -43,7 +43,7 @@ This repository is the source for the `badgerops/unifi` Terraform provider. It i
 
 The implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough. Firewall policy ordering and ACL rule ordering are managed through dedicated resources because the controller exposes separate ordering endpoints and treats the per-object `index` as read-only state. `unifi_radius_profile`, `unifi_device_tag`, `unifi_wan`, `unifi_switch_stack`, `unifi_mc_lag_domain`, and `unifi_lag` are data sources because the current shipped integration API only exposes read-only endpoints for them.
 
-`unifi_dhcp_reservation` is the current exception to the integration-only model. UniFi Network `10.2.105` does not expose DHCP reservation writes in the committed integration OpenAPI snapshot, so the provider uses the legacy local Network client database endpoint for that resource only.
+`unifi_dhcp_reservation` is the current exception to the integration-only model. UniFi Network `10.2.105` does not expose DHCP reservation writes in the committed integration OpenAPI snapshot, so the provider uses the legacy local Network client database endpoint for that resource only. When the target MAC belongs to an adopted UniFi device, the provider now bootstraps the missing configured-client record before applying the reservation.
 
 ## Firewall Prerequisite
 
@@ -127,7 +127,7 @@ terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
-      version = "0.2.10"
+      version = "0.2.11"
     }
   }
 }
@@ -156,7 +156,7 @@ provider_installation {
 Then build the binary in the repo root:
 
 ```bash
-go build -o terraform-provider-unifi_v0.2.10 .
+go build -o terraform-provider-unifi_v0.2.11 .
 ```
 
 ## Filesystem Mirror Installs
@@ -256,8 +256,8 @@ make sync-version
 make check-version-drift
 make docs-generate
 make docs-check
-make release-artifacts VERSION=0.2.10
-make sign-release-artifacts VERSION=0.2.10
+make release-artifacts VERSION=0.2.11
+make sign-release-artifacts VERSION=0.2.11
 make terraform-fmt-check
 make openapi-generate
 make testacc

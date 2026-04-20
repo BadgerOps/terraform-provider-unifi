@@ -44,7 +44,7 @@ func (r *dhcpReservationResource) Metadata(_ context.Context, request resource.M
 
 func (r *dhcpReservationResource) Schema(_ context.Context, _ resource.SchemaRequest, response *resource.SchemaResponse) {
 	response.Schema = schema.Schema{
-		MarkdownDescription: "Manage a UniFi DHCP reservation for a client MAC address. This resource uses the legacy Network client database path because the current integration API snapshot does not expose DHCP reservation writes.",
+		MarkdownDescription: "Manage a UniFi DHCP reservation for a client MAC address. This resource uses the legacy Network client database path because the current integration API snapshot does not expose DHCP reservation writes. For adopted UniFi infrastructure devices, the provider creates the missing configured-client record first when the controller has not already populated one.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
@@ -56,7 +56,7 @@ func (r *dhcpReservationResource) Schema(_ context.Context, _ resource.SchemaReq
 			},
 			"mac_address": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Client MAC address used to locate the reservation target in the controller client database.",
+				MarkdownDescription: "Client MAC address used to locate the reservation target in the controller client database. If the MAC belongs to an adopted UniFi device, the provider can bootstrap the missing configured-client record before updating the reservation.",
 			},
 			"fixed_ip": schema.StringAttribute{
 				Required:            true,
@@ -182,7 +182,7 @@ func (r *dhcpReservationResource) writeState(
 	}
 
 	model := dhcpReservationResourceModel{
-		ID:         types.StringValue(dhcpReservationResourceID(siteID.ValueString(), reservation.MACAddress)),
+		ID:         types.StringValue(dhcpReservationResourceID(siteID.ValueString(), macAddress)),
 		SiteID:     siteID,
 		MACAddress: types.StringValue(macAddress),
 		FixedIP:    fixedIP,

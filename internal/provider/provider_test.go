@@ -63,6 +63,7 @@ type mockUniFiAPI struct {
 	existingSwitchStackLagID      string
 	existingMcLagID               string
 	existingDHCPReservationMAC    string
+	existingAdoptedDeviceMAC      string
 
 	sites                    map[string]client.Site
 	networks                 map[string]map[string]client.Network
@@ -384,6 +385,7 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 		Interfaces:        []string{"ports"},
 	}
 	api.existingSwitchDeviceID = existingSwitchDevice.ID
+	api.existingAdoptedDeviceMAC = existingSwitchDevice.MacAddress
 	api.devices[api.siteID][existingSwitchDevice.ID] = existingSwitchDevice
 
 	existingWAN := client.WAN{
@@ -842,6 +844,21 @@ func (api *mockUniFiAPI) handleDHCPReservations(writer http.ResponseWriter, requ
 			return reservations[i].ClientID < reservations[j].ClientID
 		})
 		api.writeLegacyJSON(writer, http.StatusOK, reservations)
+	case http.MethodPost:
+		var createRequest struct {
+			MACAddress string  `json:"mac"`
+			Name       *string `json:"name"`
+		}
+		api.decodeRequest(writer, request, &createRequest)
+		clientID := api.newID()
+		reservation := client.DHCPReservation{
+			ClientID:   clientID,
+			MACAddress: createRequest.MACAddress,
+			Name:       createRequest.Name,
+			Enabled:    false,
+		}
+		api.dhcpReservations[siteReference][clientID] = reservation
+		api.writeLegacyJSON(writer, http.StatusCreated, []client.DHCPReservation{reservation})
 	default:
 		writer.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -866,6 +883,9 @@ func (api *mockUniFiAPI) handleDHCPReservation(writer http.ResponseWriter, reque
 	case http.MethodPut:
 		var update client.DHCPReservation
 		api.decodeRequest(writer, request, &update)
+		if update.NetworkID != nil {
+			reservation.NetworkID = update.NetworkID
+		}
 		if update.FixedIP != nil {
 			reservation.FixedIP = update.FixedIP
 		}
@@ -2243,6 +2263,52 @@ resource "unifi_dhcp_reservation" "test" {
 				ImportState:       true,
 				ImportStateIdFunc: testImportResourceID(resourceName),
 				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccResourceDHCPReservationCreatesConfiguredClientForAdoptedDevice(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_dhcp_reservation.test"
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_dhcp_reservation" "test" {
+  site_id     = data.unifi_site.main.id
+  mac_address = "` + api.existingAdoptedDeviceMAC + `"
+  fixed_ip    = "10.200.0.25"
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "site_id", api.siteID),
+					resource.TestCheckResourceAttr(resourceName, "mac_address", api.existingAdoptedDeviceMAC),
+					resource.TestCheckResourceAttr(resourceName, "fixed_ip", "10.200.0.25"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
+					func(_ *tfstate.State) error {
+						for _, reservation := range api.dhcpReservations["default"] {
+							if strings.EqualFold(reservation.MACAddress, api.existingAdoptedDeviceMAC) {
+								if reservation.FixedIP == nil || *reservation.FixedIP != "10.200.0.25" {
+									return fmt.Errorf("expected adopted device reservation fixed_ip to be set, got %#v", reservation.FixedIP)
+								}
+								if reservation.NetworkID == nil || *reservation.NetworkID != api.existingNetworkID {
+									return fmt.Errorf("expected adopted device reservation network_id %q, got %#v", api.existingNetworkID, reservation.NetworkID)
+								}
+								if !reservation.Enabled {
+									return fmt.Errorf("expected adopted device reservation to be enabled")
+								}
+								return nil
+							}
+						}
+
+						return fmt.Errorf("expected adopted device reservation for MAC %s to be created", api.existingAdoptedDeviceMAC)
+					},
+				),
 			},
 		},
 	})
