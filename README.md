@@ -43,7 +43,7 @@ This repository is the source for the `badgerops/unifi` Terraform provider. It i
 
 The implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough. Firewall policy ordering and ACL rule ordering are managed through dedicated resources because the controller exposes separate ordering endpoints and treats the per-object `index` as read-only state. `unifi_radius_profile`, `unifi_device_tag`, `unifi_wan`, `unifi_switch_stack`, `unifi_mc_lag_domain`, and `unifi_lag` are data sources because the current shipped integration API only exposes read-only endpoints for them.
 
-`unifi_dhcp_reservation` is the current exception to the integration-only model. UniFi Network `10.2.105` does not expose DHCP reservation writes in the committed integration OpenAPI snapshot, so the provider uses the legacy local Network client database endpoint for that resource only.
+`unifi_dhcp_reservation` is the current exception to the integration-only model. UniFi Network `10.2.105` does not expose DHCP reservation writes in the committed integration OpenAPI snapshot, so the provider uses the legacy local Network client database endpoint for that resource only. When the target MAC belongs to an adopted UniFi device, the provider now bootstraps the missing configured-client record before applying the reservation.
 
 ## Firewall Prerequisite
 

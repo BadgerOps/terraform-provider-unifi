@@ -3,12 +3,12 @@
 page_title: "unifi_dhcp_reservation Resource - unifi"
 subcategory: ""
 description: |-
-  Manage a UniFi DHCP reservation for a client MAC address. This resource uses the legacy Network client database path because the current integration API snapshot does not expose DHCP reservation writes.
+  Manage a UniFi DHCP reservation for a client MAC address. This resource uses the legacy Network client database path because the current integration API snapshot does not expose DHCP reservation writes. For adopted UniFi infrastructure devices, the provider creates the missing configured-client record first when the controller has not already populated one.
 ---
 
 # unifi_dhcp_reservation (Resource)
 
-Manage a UniFi DHCP reservation for a client MAC address. This resource uses the legacy Network client database path because the current integration API snapshot does not expose DHCP reservation writes.
+Manage a UniFi DHCP reservation for a client MAC address. This resource uses the legacy Network client database path because the current integration API snapshot does not expose DHCP reservation writes. For adopted UniFi infrastructure devices, the provider creates the missing configured-client record first when the controller has not already populated one.
 
 ## Example Usage
 
@@ -32,7 +32,7 @@ resource "unifi_dhcp_reservation" "printer" {
 ### Required
 
 - `fixed_ip` (String) Reserved IPv4 address to assign when the reservation is enabled.
-- `mac_address` (String) Client MAC address used to locate the reservation target in the controller client database.
+- `mac_address` (String) Client MAC address used to locate the reservation target in the controller client database. If the MAC belongs to an adopted UniFi device, the provider can bootstrap the missing configured-client record before updating the reservation.
 - `site_id` (String) Site UUID that owns the reservation.
 
 ### Optional
