@@ -1,0 +1,101 @@
+name: OpenAPI Upstream Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * 1"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Check upstream OpenAPI snapshot
+        id: check
+        run: ./scripts/check-openapi-upstream.sh >> "${GITHUB_OUTPUT}"
+
+      - name: Open or update drift issue
+        if: steps.check.outputs.update_available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="OpenAPI snapshot update available: UniFi Network ${{ steps.check.outputs.latest_api_version }}"
+          body_file="$(mktemp)"
+          cat > "${body_file}" <<EOF
+          The weekly upstream check found a newer UniFi Network package version than the snapshot currently committed in this repository.
+
+          Current committed snapshot:
+          - API version: \`${{ steps.check.outputs.current_api_version }}\`
+          - OpenAPI version: \`${{ steps.check.outputs.current_openapi_version }}\`
+          - Source package version: \`${{ steps.check.outputs.current_source_package_version }}\`
+          - Snapshot sha256: \`${{ steps.check.outputs.current_snapshot_sha256 }}\`
+
+          Latest upstream package:
+          - API version: \`${{ steps.check.outputs.latest_api_version }}\`
+          - OpenAPI version: \`${{ steps.check.outputs.latest_openapi_version }}\`
+          - Package version: \`${{ steps.check.outputs.latest_package_version }}\`
+          - Package sha256: \`${{ steps.check.outputs.latest_package_sha256 }}\`
+          - Snapshot sha256: \`${{ steps.check.outputs.latest_snapshot_sha256 }}\`
+          - Snapshot source: \`${{ steps.check.outputs.snapshot_source }}\`
+
+          Changed fields: \`${{ steps.check.outputs.comparison_fields }}\`
+
+          Upstream sources:
+          - Packages index: ${{ steps.check.outputs.packages_url }}
+          - Package URL: ${{ steps.check.outputs.package_url }}
+
+          Suggested next steps:
+          1. Pull the matching upstream OpenAPI document for the new Network release and refresh \`internal/openapi/spec/integration.json\`.
+          2. Update \`internal/openapi/spec/manifest.json\` with the new upstream metadata and snapshot checksum.
+          3. Run \`make openapi-generate\`, \`make test\`, and \`make docs-check\`.
+          4. Cut a follow-up provider release if the refreshed snapshot changes supported resources or fields.
+          EOF
+
+          issue_number="$(
+            gh issue list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --state open \
+              --search "OpenAPI snapshot update available in:title" \
+              --json number,title \
+              --jq '.[] | select(.title | startswith("OpenAPI snapshot update available:")) | .number' \
+              | head -n1
+          )"
+
+          if [[ -n "${issue_number}" ]]; then
+            gh issue edit "${issue_number}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${title}" \
+              --body-file "${body_file}"
+          else
+            gh issue create \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${title}" \
+              --body-file "${body_file}"
+          fi
+
+      - name: Close resolved drift issue
+        if: steps.check.outputs.update_available != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mapfile -t issue_numbers < <(
+            gh issue list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --state open \
+              --search "OpenAPI snapshot update available in:title" \
+              --json number,title \
+              --jq '.[] | select(.title | startswith("OpenAPI snapshot update available:")) | .number'
+          )
+
+          for issue_number in "${issue_numbers[@]}"; do
+            gh issue close "${issue_number}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --comment "Closed automatically: the weekly upstream OpenAPI check now matches the committed snapshot."
+          done

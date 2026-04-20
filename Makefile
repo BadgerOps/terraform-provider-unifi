@@ -2,7 +2,7 @@ SHELL := /usr/bin/env bash
 
 DOCS_TRACKED_PATHS := docs templates examples/README.md examples/provider examples/resources examples/data-sources
 
-.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate docs-generate docs-check testacc release-artifacts sign-release-artifacts sync-version check-version-drift
+.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate openapi-check-upstream docs-generate docs-check testacc release-artifacts sign-release-artifacts sync-version check-version-drift
 
 fmt:
 	go fmt ./...
@@ -34,6 +34,9 @@ tflint:
 
 openapi-generate:
 	./scripts/generate-openapi.sh
+
+openapi-check-upstream:
+	./scripts/check-openapi-upstream.sh
 
 docs-generate:
 	./scripts/generate-docs.sh
