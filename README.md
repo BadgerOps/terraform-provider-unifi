@@ -80,6 +80,8 @@ Current codegen status:
 
 Because upstream `oapi-codegen` still does not claim full OpenAPI `3.1` support, the repo keeps the upstream snapshot untouched and applies an OpenAPI Overlay at generation time to downgrade the declared document version to `3.0.3`. The provider code continues to isolate generated DTOs behind explicit translation code in [`internal/translate`](./internal/translate).
 
+To keep the provider aligned with upstream controller releases, the repository also includes a weekly upstream snapshot check. That workflow watches the official UniFi APT feed for new stable package versions and opens or updates a GitHub issue when the committed snapshot likely needs to be refreshed. If Ubiquiti ships the integration OpenAPI document directly in the package, the same check also compares the packaged snapshot contents against the committed manifest.
+
 ## Generated Docs
 
 Schema-driven provider docs are generated into [`docs`](./docs) with `tfplugindocs`.
@@ -108,6 +110,7 @@ Useful commands:
 ```bash
 make docs-generate
 make docs-check
+make openapi-check-upstream
 ```
 
 Enforcement:

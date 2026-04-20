@@ -23,3 +23,11 @@ The regeneration command is:
 ```bash
 make openapi-generate
 ```
+
+To check whether the committed snapshot has fallen behind the current stable UniFi package feed, run:
+
+```bash
+make openapi-check-upstream
+```
+
+GitHub Actions also runs that check weekly and opens or updates a tracking issue when the stable upstream package version moves ahead of the committed snapshot. If a packaged `integration.json` is available in the upstream artifact, the same check also compares the snapshot contents directly.
