@@ -172,7 +172,9 @@ func (c *Client) doLegacyRequest(ctx context.Context, method string, pathElement
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
