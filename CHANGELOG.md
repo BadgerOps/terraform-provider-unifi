@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Added `unifi_dhcp_reservation` for managing DHCP reservations by site and MAC address, using the legacy UniFi Network client database endpoint because the committed integration API snapshot does not expose DHCP reservation writes.
+
+### Changed
+
+- Extended the client to derive both the integration API base URL and the legacy `/proxy/network/api` base URL from the configured `api_url` without breaking existing `/proxy/network` and `/integration` input shapes.
+- Added mock-backed provider coverage for DHCP reservation CRUD/import behavior and for `unifi_firewall_policy` rules that use `action = "ALLOW"`, `allow_return_traffic = true`, and a destination `NETWORK` filter.
+- Generated docs and examples now document `unifi_dhcp_reservation` and call out that it is the current exception to the provider's otherwise integration-API-focused surface.
+
 ## [0.2.9] - 2026-04-19
 
 ### Changed

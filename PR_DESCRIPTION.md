@@ -1,101 +1,133 @@
-# PR: Generate Provider Docs And Enforce Docs Drift Checks
+# PR: Add DHCP Reservation Resource And Expand Firewall Coverage
 
 ## Summary
 
-This PR adds generated provider documentation for the current UniFi Terraform surface, checks in the example corpus that drives those docs, and wires doc generation into both local contributor workflow and CI.
+This PR adds `unifi_dhcp_reservation`, using the legacy local UniFi Network client database endpoint for DHCP reservation writes while keeping the rest of the provider integration-first. It also expands firewall-policy test coverage for the `ALLOW + allow_return_traffic = true + destination NETWORK` rule shape, and updates changelog/docs/examples to match.
 
 ## Why
 
+The committed UniFi Network OpenAPI snapshot (`10.2.105`) does not expose DHCP reservation writes in the integration API, so there was no supported way to manage reservations through Terraform even though the controller accepts them through the older Network API surface.
+
 Before this PR:
 
-- the repo had no generated provider docs under `docs/`
-- there was no checked-in contract for provider, resource, data source, and import examples used for documentation
-- there was no dedicated docs generation workflow in CI
-- contributors had no local guardrail to catch docs drift before pushing changes
+- the provider had no DHCP reservation resource
+- the client only modeled the integration API base URL
+- docs still described the provider as integration-only with no exception
+- firewall tests did not explicitly cover `ALLOW` policies with return traffic enabled and a destination `NETWORK` filter
 
 This PR addresses that by:
 
-- generating markdown docs from the provider schema and checked-in examples
-- checking in the source inputs used by `tfplugindocs`
-- documenting the generation workflow in the repo itself
-- enforcing docs drift checks in both `pre-commit` and GitHub Actions
+- adding a narrow handwritten legacy client for DHCP reservation read/update behavior
+- registering a Terraform resource that maps reservation state to `site_id + mac_address`
+- documenting the legacy exception clearly in the README and generated docs
+- adding mock-backed tests for both the new resource and the missing firewall rule shape
 
-## Main Changes
+## Implementation
 
-### 1. Generated provider documentation added under `docs/`
+### 1. Add a legacy DHCP reservation client path
 
-The repo now checks in generated markdown docs for the provider, all supported resources, and all supported data sources.
+The provider client now derives both:
 
-This includes:
+- the integration API base URL
+- the legacy `/proxy/network/api` base URL
 
-- a generated provider landing page with scope and workflow guidance
-- generated resource documentation with example usage and import examples
-- generated data source documentation with example usage
+without breaking existing `api_url` inputs such as:
 
-Relevant files:
+- `https://controller.example.com`
+- `https://controller.example.com/proxy/network`
+- `https://controller.example.com/integration`
 
-- [docs/index.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/index.md)
-- [docs/resources/network.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/resources/network.md)
-- [docs/resources/firewall_policy.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/resources/firewall_policy.md)
-- [docs/resources/wifi_broadcast.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/resources/wifi_broadcast.md)
-- [docs/data-sources/site.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/data-sources/site.md)
-- [docs/data-sources/network.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/data-sources/network.md)
-- [docs/data-sources/wifi_broadcast.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/data-sources/wifi_broadcast.md)
+The new DHCP reservation client:
 
-### 2. Docs generation inputs checked in and documented
-
-The repo now carries the example corpus and template input used to render the generated markdown.
-
-This includes:
-
-- provider example input
-- resource examples and import examples
-- data source examples
-- a custom provider index template
-- an examples README that explains the generation contract
+- resolves site UUID to legacy `internalReference`
+- lists legacy client records from `GET /proxy/network/api/s/{site_ref}/rest/user`
+- finds clients by MAC address
+- updates reservations through sparse `PUT` payloads containing `_id`, `fixed_ip`, and `use_fixedip`
+- returns a retry-friendly error if the target MAC is not yet present in the controller client database
 
 Relevant files:
 
-- [examples/README.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/README.md)
-- [examples/provider/provider.tf](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/provider/provider.tf)
-- [examples/resources/unifi_network/resource.tf](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/resources/unifi_network/resource.tf)
-- [examples/resources/unifi_network/import.sh](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/resources/unifi_network/import.sh)
-- [examples/data-sources/unifi_site/data-source.tf](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/data-sources/unifi_site/data-source.tf)
-- [templates/index.md.tmpl](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/templates/index.md.tmpl)
+- [internal/client/client.go](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/internal/client/client.go)
+- [internal/client/dhcp_reservations.go](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/internal/client/dhcp_reservations.go)
+- [internal/client/errors.go](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/internal/client/errors.go)
+- [internal/client/client_test.go](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/internal/client/client_test.go)
 
-### 3. Docs generation workflow added for local development and CI
+### 2. Add `unifi_dhcp_reservation`
 
-This PR adds a reproducible docs generation entrypoint plus a dedicated CI workflow.
+The new resource is intentionally minimal:
 
-The new workflow includes:
+- `site_id` required
+- `mac_address` required
+- `fixed_ip` required
+- `enabled` optional, default `true`
+- `id` computed as `<site_id>/<mac_address>`
 
-- `scripts/generate-docs.sh` as the repo-local generator entrypoint
-- `make docs-generate` to regenerate markdown
-- `make docs-check` to regenerate and fail on drift
-- a GitHub Actions docs workflow that runs on pull requests and pushes to `master`
+Behavior:
+
+- create/update: upsert the reservation by MAC
+- read: preserve present-but-disabled reservations in state
+- delete: disable the reservation by setting `use_fixedip = false`
+- import: `<site_id>/<mac_address>`
 
 Relevant files:
 
-- [scripts/generate-docs.sh](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/scripts/generate-docs.sh)
-- [Makefile](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/Makefile)
-- [.github/workflows/docs.yml](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/.github/workflows/docs.yml)
+- [internal/provider/resource_dhcp_reservation.go](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/internal/provider/resource_dhcp_reservation.go)
+- [internal/provider/provider.go](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/internal/provider/provider.go)
+
+### 3. Expand mock API and provider coverage
+
+The mock UniFi test server now serves both:
+
+- integration API paths under `/integration`
+- legacy DHCP reservation paths under `/proxy/network/api/s/{site_ref}/rest/user`
+
+Added coverage includes:
+
+- DHCP reservation CRUD/import behavior
+- the firewall policy gap for:
+  - `action = "ALLOW"`
+  - `allow_return_traffic = true`
+  - `source_filter.type = "NETWORK"`
+  - `destination_filter.type = "NETWORK"`
+
+Relevant file:
+
+- [internal/provider/provider_test.go](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/internal/provider/provider_test.go)
+
+## Docs
+
+This PR updates release-facing docs and examples so the new surface is visible outside the code:
+
+- adds an unreleased changelog entry
+- updates the provider landing-page template and generated docs index
+- adds a checked-in example and import snippet for `unifi_dhcp_reservation`
+- generates `docs/resources/dhcp_reservation.md`
+- clarifies that DHCP reservations are the current exception to the provider's integration-first model
+
+Relevant files:
+
+- [CHANGELOG.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/CHANGELOG.md)
 - [README.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/README.md)
+- [templates/index.md.tmpl](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/templates/index.md.tmpl)
+- [docs/index.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/index.md)
+- [docs/resources/dhcp_reservation.md](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/docs/resources/dhcp_reservation.md)
+- [examples/resources/unifi_dhcp_reservation/resource.tf](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/resources/unifi_dhcp_reservation/resource.tf)
+- [examples/resources/unifi_dhcp_reservation/import.sh](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/examples/resources/unifi_dhcp_reservation/import.sh)
 
-### 4. Local pre-commit enforcement added for docs drift
+## Constraints And Follow-Ups
 
-The repo-local `pre-commit` config now checks generated docs drift in addition to the existing version-drift validation.
+This PR intentionally does not try to create reservations for devices that are completely absent from the controller's client database. For now:
 
-One important workflow detail changed here: the docs check now only diffs actual docs-generation inputs instead of the entire `examples/` tree, so unrelated example files such as `examples/basic-site` do not break the docs job.
+- if the MAC is not present in `rest/user`, the provider returns a retry-friendly error
+- the resource remains a narrow legacy exception rather than broadening the whole provider to legacy/private API behavior
+- controller metadata such as hostname, last IP, and network name stays out of Terraform state
 
-Relevant files:
-
-- [.pre-commit-config.yaml](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/.pre-commit-config.yaml)
-- [Makefile](/home/badger/code/badgerops-unifi-provider/terraform-provider-unifi/Makefile)
+Future work, if UniFi exposes official reservation writes in the integration API, should move this resource back onto the supported API surface.
 
 ## Validation
 
 Validated locally:
 
-- `make docs-check`
-- `go test ./...`
-- `terraform fmt -check -recursive examples`
+- `env GOPROXY=off GOSUMDB=off CGO_ENABLED=0 TMPDIR=$PWD/.cache/go-tmp GOTMPDIR=$PWD/.cache/go-tmp GOCACHE=$PWD/.cache/go-build GOMODCACHE=/home/badger/go/pkg/mod go test ./internal/client`
+- `env GOPROXY=off GOSUMDB=off CGO_ENABLED=0 TMPDIR=$PWD/.cache/go-tmp GOTMPDIR=$PWD/.cache/go-tmp GOCACHE=$PWD/.cache/go-build GOMODCACHE=/home/badger/go/pkg/mod go test ./internal/provider`
+- docs regenerated through the manual equivalent of `scripts/generate-docs.sh` inside `nix develop`, pinned to `/usr/bin/terraform`, using cached `terraform-plugin-docs` source

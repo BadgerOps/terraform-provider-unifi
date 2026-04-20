@@ -62,6 +62,7 @@ type mockUniFiAPI struct {
 	existingMcLagDomainID         string
 	existingSwitchStackLagID      string
 	existingMcLagID               string
+	existingDHCPReservationMAC    string
 
 	sites                    map[string]client.Site
 	networks                 map[string]map[string]client.Network
@@ -85,6 +86,7 @@ type mockUniFiAPI struct {
 	switchStacks             map[string]map[string]client.SwitchStack
 	mcLagDomains             map[string]map[string]client.McLagDomain
 	lags                     map[string]map[string]client.Lag
+	dhcpReservations         map[string]map[string]client.DHCPReservation
 }
 
 func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
@@ -114,6 +116,7 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 		switchStacks:             make(map[string]map[string]client.SwitchStack),
 		mcLagDomains:             make(map[string]map[string]client.McLagDomain),
 		lags:                     make(map[string]map[string]client.Lag),
+		dhcpReservations:         make(map[string]map[string]client.DHCPReservation),
 	}
 
 	api.siteID = api.newID()
@@ -139,6 +142,7 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	api.switchStacks[api.siteID] = make(map[string]client.SwitchStack)
 	api.mcLagDomains[api.siteID] = make(map[string]client.McLagDomain)
 	api.lags[api.siteID] = make(map[string]client.Lag)
+	api.dhcpReservations["default"] = make(map[string]client.DHCPReservation)
 
 	existingNetwork := client.Network{
 		ID:                    api.newID(),
@@ -243,6 +247,18 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	}
 	api.existingDNSPolicyID = existingDNSPolicy.ID
 	api.dnsPolicies[api.siteID][existingDNSPolicy.ID] = existingDNSPolicy
+
+	existingDHCPReservation := client.DHCPReservation{
+		ClientID:                  api.newID(),
+		MACAddress:                "aa:bb:cc:dd:ee:10",
+		Enabled:                   false,
+		Hostname:                  stringPtr("printer"),
+		Name:                      stringPtr("office-printer"),
+		LastIP:                    stringPtr("10.170.0.40"),
+		LastConnectionNetworkName: stringPtr("mgmt"),
+	}
+	api.existingDHCPReservationMAC = existingDHCPReservation.MACAddress
+	api.dhcpReservations["default"][existingDHCPReservation.ClientID] = existingDHCPReservation
 
 	existingACLRule := client.ACLRule{
 		ID:      api.newID(),
@@ -644,6 +660,11 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
+	if strings.HasPrefix(request.URL.Path, "/proxy/network/api/") {
+		api.handleLegacyHTTP(writer, request)
+		return
+	}
+
 	if !strings.HasPrefix(request.URL.Path, "/integration") {
 		writer.WriteHeader(http.StatusNotFound)
 		return
@@ -760,6 +781,20 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 	}
 }
 
+func (api *mockUniFiAPI) handleLegacyHTTP(writer http.ResponseWriter, request *http.Request) {
+	segments := strings.Split(strings.Trim(strings.TrimPrefix(request.URL.Path, "/proxy/network/api"), "/"), "/")
+	if len(segments) != 4 || segments[0] != "s" || segments[2] != "rest" || segments[3] != "user" {
+		if len(segments) == 5 && segments[0] == "s" && segments[2] == "rest" && segments[3] == "user" {
+			api.handleDHCPReservation(writer, request, segments[1], segments[4])
+			return
+		}
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	api.handleDHCPReservations(writer, request, segments[1])
+}
+
 func (api *mockUniFiAPI) handleNetworks(writer http.ResponseWriter, request *http.Request, siteID string) {
 	api.mu.Lock()
 	defer api.mu.Unlock()
@@ -786,6 +821,70 @@ func (api *mockUniFiAPI) handleNetworks(writer http.ResponseWriter, request *htt
 	default:
 		writer.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+func (api *mockUniFiAPI) handleDHCPReservations(writer http.ResponseWriter, request *http.Request, siteReference string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	if _, ok := api.siteIDByInternalReference(siteReference); !ok {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	switch request.Method {
+	case http.MethodGet:
+		var reservations []client.DHCPReservation
+		for _, reservation := range api.dhcpReservations[siteReference] {
+			reservations = append(reservations, reservation)
+		}
+		sort.Slice(reservations, func(i, j int) bool {
+			return reservations[i].ClientID < reservations[j].ClientID
+		})
+		api.writeLegacyJSON(writer, http.StatusOK, reservations)
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) handleDHCPReservation(writer http.ResponseWriter, request *http.Request, siteReference, clientID string) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	if _, ok := api.siteIDByInternalReference(siteReference); !ok {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	reservation, ok := api.dhcpReservations[siteReference][clientID]
+	if !ok {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	switch request.Method {
+	case http.MethodPut:
+		var update client.DHCPReservation
+		api.decodeRequest(writer, request, &update)
+		if update.FixedIP != nil {
+			reservation.FixedIP = update.FixedIP
+		}
+		reservation.Enabled = update.Enabled
+		api.dhcpReservations[siteReference][clientID] = reservation
+		api.writeLegacyJSON(writer, http.StatusOK, []client.DHCPReservation{})
+	default:
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (api *mockUniFiAPI) siteIDByInternalReference(siteReference string) (string, bool) {
+	for siteID, site := range api.sites {
+		if site.InternalReference == siteReference {
+			return siteID, true
+		}
+	}
+
+	return "", false
 }
 
 func (api *mockUniFiAPI) handleNetwork(writer http.ResponseWriter, request *http.Request, siteID, networkID string) {
@@ -1498,6 +1597,13 @@ func (api *mockUniFiAPI) writeJSON(writer http.ResponseWriter, statusCode int, p
 	_ = json.NewEncoder(writer).Encode(payload)
 }
 
+func (api *mockUniFiAPI) writeLegacyJSON(writer http.ResponseWriter, statusCode int, payload any) {
+	api.writeJSON(writer, statusCode, map[string]any{
+		"meta": map[string]string{"rc": "ok"},
+		"data": payload,
+	})
+}
+
 func writePage[T any](writer http.ResponseWriter, request *http.Request, data []T) {
 	offset, _ := strconv.Atoi(request.URL.Query().Get("offset"))
 	limit, _ := strconv.Atoi(request.URL.Query().Get("limit"))
@@ -1561,6 +1667,17 @@ func testImportCompositeID(resourceName string, siteID string) resource.ImportSt
 		}
 
 		return fmt.Sprintf("%s/%s", siteID, resourceState.Primary.ID), nil
+	}
+}
+
+func testImportResourceID(resourceName string) resource.ImportStateIdFunc {
+	return func(state *tfstate.State) (string, error) {
+		resourceState, ok := state.RootModule().Resources[resourceName]
+		if !ok {
+			return "", fmt.Errorf("resource %s not found in state", resourceName)
+		}
+
+		return resourceState.Primary.ID, nil
 	}
 }
 
@@ -2082,6 +2199,55 @@ resource "unifi_dns_policy" "test" {
 	})
 }
 
+func TestAccResourceDHCPReservation(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_dhcp_reservation.test"
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_dhcp_reservation" "test" {
+  site_id     = data.unifi_site.main.id
+  mac_address = "` + api.existingDHCPReservationMAC + `"
+  fixed_ip    = "10.170.0.14"
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "site_id", api.siteID),
+					resource.TestCheckResourceAttr(resourceName, "mac_address", strings.ToLower(api.existingDHCPReservationMAC)),
+					resource.TestCheckResourceAttr(resourceName, "fixed_ip", "10.170.0.14"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "id", fmt.Sprintf("%s/%s", api.siteID, strings.ToLower(api.existingDHCPReservationMAC))),
+				),
+			},
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_dhcp_reservation" "test" {
+  site_id     = data.unifi_site.main.id
+  mac_address = "` + api.existingDHCPReservationMAC + `"
+  fixed_ip    = "10.170.0.15"
+  enabled     = false
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "fixed_ip", "10.170.0.15"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateIdFunc: testImportResourceID(resourceName),
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 func TestAccResourceACLRule(t *testing.T) {
 	api := newMockUniFiAPI(t)
 	defer api.Close()
@@ -2422,6 +2588,83 @@ resource "unifi_firewall_policy" "test" {
 				ImportStateIdFunc:       testImportCompositeID(resourceName, api.siteID),
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"index"},
+			},
+		},
+	})
+}
+
+func TestAccResourceFirewallPolicyAllowReturnTrafficNetworkDestination(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_firewall_policy.test"
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_network" "trusted" {
+  site_id    = data.unifi_site.main.id
+  management = "UNMANAGED"
+  name       = "trusted-gap"
+  enabled    = true
+  vlan_id    = 90
+}
+
+resource "unifi_network" "services" {
+  site_id    = data.unifi_site.main.id
+  management = "UNMANAGED"
+  name       = "services-gap"
+  enabled    = true
+  vlan_id    = 91
+}
+
+resource "unifi_firewall_zone" "trusted" {
+  site_id     = data.unifi_site.main.id
+  name        = "trusted-gap"
+  network_ids = [unifi_network.trusted.id]
+}
+
+resource "unifi_firewall_zone" "services" {
+  site_id     = data.unifi_site.main.id
+  name        = "services-gap"
+  network_ids = [unifi_network.services.id]
+}
+
+resource "unifi_firewall_policy" "test" {
+  site_id              = data.unifi_site.main.id
+  enabled              = true
+  name                 = "trusted-to-services-gap"
+  action               = "ALLOW"
+  allow_return_traffic = true
+  source_zone_id       = unifi_firewall_zone.trusted.id
+  source_filter = {
+    type                   = "NETWORK"
+    network_ids            = [unifi_network.trusted.id]
+    network_match_opposite = false
+  }
+  destination_zone_id = unifi_firewall_zone.services.id
+  destination_filter = {
+    type                   = "NETWORK"
+    network_ids            = [unifi_network.services.id]
+    network_match_opposite = false
+  }
+  ip_version = "IPV4"
+  protocol_filter = {
+    type        = "PRESET"
+    preset_name = "TCP_UDP"
+  }
+  logging_enabled = true
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "action", "ALLOW"),
+					resource.TestCheckResourceAttr(resourceName, "allow_return_traffic", "true"),
+					resource.TestCheckResourceAttr(resourceName, "source_filter.type", "NETWORK"),
+					resource.TestCheckResourceAttr(resourceName, "destination_filter.type", "NETWORK"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "destination_filter.network_ids.*", "unifi_network.services", "id"),
+				),
 			},
 		},
 	})
