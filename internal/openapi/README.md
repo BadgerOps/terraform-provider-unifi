@@ -10,7 +10,7 @@ This directory is the generated-code boundary for the provider.
 
 The committed generator lane now targets the full committed snapshot.
 
-The shipped UniFi Network `10.2.105` OpenAPI document is `3.1.0`, and `oapi-codegen` `v2.6.0` does not yet advertise OpenAPI `3.1` support. To keep the vendor snapshot untouched while still generating a usable client, the repo uses:
+The shipped UniFi Network `10.3.58` OpenAPI document is `3.1.0`, and `oapi-codegen` `v2.6.0` does not yet advertise OpenAPI `3.1` support. To keep the vendor snapshot untouched while still generating a usable client, the repo uses:
 
 - `oapi-codegen.yaml` for pinned generator configuration
 - `overlay.yaml` to downgrade the declared document version to `3.0.3` before generation

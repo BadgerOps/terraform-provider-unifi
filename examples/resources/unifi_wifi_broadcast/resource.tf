@@ -52,4 +52,9 @@ resource "unifi_wifi_broadcast" "staff" {
       sync_time_seconds              = 5
     }
   }
+
+  dns_assistance_configuration = {
+    mode    = "MANUAL"
+    servers = ["1.1.1.1", "1.0.0.1"]
+  }
 }

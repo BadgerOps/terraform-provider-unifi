@@ -801,12 +801,6 @@ type ACLRuleObject struct {
 // ACLRuleObjectAction ACL rule action
 type ACLRuleObjectAction string
 
-// AbstractIntegrationLagMemberDto defines model for AbstractIntegrationLagMemberDto.
-type AbstractIntegrationLagMemberDto struct {
-	DeviceId openapi_types.UUID `json:"deviceId"`
-	PortIdxs []int32            `json:"portIdxs"`
-}
-
 // AccessPointFeatureOverview defines model for Access point feature overview.
 type AccessPointFeatureOverview = interface{}
 
@@ -1058,7 +1052,7 @@ type DeviceActionRequest struct {
 // DeviceFeatures defines model for Device features.
 type DeviceFeatures struct {
 	AccessPoint *AccessPointFeatureOverview `json:"accessPoint,omitempty"`
-	Switching   *SwitchFeatureOverview      `json:"switching,omitempty"`
+	Switching   *SwitchingFeatureOverview   `json:"switching,omitempty"`
 }
 
 // DevicePendingAdoption defines model for Device pending adoption.
@@ -1338,6 +1332,12 @@ type IntegrationFirewallPolicyOrderingDto struct {
 	OrderedFirewallPolicyIds OrderedFirewallPolicyIDs `json:"orderedFirewallPolicyIds"`
 }
 
+// IntegrationLagMemberDto defines model for IntegrationLagMemberDto.
+type IntegrationLagMemberDto struct {
+	DeviceId openapi_types.UUID `json:"deviceId"`
+	PortIdxs []int32            `json:"portIdxs"`
+}
+
 // IntegrationLagPageDto defines model for IntegrationLagPageDto.
 type IntegrationLagPageDto struct {
 	Count      int32        `json:"count"`
@@ -1345,6 +1345,13 @@ type IntegrationLagPageDto struct {
 	Limit      int32        `json:"limit"`
 	Offset     int64        `json:"offset"`
 	TotalCount int64        `json:"totalCount"`
+}
+
+// IntegrationLocalLagLocalDto defines model for IntegrationLocalLagLocalDto.
+type IntegrationLocalLagLocalDto struct {
+	Id       openapi_types.UUID        `json:"id"`
+	Metadata UserDefinedEntityMetadata `json:"metadata"`
+	PortIdxs []int32                   `json:"portIdxs"`
 }
 
 // IntegrationMcLagDomainDto defines model for IntegrationMcLagDomainDto.
@@ -1367,12 +1374,10 @@ type IntegrationMcLagDomainDtoPageDto struct {
 
 // IntegrationMcLagLocalDto defines model for IntegrationMcLagLocalDto.
 type IntegrationMcLagLocalDto struct {
-	Id      openapi_types.UUID          `json:"id"`
-	Members []IntegrationMcLagMemberDto `json:"members"`
+	Id       openapi_types.UUID        `json:"id"`
+	Members  []IntegrationLagMemberDto `json:"members"`
+	Metadata UserDefinedEntityMetadata `json:"metadata"`
 }
-
-// IntegrationMcLagMemberDto defines model for IntegrationMcLagMemberDto.
-type IntegrationMcLagMemberDto = AbstractIntegrationLagMemberDto
 
 // IntegrationMcLagPeerDto defines model for IntegrationMcLagPeerDto.
 type IntegrationMcLagPeerDto struct {
@@ -1413,12 +1418,10 @@ type IntegrationSwitchStackDtoPageDto struct {
 
 // IntegrationSwitchStackLagLocalDto defines model for IntegrationSwitchStackLagLocalDto.
 type IntegrationSwitchStackLagLocalDto struct {
-	Id      openapi_types.UUID                   `json:"id"`
-	Members []IntegrationSwitchStackLagMemberDto `json:"members"`
+	Id       openapi_types.UUID        `json:"id"`
+	Members  []IntegrationLagMemberDto `json:"members"`
+	Metadata UserDefinedEntityMetadata `json:"metadata"`
 }
-
-// IntegrationSwitchStackLagMemberDto defines model for IntegrationSwitchStackLagMemberDto.
-type IntegrationSwitchStackLagMemberDto = AbstractIntegrationLagMemberDto
 
 // IntegrationSwitchStackMemberDto defines model for IntegrationSwitchStackMemberDto.
 type IntegrationSwitchStackMemberDto struct {
@@ -1471,9 +1474,10 @@ type IntegrationWifiClientFilteringPolicyDtoAction string
 
 // LAGDetails defines model for LAG details.
 type LAGDetails struct {
-	Id      openapi_types.UUID                `json:"id"`
-	Members []AbstractIntegrationLagMemberDto `json:"members"`
-	Type    string                            `json:"type"`
+	Id       openapi_types.UUID        `json:"id"`
+	Members  []IntegrationLagMemberDto `json:"members"`
+	Metadata UserDefinedEntityMetadata `json:"metadata"`
+	Type     string                    `json:"type"`
 }
 
 // LatestStatisticsForADevice defines model for Latest statistics for a device.
@@ -1682,8 +1686,10 @@ type SiteToSiteVPNTunnelOverview struct {
 	Type     string                      `json:"type"`
 }
 
-// SwitchFeatureOverview defines model for Switch feature overview.
-type SwitchFeatureOverview = interface{}
+// SwitchingFeatureOverview defines model for Switching feature overview.
+type SwitchingFeatureOverview struct {
+	Lags []IntegrationLocalLagLocalDto `json:"lags"`
+}
 
 // TrafficMatchingList defines model for Traffic matching list.
 type TrafficMatchingList struct {

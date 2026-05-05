@@ -70,11 +70,17 @@ type SAEConfiguration struct {
 type WifiSecurityConfiguration struct {
 	Type                      string            `json:"type"`
 	Passphrase                *string           `json:"passphrase,omitempty"`
+	Encryption                *string           `json:"encryption,omitempty"`
 	PMFMode                   *string           `json:"pmfMode,omitempty"`
 	FastRoamingEnabled        *bool             `json:"fastRoamingEnabled,omitempty"`
 	GroupRekeyIntervalSeconds *int64            `json:"groupRekeyIntervalSeconds,omitempty"`
 	SAEConfiguration          *SAEConfiguration `json:"saeConfiguration,omitempty"`
 	WPA3FastRoamingEnabled    *bool             `json:"wpa3FastRoamingEnabled,omitempty"`
+}
+
+type WifiDNSAssistanceConfiguration struct {
+	Mode    string    `json:"mode"`
+	Servers *[]string `json:"servers,omitempty"`
 }
 
 type WifiBroadcastingDeviceFilter struct {
@@ -83,28 +89,29 @@ type WifiBroadcastingDeviceFilter struct {
 }
 
 type WifiBroadcast struct {
-	ID                                  string                        `json:"id,omitempty"`
-	Type                                string                        `json:"type"`
-	Name                                string                        `json:"name"`
-	Enabled                             bool                          `json:"enabled"`
-	Network                             *WifiNetworkReference         `json:"network,omitempty"`
-	SecurityConfiguration               *WifiSecurityConfiguration    `json:"securityConfiguration,omitempty"`
-	ClientIsolationEnabled              bool                          `json:"clientIsolationEnabled"`
-	HideName                            bool                          `json:"hideName"`
-	UAPSDEnabled                        bool                          `json:"uapsdEnabled"`
-	MulticastToUnicastConversionEnabled bool                          `json:"multicastToUnicastConversionEnabled"`
-	BroadcastingFrequenciesGHz          []float64                     `json:"broadcastingFrequenciesGHz,omitempty"`
-	AdvertiseDeviceName                 *bool                         `json:"advertiseDeviceName,omitempty"`
-	ARPProxyEnabled                     *bool                         `json:"arpProxyEnabled,omitempty"`
-	BandSteeringEnabled                 *bool                         `json:"bandSteeringEnabled,omitempty"`
-	BSSTransitionEnabled                *bool                         `json:"bssTransitionEnabled,omitempty"`
-	MDNSProxyConfiguration              map[string]any                `json:"mdnsProxyConfiguration,omitempty"`
-	MulticastFilteringPolicy            map[string]any                `json:"multicastFilteringPolicy,omitempty"`
-	BroadcastingDeviceFilter            *WifiBroadcastingDeviceFilter `json:"broadcastingDeviceFilter,omitempty"`
-	BasicDataRateKbpsByFrequencyGHz     map[string]any                `json:"basicDataRateKbpsByFrequencyGHz,omitempty"`
-	ClientFilteringPolicy               map[string]any                `json:"clientFilteringPolicy,omitempty"`
-	BlackoutScheduleConfiguration       map[string]any                `json:"blackoutScheduleConfiguration,omitempty"`
-	Metadata                            map[string]any                `json:"metadata,omitempty"`
+	ID                                  string                          `json:"id,omitempty"`
+	Type                                string                          `json:"type"`
+	Name                                string                          `json:"name"`
+	Enabled                             bool                            `json:"enabled"`
+	Network                             *WifiNetworkReference           `json:"network,omitempty"`
+	SecurityConfiguration               *WifiSecurityConfiguration      `json:"securityConfiguration,omitempty"`
+	ClientIsolationEnabled              bool                            `json:"clientIsolationEnabled"`
+	HideName                            bool                            `json:"hideName"`
+	UAPSDEnabled                        bool                            `json:"uapsdEnabled"`
+	MulticastToUnicastConversionEnabled bool                            `json:"multicastToUnicastConversionEnabled"`
+	BroadcastingFrequenciesGHz          []float64                       `json:"broadcastingFrequenciesGHz,omitempty"`
+	AdvertiseDeviceName                 *bool                           `json:"advertiseDeviceName,omitempty"`
+	ARPProxyEnabled                     *bool                           `json:"arpProxyEnabled,omitempty"`
+	BandSteeringEnabled                 *bool                           `json:"bandSteeringEnabled,omitempty"`
+	BSSTransitionEnabled                *bool                           `json:"bssTransitionEnabled,omitempty"`
+	DNSAssistanceConfiguration          *WifiDNSAssistanceConfiguration `json:"dnsAssistanceConfiguration,omitempty"`
+	MDNSProxyConfiguration              map[string]any                  `json:"mdnsProxyConfiguration,omitempty"`
+	MulticastFilteringPolicy            map[string]any                  `json:"multicastFilteringPolicy,omitempty"`
+	BroadcastingDeviceFilter            *WifiBroadcastingDeviceFilter   `json:"broadcastingDeviceFilter,omitempty"`
+	BasicDataRateKbpsByFrequencyGHz     map[string]any                  `json:"basicDataRateKbpsByFrequencyGHz,omitempty"`
+	ClientFilteringPolicy               map[string]any                  `json:"clientFilteringPolicy,omitempty"`
+	BlackoutScheduleConfiguration       map[string]any                  `json:"blackoutScheduleConfiguration,omitempty"`
+	Metadata                            map[string]any                  `json:"metadata,omitempty"`
 }
 
 type FirewallZone struct {

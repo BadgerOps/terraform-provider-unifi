@@ -44,6 +44,7 @@ data "unifi_wifi_broadcast" "staff" {
 - `broadcasting_frequencies_ghz` (Set of Number)
 - `bss_transition_enabled` (Boolean)
 - `client_isolation_enabled` (Boolean)
+- `dns_assistance_configuration` (Attributes) (see [below for nested schema](#nestedatt--dns_assistance_configuration))
 - `enabled` (Boolean)
 - `hide_name` (Boolean)
 - `id` (String) The ID of this resource.
@@ -62,6 +63,15 @@ Read-Only:
 - `type` (String)
 
 
+<a id="nestedatt--dns_assistance_configuration"></a>
+### Nested Schema for `dns_assistance_configuration`
+
+Read-Only:
+
+- `mode` (String)
+- `servers` (List of String)
+
+
 <a id="nestedatt--network"></a>
 ### Nested Schema for `network`
 
@@ -76,6 +86,7 @@ Read-Only:
 
 Read-Only:
 
+- `encryption` (String)
 - `fast_roaming_enabled` (Boolean)
 - `group_rekey_interval_seconds` (Number)
 - `passphrase` (String, Sensitive)
