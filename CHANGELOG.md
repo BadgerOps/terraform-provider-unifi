@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.12] - 2026-05-05
+
+### Changed
+
+- Refreshed the committed UniFi Network integration OpenAPI snapshot from `10.2.105` to `10.3.58` and regenerated the pinned `oapi-codegen` client.
+- Updated OpenAPI snapshot metadata and documentation to track the `unifi-native` `10.3.58-34147-1` source package and snapshot checksum.
+
 ## [0.2.11] - 2026-04-20
 
 ### Fixed

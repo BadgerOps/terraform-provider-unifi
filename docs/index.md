@@ -11,7 +11,7 @@ The `badgerops/unifi` provider manages UniFi Network configuration primarily thr
 
 Use it when you want Terraform to manage declarative site configuration such as networks, WiFi broadcasts, firewall policy, DNS policy, traffic matching lists, and ACL rules. It is designed for configuration state, not day-2 controller operations such as device adoption, client telemetry, or controller analytics.
 
-This provider follows the committed UniFi OpenAPI snapshot and focuses on the parts of the current integration API that make sense for Terraform-managed configuration. The current exception is `unifi_dhcp_reservation`, which uses the legacy local Network client database endpoint because UniFi Network `10.2.105` does not expose DHCP reservation writes in the committed integration OpenAPI snapshot.
+This provider follows the committed UniFi OpenAPI snapshot and focuses on the parts of the current integration API that make sense for Terraform-managed configuration. The current exception is `unifi_dhcp_reservation`, which uses the legacy local Network client database endpoint because UniFi Network `10.3.58` still does not expose DHCP reservation writes in the committed integration OpenAPI snapshot.
 
 ## Requirements
 
@@ -76,7 +76,7 @@ terraform {
   required_providers {
     unifi = {
       source  = "badgerops/unifi"
-      version = "0.2.11"
+      version = "0.2.12"
     }
   }
 }
