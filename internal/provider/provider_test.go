@@ -311,8 +311,8 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 			NetworkID: existingNetwork.ID,
 		},
 		SecurityConfiguration: &client.WifiSecurityConfiguration{
-			Type:       "WPA2_PERSONAL",
-			Passphrase: stringPtr("existingpass"),
+			Type:       "OPEN",
+			Encryption: stringPtr("ENHANCED_OPEN"),
 		},
 		ClientIsolationEnabled:              false,
 		HideName:                            false,
@@ -323,6 +323,9 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 		ARPProxyEnabled:                     boolPtr(false),
 		BandSteeringEnabled:                 boolPtr(true),
 		BSSTransitionEnabled:                boolPtr(true),
+		DNSAssistanceConfiguration: &client.WifiDNSAssistanceConfiguration{
+			Mode: "AUTO",
+		},
 		BroadcastingDeviceFilter: &client.WifiBroadcastingDeviceFilter{
 			Type:         "DEVICE_TAGS",
 			DeviceTagIDs: []string{existingDeviceTag.ID},
@@ -1850,6 +1853,9 @@ data "unifi_lag" "existing" {
 					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "type", "STANDARD"),
 					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "network.type", "SPECIFIC"),
 					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "network.network_id", api.existingNetworkID),
+					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "security_configuration.type", "OPEN"),
+					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "security_configuration.encryption", "ENHANCED_OPEN"),
+					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "dns_assistance_configuration.mode", "AUTO"),
 					resource.TestCheckResourceAttr("data.unifi_wifi_broadcast.existing", "broadcasting_device_filter.type", "DEVICE_TAGS"),
 					resource.TestCheckTypeSetElemAttr("data.unifi_wifi_broadcast.existing", "broadcasting_device_filter.device_tag_ids.*", api.existingDeviceTagID),
 					resource.TestCheckResourceAttr("data.unifi_firewall_zone.existing", "id", api.existingZoneID),
@@ -2867,14 +2873,13 @@ resource "unifi_wifi_broadcast" "test" {
   }
 
   security_configuration = {
-    type                      = "WPA2_WPA3_PERSONAL"
-    passphrase                = "examplepass"
-    pmf_mode                  = "OPTIONAL"
-    wpa3_fast_roaming_enabled = false
-    sae_configuration = {
-      anticlogging_threshold_seconds = 5
-      sync_time_seconds              = 5
-    }
+    type       = "OPEN"
+    encryption = "ENHANCED_OPEN"
+  }
+
+  dns_assistance_configuration = {
+    mode    = "MANUAL"
+    servers = ["1.1.1.1", "1.0.0.1"]
   }
 
   broadcasting_device_filter = {
@@ -2886,6 +2891,10 @@ resource "unifi_wifi_broadcast" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted"),
 					resource.TestCheckResourceAttr(resourceName, "type", "STANDARD"),
+					resource.TestCheckResourceAttr(resourceName, "security_configuration.type", "OPEN"),
+					resource.TestCheckResourceAttr(resourceName, "security_configuration.encryption", "ENHANCED_OPEN"),
+					resource.TestCheckResourceAttr(resourceName, "dns_assistance_configuration.mode", "MANUAL"),
+					resource.TestCheckResourceAttr(resourceName, "dns_assistance_configuration.servers.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.type", "DEVICE_TAGS"),
 					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.device_tag_ids.#", "1"),
 				),
@@ -2926,14 +2935,12 @@ resource "unifi_wifi_broadcast" "test" {
   }
 
   security_configuration = {
-    type                      = "WPA2_WPA3_PERSONAL"
-    passphrase                = "examplepass"
-    pmf_mode                  = "OPTIONAL"
-    wpa3_fast_roaming_enabled = false
-    sae_configuration = {
-      anticlogging_threshold_seconds = 5
-      sync_time_seconds              = 5
-    }
+    type       = "OPEN"
+    encryption = "ENHANCED_OPEN_WITH_TRANSITION"
+  }
+
+  dns_assistance_configuration = {
+    mode = "AUTO"
   }
 
   broadcasting_device_filter = {
@@ -2945,6 +2952,8 @@ resource "unifi_wifi_broadcast" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", "trusted-updated"),
 					resource.TestCheckResourceAttr(resourceName, "hide_name", "true"),
+					resource.TestCheckResourceAttr(resourceName, "security_configuration.encryption", "ENHANCED_OPEN_WITH_TRANSITION"),
+					resource.TestCheckResourceAttr(resourceName, "dns_assistance_configuration.mode", "AUTO"),
 					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.type", "DEVICE_TAGS"),
 					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.device_tag_ids.#", "1"),
 				),

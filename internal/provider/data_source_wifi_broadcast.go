@@ -70,6 +70,9 @@ func (d *wifiBroadcastDataSource) Schema(_ context.Context, _ datasource.SchemaR
 						Computed:  true,
 						Sensitive: true,
 					},
+					"encryption": schema.StringAttribute{
+						Computed: true,
+					},
 					"pmf_mode": schema.StringAttribute{
 						Computed: true,
 					},
@@ -134,6 +137,18 @@ func (d *wifiBroadcastDataSource) Schema(_ context.Context, _ datasource.SchemaR
 			},
 			"bss_transition_enabled": schema.BoolAttribute{
 				Computed: true,
+			},
+			"dns_assistance_configuration": schema.SingleNestedAttribute{
+				Computed: true,
+				Attributes: map[string]schema.Attribute{
+					"mode": schema.StringAttribute{
+						Computed: true,
+					},
+					"servers": schema.ListAttribute{
+						Computed:    true,
+						ElementType: types.StringType,
+					},
+				},
 			},
 		},
 	}

@@ -67,6 +67,11 @@ resource "unifi_wifi_broadcast" "staff" {
       sync_time_seconds              = 5
     }
   }
+
+  dns_assistance_configuration = {
+    mode    = "MANUAL"
+    servers = ["1.1.1.1", "1.0.0.1"]
+  }
 }
 ```
 
@@ -94,6 +99,7 @@ resource "unifi_wifi_broadcast" "staff" {
 - `broadcasting_device_filter` (Attributes) (see [below for nested schema](#nestedatt--broadcasting_device_filter))
 - `broadcasting_frequencies_ghz` (Set of Number)
 - `bss_transition_enabled` (Boolean)
+- `dns_assistance_configuration` (Attributes) DNS assistance configuration for `STANDARD` WiFi broadcasts. Supported modes: `AUTO`, `MANUAL`. (see [below for nested schema](#nestedatt--dns_assistance_configuration))
 
 ### Read-Only
 
@@ -120,6 +126,7 @@ Required:
 
 Optional:
 
+- `encryption` (String) Open security encryption mode. Supported values for `OPEN` security: `ENHANCED_OPEN`, `ENHANCED_OPEN_WITH_TRANSITION`. Leave unset for plain open WiFi.
 - `fast_roaming_enabled` (Boolean)
 - `group_rekey_interval_seconds` (Number)
 - `passphrase` (String, Sensitive)
@@ -147,6 +154,18 @@ Required:
 Optional:
 
 - `device_tag_ids` (Set of String)
+
+
+<a id="nestedatt--dns_assistance_configuration"></a>
+### Nested Schema for `dns_assistance_configuration`
+
+Required:
+
+- `mode` (String)
+
+Optional:
+
+- `servers` (List of String)
 
 ## Import
 

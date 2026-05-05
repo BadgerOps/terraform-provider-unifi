@@ -43,6 +43,7 @@ type wifiBroadcastResourceModel struct {
 	ARPProxyEnabled                     types.Bool   `tfsdk:"arp_proxy_enabled"`
 	BandSteeringEnabled                 types.Bool   `tfsdk:"band_steering_enabled"`
 	BSSTransitionEnabled                types.Bool   `tfsdk:"bss_transition_enabled"`
+	DNSAssistanceConfiguration          types.Object `tfsdk:"dns_assistance_configuration"`
 }
 
 type wifiNetworkModel struct {
@@ -58,11 +59,17 @@ type wifiSAEConfigurationModel struct {
 type wifiSecurityConfigurationModel struct {
 	Type                      types.String `tfsdk:"type"`
 	Passphrase                types.String `tfsdk:"passphrase"`
+	Encryption                types.String `tfsdk:"encryption"`
 	PMFMode                   types.String `tfsdk:"pmf_mode"`
 	FastRoamingEnabled        types.Bool   `tfsdk:"fast_roaming_enabled"`
 	GroupRekeyIntervalSeconds types.Int64  `tfsdk:"group_rekey_interval_seconds"`
 	WPA3FastRoamingEnabled    types.Bool   `tfsdk:"wpa3_fast_roaming_enabled"`
 	SAEConfiguration          types.Object `tfsdk:"sae_configuration"`
+}
+
+type wifiDNSAssistanceConfigurationModel struct {
+	Mode    types.String `tfsdk:"mode"`
+	Servers types.List   `tfsdk:"servers"`
 }
 
 type wifiBroadcastingDeviceFilterModel struct {
@@ -88,11 +95,19 @@ func wifiSecurityConfigurationAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type":                         types.StringType,
 		"passphrase":                   types.StringType,
+		"encryption":                   types.StringType,
 		"pmf_mode":                     types.StringType,
 		"fast_roaming_enabled":         types.BoolType,
 		"group_rekey_interval_seconds": types.Int64Type,
 		"wpa3_fast_roaming_enabled":    types.BoolType,
 		"sae_configuration":            types.ObjectType{AttrTypes: wifiSAEConfigurationAttrTypes()},
+	}
+}
+
+func wifiDNSAssistanceConfigurationAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"mode":    types.StringType,
+		"servers": types.ListType{ElemType: types.StringType},
 	}
 }
 
@@ -153,6 +168,10 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 					"passphrase": schema.StringAttribute{
 						Optional:  true,
 						Sensitive: true,
+					},
+					"encryption": schema.StringAttribute{
+						Optional:            true,
+						MarkdownDescription: "Open security encryption mode. Supported values for `OPEN` security: `ENHANCED_OPEN`, `ENHANCED_OPEN_WITH_TRANSITION`. Leave unset for plain open WiFi.",
 					},
 					"pmf_mode": schema.StringAttribute{
 						Optional: true,
@@ -219,6 +238,19 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 			},
 			"bss_transition_enabled": schema.BoolAttribute{
 				Optional: true,
+			},
+			"dns_assistance_configuration": schema.SingleNestedAttribute{
+				Optional:            true,
+				MarkdownDescription: "DNS assistance configuration for `STANDARD` WiFi broadcasts. Supported modes: `AUTO`, `MANUAL`.",
+				Attributes: map[string]schema.Attribute{
+					"mode": schema.StringAttribute{
+						Required: true,
+					},
+					"servers": schema.ListAttribute{
+						Optional:    true,
+						ElementType: types.StringType,
+					},
+				},
 			},
 		},
 	}
@@ -350,6 +382,19 @@ func (r *wifiBroadcastResource) expandWifiBroadcast(ctx context.Context, plan wi
 		}
 	}
 
+	if !plan.DNSAssistanceConfiguration.IsNull() && !plan.DNSAssistanceConfiguration.IsUnknown() {
+		var dnsAssistance wifiDNSAssistanceConfigurationModel
+		diags.Append(plan.DNSAssistanceConfiguration.As(ctx, &dnsAssistance, basetypes.ObjectAsOptions{})...)
+		configuration := &client.WifiDNSAssistanceConfiguration{
+			Mode: dnsAssistance.Mode.ValueString(),
+		}
+		if !dnsAssistance.Servers.IsNull() && !dnsAssistance.Servers.IsUnknown() {
+			servers := listToStrings(ctx, dnsAssistance.Servers, "dns_assistance_configuration.servers", diags)
+			configuration.Servers = &servers
+		}
+		broadcast.DNSAssistanceConfiguration = configuration
+	}
+
 	return broadcast
 }
 
@@ -357,6 +402,7 @@ func expandWifiSecurityConfiguration(ctx context.Context, model wifiSecurityConf
 	configuration := &client.WifiSecurityConfiguration{
 		Type:                      model.Type.ValueString(),
 		Passphrase:                stringPointerValue(model.Passphrase),
+		Encryption:                stringPointerValue(model.Encryption),
 		PMFMode:                   stringPointerValue(model.PMFMode),
 		FastRoamingEnabled:        boolPointerValue(model.FastRoamingEnabled),
 		GroupRekeyIntervalSeconds: int64PointerValue(model.GroupRekeyIntervalSeconds),
@@ -408,6 +454,9 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 
 	switch security.Type.ValueString() {
 	case "OPEN":
+		if !security.Passphrase.IsNull() {
+			return fmt.Errorf("security_configuration.passphrase must not be set for OPEN")
+		}
 	case "WPA2_PERSONAL":
 		if security.Passphrase.IsNull() {
 			return fmt.Errorf("security_configuration.passphrase is required for WPA2_PERSONAL")
@@ -424,6 +473,17 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		return fmt.Errorf("security_configuration.type must be OPEN, WPA2_PERSONAL, WPA3_PERSONAL, or WPA2_WPA3_PERSONAL")
 	}
 
+	if !security.Encryption.IsNull() {
+		if security.Type.ValueString() != "OPEN" {
+			return fmt.Errorf("security_configuration.encryption is only valid when security_configuration.type is OPEN")
+		}
+		switch security.Encryption.ValueString() {
+		case "ENHANCED_OPEN", "ENHANCED_OPEN_WITH_TRANSITION":
+		default:
+			return fmt.Errorf("security_configuration.encryption must be ENHANCED_OPEN or ENHANCED_OPEN_WITH_TRANSITION")
+		}
+	}
+
 	if security.PMFMode.ValueString() != "" && security.PMFMode.ValueString() != "OPTIONAL" && security.PMFMode.ValueString() != "REQUIRED" {
 		return fmt.Errorf("security_configuration.pmf_mode must be OPTIONAL or REQUIRED")
 	}
@@ -433,8 +493,31 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 			return fmt.Errorf("broadcasting_frequencies_ghz, advertise_device_name, arp_proxy_enabled, and bss_transition_enabled are required for STANDARD broadcasts")
 		}
 	} else {
-		if !plan.BroadcastingFrequenciesGHz.IsNull() || !plan.AdvertiseDeviceName.IsNull() || !plan.ARPProxyEnabled.IsNull() || !plan.BSSTransitionEnabled.IsNull() || !plan.BandSteeringEnabled.IsNull() {
+		if !plan.BroadcastingFrequenciesGHz.IsNull() || !plan.AdvertiseDeviceName.IsNull() || !plan.ARPProxyEnabled.IsNull() || !plan.BSSTransitionEnabled.IsNull() || !plan.BandSteeringEnabled.IsNull() || !plan.DNSAssistanceConfiguration.IsNull() {
 			return fmt.Errorf("standard-only attributes must not be set for IOT_OPTIMIZED broadcasts")
+		}
+	}
+
+	if !plan.DNSAssistanceConfiguration.IsNull() && !plan.DNSAssistanceConfiguration.IsUnknown() {
+		var dnsAssistance wifiDNSAssistanceConfigurationModel
+		if diags := plan.DNSAssistanceConfiguration.As(ctx, &dnsAssistance, basetypes.ObjectAsOptions{}); diags.HasError() {
+			return fmt.Errorf("unable to decode dns_assistance_configuration block")
+		}
+
+		switch dnsAssistance.Mode.ValueString() {
+		case "AUTO":
+			if !dnsAssistance.Servers.IsNull() {
+				return fmt.Errorf("dns_assistance_configuration.servers must not be set when mode is AUTO")
+			}
+		case "MANUAL":
+			if dnsAssistance.Servers.IsNull() {
+				return fmt.Errorf("dns_assistance_configuration.servers is required when mode is MANUAL")
+			}
+			if len(listToStrings(ctx, dnsAssistance.Servers, "dns_assistance_configuration.servers", &diag.Diagnostics{})) > 2 {
+				return fmt.Errorf("dns_assistance_configuration.servers supports at most two DNS servers")
+			}
+		default:
+			return fmt.Errorf("dns_assistance_configuration.mode must be AUTO or MANUAL")
 		}
 	}
 
@@ -480,6 +563,8 @@ func buildWifiBroadcastStateModel(ctx context.Context, siteID types.String, broa
 	diagnostics.Append(frequenciesDiagnostics...)
 	broadcastingDeviceFilter, deviceFilterDiagnostics := flattenWifiBroadcastingDeviceFilter(ctx, broadcast.BroadcastingDeviceFilter)
 	diagnostics.Append(deviceFilterDiagnostics...)
+	dnsAssistanceConfiguration, dnsAssistanceDiagnostics := flattenWifiDNSAssistanceConfiguration(ctx, broadcast.DNSAssistanceConfiguration)
+	diagnostics.Append(dnsAssistanceDiagnostics...)
 
 	model := wifiBroadcastResourceModel{
 		ID:                                  types.StringValue(broadcast.ID),
@@ -499,6 +584,7 @@ func buildWifiBroadcastStateModel(ctx context.Context, siteID types.String, broa
 		ARPProxyEnabled:                     nullableBool(broadcast.ARPProxyEnabled),
 		BandSteeringEnabled:                 nullableBool(broadcast.BandSteeringEnabled),
 		BSSTransitionEnabled:                nullableBool(broadcast.BSSTransitionEnabled),
+		DNSAssistanceConfiguration:          dnsAssistanceConfiguration,
 	}
 
 	return model, diagnostics
@@ -543,6 +629,7 @@ func flattenWifiSecurityConfiguration(ctx context.Context, security *client.Wifi
 	model := wifiSecurityConfigurationModel{
 		Type:                      types.StringValue(security.Type),
 		Passphrase:                nullableString(security.Passphrase),
+		Encryption:                nullableString(security.Encryption),
 		PMFMode:                   nullableString(security.PMFMode),
 		FastRoamingEnabled:        nullableBool(security.FastRoamingEnabled),
 		GroupRekeyIntervalSeconds: nullableInt64(security.GroupRekeyIntervalSeconds),
@@ -551,6 +638,29 @@ func flattenWifiSecurityConfiguration(ctx context.Context, security *client.Wifi
 	}
 
 	value, diagnosticsObject := types.ObjectValueFrom(ctx, wifiSecurityConfigurationAttrTypes(), model)
+	diagnostics.Append(diagnosticsObject...)
+	return value, diagnostics
+}
+
+func flattenWifiDNSAssistanceConfiguration(ctx context.Context, configuration *client.WifiDNSAssistanceConfiguration) (types.Object, diag.Diagnostics) {
+	var diagnostics diag.Diagnostics
+	if configuration == nil {
+		return types.ObjectNull(wifiDNSAssistanceConfigurationAttrTypes()), diagnostics
+	}
+
+	servers := types.ListNull(types.StringType)
+	if configuration.Servers != nil {
+		serverList, diagnosticsList := stringListValue(ctx, *configuration.Servers)
+		diagnostics.Append(diagnosticsList...)
+		servers = serverList
+	}
+
+	model := wifiDNSAssistanceConfigurationModel{
+		Mode:    types.StringValue(configuration.Mode),
+		Servers: servers,
+	}
+
+	value, diagnosticsObject := types.ObjectValueFrom(ctx, wifiDNSAssistanceConfigurationAttrTypes(), model)
 	diagnostics.Append(diagnosticsObject...)
 	return value, diagnostics
 }
