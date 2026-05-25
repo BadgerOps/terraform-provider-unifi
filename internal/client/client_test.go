@@ -44,7 +44,9 @@ func TestNormalizeLegacyBaseURL(t *testing.T) {
 		{name: "with proxy network path", in: "https://controller.example.com/proxy/network", want: "https://controller.example.com/proxy/network/api"},
 		{name: "with proxy network api path", in: "https://controller.example.com/proxy/network/api", want: "https://controller.example.com/proxy/network/api"},
 		{name: "from integration path", in: "https://controller.example.com/integration", want: "https://controller.example.com/proxy/network/api"},
+		{name: "from proxy network integration path", in: "https://controller.example.com/proxy/network/integration", want: "https://controller.example.com/proxy/network/api"},
 		{name: "with reverse proxy prefix", in: "https://controller.example.com/unifi/proxy/network", want: "https://controller.example.com/unifi/proxy/network/api"},
+		{name: "with reverse proxy prefix from integration path", in: "https://controller.example.com/unifi/proxy/network/integration", want: "https://controller.example.com/unifi/proxy/network/api"},
 	}
 
 	for _, testCase := range testCases {

@@ -2279,18 +2279,19 @@ func TestAccResourceDHCPReservationCreatesConfiguredClientForAdoptedDevice(t *te
 	defer api.Close()
 
 	resourceName := "unifi_dhcp_reservation.test"
-
-	resource.UnitTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config: siteLookupConfig(api.URL()) + `
+	config := siteLookupConfig(api.URL()) + `
 resource "unifi_dhcp_reservation" "test" {
   site_id     = data.unifi_site.main.id
   mac_address = "` + api.existingAdoptedDeviceMAC + `"
   fixed_ip    = "10.200.0.25"
 }
-`,
+`
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "site_id", api.siteID),
 					resource.TestCheckResourceAttr(resourceName, "mac_address", api.existingAdoptedDeviceMAC),
@@ -2314,6 +2315,55 @@ resource "unifi_dhcp_reservation" "test" {
 
 						return fmt.Errorf("expected adopted device reservation for MAC %s to be created", api.existingAdoptedDeviceMAC)
 					},
+				),
+			},
+		},
+	})
+}
+
+func TestAccResourceDHCPReservationRecreatesMissingLegacyClient(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_dhcp_reservation.test"
+	config := siteLookupConfig(api.URL()) + `
+resource "unifi_dhcp_reservation" "test" {
+  site_id     = data.unifi_site.main.id
+  mac_address = "` + api.existingAdoptedDeviceMAC + `"
+  fixed_ip    = "10.200.0.25"
+}
+`
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:             config,
+				ExpectNonEmptyPlan: true,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "fixed_ip", "10.200.0.25"),
+					func(_ *tfstate.State) error {
+						api.mu.Lock()
+						defer api.mu.Unlock()
+
+						for clientID, reservation := range api.dhcpReservations["default"] {
+							if strings.EqualFold(reservation.MACAddress, api.existingAdoptedDeviceMAC) {
+								delete(api.dhcpReservations["default"], clientID)
+								return nil
+							}
+						}
+
+						return fmt.Errorf("expected adopted device reservation for MAC %s to exist before deletion", api.existingAdoptedDeviceMAC)
+					},
+				),
+			},
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "site_id", api.siteID),
+					resource.TestCheckResourceAttr(resourceName, "mac_address", api.existingAdoptedDeviceMAC),
+					resource.TestCheckResourceAttr(resourceName, "fixed_ip", "10.200.0.25"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
 				),
 			},
 		},

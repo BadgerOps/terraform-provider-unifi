@@ -139,7 +139,12 @@ func normalizeLegacyBaseURL(raw string) (*url.URL, error) {
 	case strings.HasSuffix(trimmedPath, "/proxy/network"):
 		baseURL.Path = joinURLPath(trimmedPath, "api")
 	case strings.HasSuffix(trimmedPath, "/integration"):
-		baseURL.Path = joinURLPath(strings.TrimSuffix(trimmedPath, "/integration"), "proxy", "network", "api")
+		basePath := strings.TrimSuffix(trimmedPath, "/integration")
+		if strings.HasSuffix(basePath, "/proxy/network") {
+			baseURL.Path = joinURLPath(basePath, "api")
+		} else {
+			baseURL.Path = joinURLPath(basePath, "proxy", "network", "api")
+		}
 	default:
 		baseURL.Path = joinURLPath(trimmedPath, "proxy", "network", "api")
 	}

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.13] - 2026-05-25
+
+### Fixed
+
+- Fixed legacy DHCP reservation API URL derivation when `api_url` already ends in `/proxy/network/integration`.
+- Fixed `unifi_dhcp_reservation` refresh behavior so missing legacy client records are removed from Terraform state and can be recreated on the next apply.
+
 ## [0.2.12] - 2026-05-05
 
 ### Changed
