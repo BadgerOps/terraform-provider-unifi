@@ -107,6 +107,11 @@ func (r *dhcpReservationResource) Read(ctx context.Context, request resource.Rea
 
 	reservation, err := r.providerData.client.GetDHCPReservation(ctx, state.SiteID.ValueString(), state.MACAddress.ValueString())
 	if err != nil {
+		if client.IsMissingClient(err) {
+			response.State.RemoveResource(ctx)
+			return
+		}
+
 		response.Diagnostics.AddError("Unable to read DHCP reservation", err.Error())
 		return
 	}
