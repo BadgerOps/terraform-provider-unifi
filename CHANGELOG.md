@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.14] - 2026-06-06
+
+### Fixed
+
+- Fixed the weekly OpenAPI upstream check so application package-only version bumps do not open provider snapshot drift issues when the upstream artifact does not include a newer `api-docs/integration.json`.
+
 ## [0.2.13] - 2026-05-25
 
 ### Fixed

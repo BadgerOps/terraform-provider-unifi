@@ -15,8 +15,13 @@ usage() {
 usage: check-openapi-upstream.sh [--manifest PATH] [--repo-base-url URL] [--suite NAME] [--component NAME] [--arch NAME] [--package-name NAME]
 
 Checks the current stable UniFi package feed, downloads the latest package for the
-selected architecture, extracts api-docs/integration.json, and compares it with the
-committed OpenAPI snapshot manifest.
+selected architecture, extracts api-docs/integration.json when the package ships it,
+and compares that document with the committed OpenAPI snapshot manifest.
+
+When the package feed moves ahead before an OpenAPI document is published in the
+artifact, the package metadata is reported but no OpenAPI drift is raised. The
+provider is generated from the OpenAPI snapshot, not from the application package
+version alone.
 EOF
 }
 
@@ -160,7 +165,7 @@ packages_file="${work_dir}/Packages"
 curl -fsSL -o "${packages_gz_file}" "${packages_url}"
 gzip -dc "${packages_gz_file}" > "${packages_file}"
 
-mapfile -t package_fields < <(
+package_fields_output="$(
   python3 - "${packages_file}" "${PACKAGE_NAME}" <<'PY'
 import sys
 
@@ -187,7 +192,9 @@ for stanza in content.split("\n\n"):
 else:
     raise SystemExit(f"package not found in Packages index: {package_name}")
 PY
-)
+)"
+
+mapfile -t package_fields <<< "${package_fields_output}"
 
 latest_package_version="${package_fields[0]}"
 latest_package_filename="${package_fields[1]}"
@@ -234,14 +241,16 @@ PY
 fi
 
 changed_fields=()
-if [[ "${current_api_version}" != "${latest_api_version}" ]]; then
-  changed_fields+=("api_version")
-fi
-if [[ "${latest_openapi_version}" != "unknown" && "${current_openapi_version}" != "${latest_openapi_version}" ]]; then
-  changed_fields+=("openapi_version")
-fi
-if [[ "${latest_snapshot_sha256}" != "unavailable" && "${current_snapshot_sha256}" != "${latest_snapshot_sha256}" ]]; then
-  changed_fields+=("snapshot_sha256")
+if [[ "${snapshot_source}" == "packaged-api-docs" ]]; then
+  if [[ "${current_api_version}" != "${latest_api_version}" ]]; then
+    changed_fields+=("api_version")
+  fi
+  if [[ "${current_openapi_version}" != "${latest_openapi_version}" ]]; then
+    changed_fields+=("openapi_version")
+  fi
+  if [[ "${current_snapshot_sha256}" != "${latest_snapshot_sha256}" ]]; then
+    changed_fields+=("snapshot_sha256")
+  fi
 fi
 
 update_available="false"
