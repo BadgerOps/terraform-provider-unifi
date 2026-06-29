@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.2.15] - 2026-06-29
+
+### Fixed
+
+- Preserved UniFi Network metadata when translating generated network details into the provider client model.
+
 ## [0.2.14] - 2026-06-06
 
 ### Fixed
