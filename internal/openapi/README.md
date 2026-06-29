@@ -30,4 +30,4 @@ To check whether the committed snapshot has fallen behind the current stable Uni
 make openapi-check-upstream
 ```
 
-GitHub Actions also runs that check weekly and opens or updates a tracking issue when the stable upstream package version moves ahead of the committed snapshot. If a packaged `integration.json` is available in the upstream artifact, the same check also compares the snapshot contents directly.
+GitHub Actions also runs that check weekly and opens or updates a tracking issue when the stable upstream artifact includes a newer `api-docs/integration.json` than the committed snapshot. If the UniFi application package version moves ahead before an OpenAPI snapshot is published in the artifact, the check reports the package metadata but does not raise provider drift because this provider is generated from the OpenAPI document, not the application package version alone.
