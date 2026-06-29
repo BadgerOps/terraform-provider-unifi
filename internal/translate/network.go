@@ -1,6 +1,8 @@
 package translate
 
 import (
+	"encoding/json"
+
 	"github.com/badgerops/terraform-provider-unifi/internal/client"
 	"github.com/badgerops/terraform-provider-unifi/internal/openapi/generated"
 )
@@ -25,6 +27,7 @@ func NetworkDetailsToClient(network generated.NetworkDetails) client.Network {
 		Enabled:    network.Enabled,
 		VLANID:     int64(network.VlanId),
 		Default:    network.Default,
+		Metadata:   generatedMetadataToMap(network.Metadata),
 	}
 
 	if network.DhcpGuarding != nil {
@@ -33,6 +36,22 @@ func NetworkDetailsToClient(network generated.NetworkDetails) client.Network {
 		}
 	}
 
+	return result
+}
+
+func generatedMetadataToMap(metadata any) map[string]any {
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return nil
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil
+	}
+	if len(result) == 0 {
+		return nil
+	}
 	return result
 }
 

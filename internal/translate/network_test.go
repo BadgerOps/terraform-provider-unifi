@@ -52,6 +52,9 @@ func TestNetworkRoundTripSpikeMapping(t *testing.T) {
 	if clientNetwork.DHCPGuarding == nil || len(clientNetwork.DHCPGuarding.TrustedDHCPServerIPAddresses) != 1 {
 		t.Fatalf("expected DHCP guarding to be mapped")
 	}
+	if clientNetwork.Metadata["origin"] != "USER" {
+		t.Fatalf("expected metadata origin to be preserved, got %#v", clientNetwork.Metadata)
+	}
 
 	backToGenerated := NetworkToGeneratedCreateUpdate(client.Network{
 		Management: "GATEWAY",
