@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Added official Integration API support for WPA2 Enterprise, mixed WPA2/WPA3 Enterprise, and WPA3 Enterprise WiFi security, including RADIUS profiles, NAS-ID, MAC authentication, Change of Authorization, roaming, PMF, rekeying, and WPA3 security mode.
+- Added WPA2 Personal PPSKs with per-key network assignment, sensitive state handling, and refresh preservation for passphrases omitted by UniFi responses.
+
 ## [0.4.0] - 2026-10-06
 
 ### Added

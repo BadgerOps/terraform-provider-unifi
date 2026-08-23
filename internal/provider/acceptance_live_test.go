@@ -656,6 +656,181 @@ data "unifi_wifi_broadcast" "lookup" {
 	})
 }
 
+func TestAccLiveResourceWifiBroadcastEnterprise(t *testing.T) {
+	t.Parallel()
+
+	config := requireLiveAcceptanceConfig(t)
+	profile := requireRadiusProfile(t, config)
+	resourceName := "unifi_wifi_broadcast.test"
+	broadcastName := liveAcceptanceName(config, "wifi-ent")
+
+	securityConfigurations := []string{
+		fmt.Sprintf(`{
+    type = "WPA2_ENTERPRISE"
+    radius_configuration = {
+      profile_id = %q
+      nas_id      = { type = "DERIVED", source = "DEVICE_NAME" }
+    }
+    coa_enabled          = true
+    pmf_mode             = "OPTIONAL"
+    fast_roaming_enabled = true
+  }`, profile.ID),
+		fmt.Sprintf(`{
+    type = "WPA2_WPA3_ENTERPRISE"
+    radius_configuration = {
+      profile_id = %q
+      nas_id      = { type = "USER_DEFINED", value = "iac-live-acceptance" }
+    }
+    coa_enabled               = true
+    pmf_mode                  = "OPTIONAL"
+    fast_roaming_enabled      = true
+    wpa3_fast_roaming_enabled = true
+  }`, profile.ID),
+		fmt.Sprintf(`{
+    type = "WPA3_ENTERPRISE"
+    radius_configuration = {
+      profile_id = %q
+      nas_id      = { type = "DERIVED", source = "BSSID" }
+    }
+    coa_enabled  = true
+    security_mode = "DEFAULT"
+  }`, profile.ID),
+	}
+
+	steps := make([]resource.TestStep, 0, len(securityConfigurations)+1)
+	for index, securityConfiguration := range securityConfigurations {
+		securityType := []string{"WPA2_ENTERPRISE", "WPA2_WPA3_ENTERPRISE", "WPA3_ENTERPRISE"}[index]
+		steps = append(steps, resource.TestStep{
+			Config: liveEnterpriseWifiResourceConfig(config, broadcastName, securityConfiguration),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr(resourceName, "security_configuration.type", securityType),
+				resource.TestCheckResourceAttr(resourceName, "security_configuration.radius_configuration.profile_id", profile.ID),
+				resource.TestCheckResourceAttr(resourceName, "security_configuration.coa_enabled", "true"),
+			),
+		})
+	}
+	steps = append(steps, resource.TestStep{
+		ResourceName:      resourceName,
+		ImportState:       true,
+		ImportStateIdFunc: liveImportCompositeID(resourceName),
+		ImportStateVerify: true,
+	})
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             liveCheckDestroyWifiBroadcast(config, resourceName),
+		Steps:                    steps,
+	})
+}
+
+func liveEnterpriseWifiResourceConfig(config liveAcceptanceConfig, name, securityConfiguration string) string {
+	return liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+resource "unifi_wifi_broadcast" "test" {
+  site_id                                 = data.unifi_site.target.id
+  type                                    = "STANDARD"
+  name                                    = %q
+  enabled                                 = true
+  client_isolation_enabled                = false
+  hide_name                               = false
+  uapsd_enabled                           = true
+  multicast_to_unicast_conversion_enabled = true
+  broadcasting_frequencies_ghz            = [5]
+  advertise_device_name                   = true
+  arp_proxy_enabled                       = false
+  band_steering_enabled                   = true
+  bss_transition_enabled                  = true
+  network                                 = { type = "NATIVE" }
+  security_configuration                  = %s
+}
+`, name, securityConfiguration)
+}
+
+func TestAccLiveResourceWifiBroadcastPPSK(t *testing.T) {
+	t.Parallel()
+
+	config := requireLiveAcceptanceConfig(t)
+	firstPassphrase := requireWifiPassphrase(t)
+	secondPassphrase := alternateWifiPassphrase(firstPassphrase)
+	resourceName := "unifi_wifi_broadcast.test"
+	broadcastName := liveAcceptanceName(config, "wifi-ppsk")
+	vlanID := liveAcceptanceVLAN()
+	testConfig := liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+resource "unifi_network" "psk_a" {
+  site_id = data.unifi_site.target.id
+  management = "UNMANAGED"
+  name = %q
+  enabled = true
+  vlan_id = %d
+}
+
+resource "unifi_network" "psk_b" {
+  site_id = data.unifi_site.target.id
+  management = "UNMANAGED"
+  name = %q
+  enabled = true
+  vlan_id = %d
+}
+
+resource "unifi_wifi_broadcast" "test" {
+  site_id                                 = data.unifi_site.target.id
+  type                                    = "STANDARD"
+  name                                    = %q
+  enabled                                 = true
+  client_isolation_enabled                = true
+  hide_name                               = false
+  uapsd_enabled                           = true
+  multicast_to_unicast_conversion_enabled = true
+  broadcasting_frequencies_ghz            = [2.4, 5]
+  advertise_device_name                   = true
+  arp_proxy_enabled                       = false
+  band_steering_enabled                   = true
+  bss_transition_enabled                  = true
+  network                                 = { type = "NATIVE" }
+  security_configuration = {
+    type = "WPA2_PERSONAL"
+    preshared_keys = [
+      { passphrase = %q, network = { type = "SPECIFIC", network_id = unifi_network.psk_a.id } },
+      { passphrase = %q, network = { type = "SPECIFIC", network_id = unifi_network.psk_b.id } }
+    ]
+  }
+}
+`, liveAcceptanceName(config, "ppsk-a"), vlanID, liveAcceptanceName(config, "ppsk-b"), vlanID+1, broadcastName, firstPassphrase, secondPassphrase)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             liveCheckDestroyWifiBroadcast(config, resourceName),
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "security_configuration.type", "WPA2_PERSONAL"),
+					resource.TestCheckResourceAttr(resourceName, "security_configuration.preshared_keys.#", "2"),
+					resource.TestCheckResourceAttrPair(resourceName, "security_configuration.preshared_keys.0.network.network_id", "unifi_network.psk_a", "id"),
+					resource.TestCheckResourceAttrPair(resourceName, "security_configuration.preshared_keys.1.network.network_id", "unifi_network.psk_b", "id"),
+				),
+			},
+			{Config: testConfig, PlanOnly: true},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateIdFunc:       liveImportCompositeID(resourceName),
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"security_configuration.preshared_keys"},
+			},
+		},
+	})
+}
+
+func alternateWifiPassphrase(value string) string {
+	bytes := []byte(value)
+	if bytes[len(bytes)-1] == 'Z' {
+		bytes[len(bytes)-1] = 'Y'
+	} else {
+		bytes[len(bytes)-1] = 'Z'
+	}
+	return string(bytes)
+}
+
 func TestAccLiveResourceDNSPolicy(t *testing.T) {
 	t.Parallel()
 

@@ -3,12 +3,12 @@
 page_title: "unifi_wifi_broadcast Resource - unifi"
 subcategory: ""
 description: |-
-  Manage a UniFi WiFi broadcast.
+  Manage a UniFi WiFi broadcast. Enterprise security references an existing RADIUS profile; unifi_radius_profile is a data source because the UniFi Integration API exposes RADIUS profiles as supporting/read-only resources. WPA2 PPSK and Enterprise authentication are separate security modes and must not be assumed to coexist on one broadcast. UniFi responses may omit PPSK passphrases; known state secrets are preserved during refresh, while imported PPSK broadcasts require the passphrases to be supplied in configuration.
 ---
 
 # unifi_wifi_broadcast (Resource)
 
-Manage a UniFi WiFi broadcast.
+Manage a UniFi WiFi broadcast. Enterprise security references an existing RADIUS profile; `unifi_radius_profile` is a data source because the UniFi Integration API exposes RADIUS profiles as supporting/read-only resources. WPA2 PPSK and Enterprise authentication are separate security modes and must not be assumed to coexist on one broadcast. UniFi responses may omit PPSK passphrases; known state secrets are preserved during refresh, while imported PPSK broadcasts require the passphrases to be supplied in configuration.
 
 ## Example Usage
 
@@ -124,17 +124,76 @@ Optional:
 
 Required:
 
-- `type` (String) Security mode. Supported values: `OPEN`, `WPA2_PERSONAL`, `WPA3_PERSONAL`, `WPA2_WPA3_PERSONAL`.
+- `type` (String) Security mode. Supported values: `OPEN`, `WPA2_PERSONAL`, `WPA3_PERSONAL`, `WPA2_WPA3_PERSONAL`, `WPA2_ENTERPRISE`, `WPA2_WPA3_ENTERPRISE`, `WPA3_ENTERPRISE`.
 
 Optional:
 
+- `coa_enabled` (Boolean)
 - `encryption` (String) Open security encryption mode. Supported values for `OPEN` security: `ENHANCED_OPEN`, `ENHANCED_OPEN_WITH_TRANSITION`. Leave unset for plain open WiFi.
 - `fast_roaming_enabled` (Boolean)
 - `group_rekey_interval_seconds` (Number)
 - `passphrase` (String, Sensitive)
 - `pmf_mode` (String)
+- `preshared_keys` (Attributes List) (see [below for nested schema](#nestedatt--security_configuration--preshared_keys))
+- `radius_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration))
 - `sae_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--sae_configuration))
+- `security_mode` (String) WPA3 Enterprise security mode. Supported values: `DEFAULT`, `HIGH_SECURITY_192_BIT`.
 - `wpa3_fast_roaming_enabled` (Boolean)
+
+<a id="nestedatt--security_configuration--preshared_keys"></a>
+### Nested Schema for `security_configuration.preshared_keys`
+
+Required:
+
+- `network` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--preshared_keys--network))
+- `passphrase` (String, Sensitive)
+
+<a id="nestedatt--security_configuration--preshared_keys--network"></a>
+### Nested Schema for `security_configuration.preshared_keys.network`
+
+Required:
+
+- `type` (String)
+
+Optional:
+
+- `network_id` (String)
+
+
+
+<a id="nestedatt--security_configuration--radius_configuration"></a>
+### Nested Schema for `security_configuration.radius_configuration`
+
+Required:
+
+- `nas_id` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration--nas_id))
+- `profile_id` (String)
+
+Optional:
+
+- `mac_authentication_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration--mac_authentication_configuration))
+
+<a id="nestedatt--security_configuration--radius_configuration--nas_id"></a>
+### Nested Schema for `security_configuration.radius_configuration.nas_id`
+
+Required:
+
+- `type` (String)
+
+Optional:
+
+- `source` (String)
+- `value` (String)
+
+
+<a id="nestedatt--security_configuration--radius_configuration--mac_authentication_configuration"></a>
+### Nested Schema for `security_configuration.radius_configuration.mac_authentication_configuration`
+
+Required:
+
+- `mac_address_format` (String)
+
+
 
 <a id="nestedatt--security_configuration--sae_configuration"></a>
 ### Nested Schema for `security_configuration.sae_configuration`

@@ -3093,6 +3093,99 @@ resource "unifi_wifi_broadcast" "test" {
 	})
 }
 
+func TestAccResourceWifiBroadcastEnterpriseAndPPSK(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: siteLookupConfig(api.URL()) + `
+data "unifi_radius_profile" "existing" {
+  site_id = data.unifi_site.main.id
+  id      = "` + api.existingRadiusProfileID + `"
+}
+
+resource "unifi_network" "psk_a" {
+  site_id = data.unifi_site.main.id
+  management = "UNMANAGED"
+  name = "psk-a"
+  enabled = true
+  vlan_id = 81
+}
+
+resource "unifi_network" "psk_b" {
+  site_id = data.unifi_site.main.id
+  management = "UNMANAGED"
+  name = "psk-b"
+  enabled = true
+  vlan_id = 82
+}
+
+resource "unifi_wifi_broadcast" "enterprise" {
+  site_id = data.unifi_site.main.id
+  type = "STANDARD"
+  name = "enterprise"
+  enabled = true
+  client_isolation_enabled = false
+  hide_name = false
+  uapsd_enabled = true
+  multicast_to_unicast_conversion_enabled = false
+  broadcasting_frequencies_ghz = [5]
+  advertise_device_name = false
+  arp_proxy_enabled = false
+  band_steering_enabled = true
+  bss_transition_enabled = true
+  network = { type = "NATIVE" }
+  security_configuration = {
+    type = "WPA2_WPA3_ENTERPRISE"
+    radius_configuration = {
+      profile_id = data.unifi_radius_profile.existing.id
+      nas_id = { type = "DERIVED", source = "DEVICE_NAME" }
+      mac_authentication_configuration = { mac_address_format = "LOWERCASE_COLON_SEPARATED" }
+    }
+    coa_enabled = true
+    pmf_mode = "OPTIONAL"
+    fast_roaming_enabled = true
+    wpa3_fast_roaming_enabled = true
+  }
+}
+
+resource "unifi_wifi_broadcast" "ppsk" {
+  site_id = data.unifi_site.main.id
+  type = "STANDARD"
+  name = "ppsk"
+  enabled = true
+  client_isolation_enabled = false
+  hide_name = false
+  uapsd_enabled = true
+  multicast_to_unicast_conversion_enabled = false
+  broadcasting_frequencies_ghz = [2.4, 5]
+  advertise_device_name = false
+  arp_proxy_enabled = false
+  band_steering_enabled = true
+  bss_transition_enabled = true
+  network = { type = "NATIVE" }
+  security_configuration = {
+    type = "WPA2_PERSONAL"
+    preshared_keys = [
+      { passphrase = "network-a-secret", network = { type = "SPECIFIC", network_id = unifi_network.psk_a.id } },
+      { passphrase = "network-b-secret", network = { type = "SPECIFIC", network_id = unifi_network.psk_b.id } }
+    ]
+  }
+}
+`,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("unifi_wifi_broadcast.enterprise", "security_configuration.type", "WPA2_WPA3_ENTERPRISE"),
+				resource.TestCheckResourceAttr("unifi_wifi_broadcast.enterprise", "security_configuration.radius_configuration.profile_id", api.existingRadiusProfileID),
+				resource.TestCheckResourceAttr("unifi_wifi_broadcast.enterprise", "security_configuration.radius_configuration.nas_id.source", "DEVICE_NAME"),
+				resource.TestCheckResourceAttr("unifi_wifi_broadcast.enterprise", "security_configuration.coa_enabled", "true"),
+				resource.TestCheckResourceAttr("unifi_wifi_broadcast.ppsk", "security_configuration.preshared_keys.#", "2"),
+				resource.TestCheckResourceAttr("unifi_wifi_broadcast.ppsk", "security_configuration.preshared_keys.0.passphrase", "network-a-secret"),
+			),
+		}},
+	})
+}
+
 func boolPtr(value bool) *bool {
 	return &value
 }

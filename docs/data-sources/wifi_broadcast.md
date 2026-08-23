@@ -3,12 +3,12 @@
 page_title: "unifi_wifi_broadcast Data Source - unifi"
 subcategory: ""
 description: |-
-  Look up a UniFi WiFi broadcast by id or name within a site.
+  Look up a UniFi WiFi broadcast by id or name within a site, including Enterprise RADIUS configuration and PPSK metadata returned by UniFi. PPSK secrets that the API omits are not invented.
 ---
 
 # unifi_wifi_broadcast (Data Source)
 
-Look up a UniFi WiFi broadcast by `id` or `name` within a site.
+Look up a UniFi WiFi broadcast by `id` or `name` within a site, including Enterprise RADIUS configuration and PPSK metadata returned by UniFi. PPSK secrets that the API omits are not invented.
 
 ## Example Usage
 
@@ -88,14 +88,64 @@ Read-Only:
 
 Read-Only:
 
+- `coa_enabled` (Boolean)
 - `encryption` (String)
 - `fast_roaming_enabled` (Boolean)
 - `group_rekey_interval_seconds` (Number)
 - `passphrase` (String, Sensitive)
 - `pmf_mode` (String)
+- `preshared_keys` (Attributes List) (see [below for nested schema](#nestedatt--security_configuration--preshared_keys))
+- `radius_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration))
 - `sae_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--sae_configuration))
+- `security_mode` (String)
 - `type` (String)
 - `wpa3_fast_roaming_enabled` (Boolean)
+
+<a id="nestedatt--security_configuration--preshared_keys"></a>
+### Nested Schema for `security_configuration.preshared_keys`
+
+Read-Only:
+
+- `network` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--preshared_keys--network))
+- `passphrase` (String, Sensitive)
+
+<a id="nestedatt--security_configuration--preshared_keys--network"></a>
+### Nested Schema for `security_configuration.preshared_keys.network`
+
+Read-Only:
+
+- `network_id` (String)
+- `type` (String)
+
+
+
+<a id="nestedatt--security_configuration--radius_configuration"></a>
+### Nested Schema for `security_configuration.radius_configuration`
+
+Read-Only:
+
+- `mac_authentication_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration--mac_authentication_configuration))
+- `nas_id` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration--nas_id))
+- `profile_id` (String)
+
+<a id="nestedatt--security_configuration--radius_configuration--mac_authentication_configuration"></a>
+### Nested Schema for `security_configuration.radius_configuration.mac_authentication_configuration`
+
+Read-Only:
+
+- `mac_address_format` (String)
+
+
+<a id="nestedatt--security_configuration--radius_configuration--nas_id"></a>
+### Nested Schema for `security_configuration.radius_configuration.nas_id`
+
+Read-Only:
+
+- `source` (String)
+- `type` (String)
+- `value` (String)
+
+
 
 <a id="nestedatt--security_configuration--sae_configuration"></a>
 ### Nested Schema for `security_configuration.sae_configuration`
