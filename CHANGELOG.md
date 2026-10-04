@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.3.0] - 2026-10-04
+
+### Security
+
+- Bumped `golang.org/x/crypto` from `0.48.0` to `0.55.0`, resolving the open Dependabot advisories fixed in `0.52.0` for the SSH and SSH agent packages (including GHSA-5cgq-3rg8-m6cv, GHSA-jppx-rxg9-jmrx, GHSA-f5wc-c3c7-36mc, GHSA-89gr-r52h-f8rx, GHSA-x527-x647-q7gg, GHSA-vgwf-h737-ff37, and GHSA-rm3j-f69w-wqmq).
+- Bumped `google.golang.org/grpc` from `1.79.3` to `1.83.2`, resolving GHSA-hrxh-6v49-42gf, GHSA-vp52-pcj8-j9qc, GHSA-qc2q-p7wx-3px3, and GHSA-2v4p-qf9q-27wj (xDS RBAC bypass, HTTP/2 DATA frame memory exhaustion, and a crash on requests missing `:authority` and `Host` headers).
+- Bumped `golang.org/x/net` from `0.49.0` to `0.58.0`, resolving GHSA-5cv4-jp36-h3mw (HTML parser denial of service).
+
+### Changed
+
+- Updated the transitive `golang.org/x/mod`, `golang.org/x/sync`, `golang.org/x/sys`, `golang.org/x/text`, `golang.org/x/tools`, and `google.golang.org/genproto/googleapis/rpc` modules pulled in by the dependency bumps above.
+- Promoted `github.com/google/uuid` to a direct requirement in `go.mod` to match its existing direct use in the provider.
+
 ## [0.2.15] - 2026-06-29
 
 ### Fixed
