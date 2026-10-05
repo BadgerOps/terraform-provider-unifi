@@ -99,7 +99,9 @@ resource "unifi_wifi_broadcast" "staff" {
 - `broadcasting_device_filter` (Attributes) (see [below for nested schema](#nestedatt--broadcasting_device_filter))
 - `broadcasting_frequencies_ghz` (Set of Number)
 - `bss_transition_enabled` (Boolean)
+- `channel_2g_locked_to_6` (Boolean) Locks the 2.4 GHz radio channel to 6 on all broadcasting devices. Requires UniFi Network `10.6` or newer; older controllers do not report this field.
 - `dns_assistance_configuration` (Attributes) DNS assistance configuration for `STANDARD` WiFi broadcasts. Supported modes: `AUTO`, `MANUAL`. (see [below for nested schema](#nestedatt--dns_assistance_configuration))
+- `dtim_period_2g_locked_to_3` (Boolean) Locks the DTIM period to 3 for the 2.4 GHz radio. Requires UniFi Network `10.6` or newer; older controllers do not report this field.
 
 ### Read-Only
 

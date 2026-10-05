@@ -333,6 +333,156 @@ func (e DevicePendingAdoptionState) Valid() bool {
 	}
 }
 
+// Defines values for FilterablePropertyTypeAllowedFunctions.
+const (
+	FilterablePropertyTypeAllowedFunctionsCONTAINS        FilterablePropertyTypeAllowedFunctions = "CONTAINS"
+	FilterablePropertyTypeAllowedFunctionsCONTAINSALL     FilterablePropertyTypeAllowedFunctions = "CONTAINS_ALL"
+	FilterablePropertyTypeAllowedFunctionsCONTAINSANY     FilterablePropertyTypeAllowedFunctions = "CONTAINS_ANY"
+	FilterablePropertyTypeAllowedFunctionsCONTAINSEXACTLY FilterablePropertyTypeAllowedFunctions = "CONTAINS_EXACTLY"
+	FilterablePropertyTypeAllowedFunctionsEQ              FilterablePropertyTypeAllowedFunctions = "EQ"
+	FilterablePropertyTypeAllowedFunctionsGE              FilterablePropertyTypeAllowedFunctions = "GE"
+	FilterablePropertyTypeAllowedFunctionsGT              FilterablePropertyTypeAllowedFunctions = "GT"
+	FilterablePropertyTypeAllowedFunctionsIN              FilterablePropertyTypeAllowedFunctions = "IN"
+	FilterablePropertyTypeAllowedFunctionsISEMPTY         FilterablePropertyTypeAllowedFunctions = "IS_EMPTY"
+	FilterablePropertyTypeAllowedFunctionsISNOTNULL       FilterablePropertyTypeAllowedFunctions = "IS_NOT_NULL"
+	FilterablePropertyTypeAllowedFunctionsISNULL          FilterablePropertyTypeAllowedFunctions = "IS_NULL"
+	FilterablePropertyTypeAllowedFunctionsLE              FilterablePropertyTypeAllowedFunctions = "LE"
+	FilterablePropertyTypeAllowedFunctionsLIKE            FilterablePropertyTypeAllowedFunctions = "LIKE"
+	FilterablePropertyTypeAllowedFunctionsLT              FilterablePropertyTypeAllowedFunctions = "LT"
+	FilterablePropertyTypeAllowedFunctionsNE              FilterablePropertyTypeAllowedFunctions = "NE"
+	FilterablePropertyTypeAllowedFunctionsNOTIN           FilterablePropertyTypeAllowedFunctions = "NOT_IN"
+)
+
+// Valid indicates whether the value is a known member of the FilterablePropertyTypeAllowedFunctions enum.
+func (e FilterablePropertyTypeAllowedFunctions) Valid() bool {
+	switch e {
+	case FilterablePropertyTypeAllowedFunctionsCONTAINS:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsCONTAINSALL:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsCONTAINSANY:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsCONTAINSEXACTLY:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsEQ:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsGE:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsGT:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsIN:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsISEMPTY:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsISNOTNULL:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsISNULL:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsLE:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsLIKE:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsLT:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsNE:
+		return true
+	case FilterablePropertyTypeAllowedFunctionsNOTIN:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FilterablePropertyTypeSupportedFunctions.
+const (
+	FilterablePropertyTypeSupportedFunctionsCONTAINS        FilterablePropertyTypeSupportedFunctions = "CONTAINS"
+	FilterablePropertyTypeSupportedFunctionsCONTAINSALL     FilterablePropertyTypeSupportedFunctions = "CONTAINS_ALL"
+	FilterablePropertyTypeSupportedFunctionsCONTAINSANY     FilterablePropertyTypeSupportedFunctions = "CONTAINS_ANY"
+	FilterablePropertyTypeSupportedFunctionsCONTAINSEXACTLY FilterablePropertyTypeSupportedFunctions = "CONTAINS_EXACTLY"
+	FilterablePropertyTypeSupportedFunctionsEQ              FilterablePropertyTypeSupportedFunctions = "EQ"
+	FilterablePropertyTypeSupportedFunctionsGE              FilterablePropertyTypeSupportedFunctions = "GE"
+	FilterablePropertyTypeSupportedFunctionsGT              FilterablePropertyTypeSupportedFunctions = "GT"
+	FilterablePropertyTypeSupportedFunctionsIN              FilterablePropertyTypeSupportedFunctions = "IN"
+	FilterablePropertyTypeSupportedFunctionsISEMPTY         FilterablePropertyTypeSupportedFunctions = "IS_EMPTY"
+	FilterablePropertyTypeSupportedFunctionsISNOTNULL       FilterablePropertyTypeSupportedFunctions = "IS_NOT_NULL"
+	FilterablePropertyTypeSupportedFunctionsISNULL          FilterablePropertyTypeSupportedFunctions = "IS_NULL"
+	FilterablePropertyTypeSupportedFunctionsLE              FilterablePropertyTypeSupportedFunctions = "LE"
+	FilterablePropertyTypeSupportedFunctionsLIKE            FilterablePropertyTypeSupportedFunctions = "LIKE"
+	FilterablePropertyTypeSupportedFunctionsLT              FilterablePropertyTypeSupportedFunctions = "LT"
+	FilterablePropertyTypeSupportedFunctionsNE              FilterablePropertyTypeSupportedFunctions = "NE"
+	FilterablePropertyTypeSupportedFunctionsNOTIN           FilterablePropertyTypeSupportedFunctions = "NOT_IN"
+)
+
+// Valid indicates whether the value is a known member of the FilterablePropertyTypeSupportedFunctions enum.
+func (e FilterablePropertyTypeSupportedFunctions) Valid() bool {
+	switch e {
+	case FilterablePropertyTypeSupportedFunctionsCONTAINS:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsCONTAINSALL:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsCONTAINSANY:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsCONTAINSEXACTLY:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsEQ:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsGE:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsGT:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsIN:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsISEMPTY:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsISNOTNULL:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsISNULL:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsLE:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsLIKE:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsLT:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsNE:
+		return true
+	case FilterablePropertyTypeSupportedFunctionsNOTIN:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FilterablePropertyTypeValueType.
+const (
+	BOOLEAN   FilterablePropertyTypeValueType = "BOOLEAN"
+	DECIMAL   FilterablePropertyTypeValueType = "DECIMAL"
+	INTEGER   FilterablePropertyTypeValueType = "INTEGER"
+	STRING    FilterablePropertyTypeValueType = "STRING"
+	TIMESTAMP FilterablePropertyTypeValueType = "TIMESTAMP"
+	UUID      FilterablePropertyTypeValueType = "UUID"
+)
+
+// Valid indicates whether the value is a known member of the FilterablePropertyTypeValueType enum.
+func (e FilterablePropertyTypeValueType) Valid() bool {
+	switch e {
+	case BOOLEAN:
+		return true
+	case DECIMAL:
+		return true
+	case INTEGER:
+		return true
+	case STRING:
+		return true
+	case TIMESTAMP:
+		return true
+	case UUID:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FirewallPolicyConnectionStateFilter.
 const (
 	FirewallPolicyConnectionStateFilterESTABLISHED FirewallPolicyConnectionStateFilter = "ESTABLISHED"
@@ -387,6 +537,27 @@ func (e IntegrationMcLagPeerDtoRole) Valid() bool {
 	case BOTTOM:
 		return true
 	case TOP:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for IntegrationSwitchStackUnitDtoRole.
+const (
+	ACTIVECONTROLLER IntegrationSwitchStackUnitDtoRole = "ACTIVE_CONTROLLER"
+	BACKUPCONTROLLER IntegrationSwitchStackUnitDtoRole = "BACKUP_CONTROLLER"
+	MEMBER           IntegrationSwitchStackUnitDtoRole = "MEMBER"
+)
+
+// Valid indicates whether the value is a known member of the IntegrationSwitchStackUnitDtoRole enum.
+func (e IntegrationSwitchStackUnitDtoRole) Valid() bool {
+	switch e {
+	case ACTIVECONTROLLER:
+		return true
+	case BACKUPCONTROLLER:
+		return true
+	case MEMBER:
 		return true
 	default:
 		return false
@@ -1108,7 +1279,48 @@ type EntityMetadata struct {
 }
 
 // FilterExpression defines model for FilterExpression.
-type FilterExpression = interface{}
+type FilterExpression struct {
+	Entity *FilterableEntity `json:"entity,omitempty"`
+}
+
+// FilterPath defines model for FilterPath.
+type FilterPath struct {
+	Depth  *int32      `json:"depth,omitempty"`
+	Name   *string     `json:"name,omitempty"`
+	Names  *[]string   `json:"names,omitempty"`
+	Parent interface{} `json:"parent,omitempty"`
+}
+
+// FilterableEntity defines model for FilterableEntity.
+type FilterableEntity struct {
+	Name           *string                        `json:"name,omitempty"`
+	NestedEntities *map[string]interface{}        `json:"nestedEntities,omitempty"`
+	Path           *FilterPath                    `json:"path,omitempty"`
+	Properties     *map[string]FilterableProperty `json:"properties,omitempty"`
+}
+
+// FilterableProperty defines model for FilterableProperty.
+type FilterableProperty struct {
+	Name *string                 `json:"name,omitempty"`
+	Path *FilterPath             `json:"path,omitempty"`
+	Type *FilterablePropertyType `json:"type,omitempty"`
+}
+
+// FilterablePropertyType defines model for FilterablePropertyType.
+type FilterablePropertyType struct {
+	AllowedFunctions   *[]FilterablePropertyTypeAllowedFunctions   `json:"allowedFunctions,omitempty"`
+	SupportedFunctions *[]FilterablePropertyTypeSupportedFunctions `json:"supportedFunctions,omitempty"`
+	ValueType          *FilterablePropertyTypeValueType            `json:"valueType,omitempty"`
+}
+
+// FilterablePropertyTypeAllowedFunctions defines model for FilterablePropertyType.AllowedFunctions.
+type FilterablePropertyTypeAllowedFunctions string
+
+// FilterablePropertyTypeSupportedFunctions defines model for FilterablePropertyType.SupportedFunctions.
+type FilterablePropertyTypeSupportedFunctions string
+
+// FilterablePropertyTypeValueType defines model for FilterablePropertyType.ValueType.
+type FilterablePropertyTypeValueType string
 
 // FirewallPolicy defines model for Firewall policy.
 type FirewallPolicy struct {
@@ -1400,11 +1612,12 @@ type IntegrationSiteToSiteVpnTunnelOverviewPageDto struct {
 
 // IntegrationSwitchStackDto defines model for IntegrationSwitchStackDto.
 type IntegrationSwitchStackDto struct {
+	DeviceId *openapi_types.UUID                 `json:"deviceId,omitempty"`
 	Id       openapi_types.UUID                  `json:"id"`
 	Lags     []IntegrationSwitchStackLagLocalDto `json:"lags"`
-	Members  []IntegrationSwitchStackMemberDto   `json:"members"`
 	Metadata UserDefinedEntityMetadata           `json:"metadata"`
 	Name     string                              `json:"name"`
+	Units    []IntegrationSwitchStackUnitDto     `json:"units"`
 }
 
 // IntegrationSwitchStackDtoPageDto defines model for IntegrationSwitchStackDtoPageDto.
@@ -1418,15 +1631,28 @@ type IntegrationSwitchStackDtoPageDto struct {
 
 // IntegrationSwitchStackLagLocalDto defines model for IntegrationSwitchStackLagLocalDto.
 type IntegrationSwitchStackLagLocalDto struct {
-	Id       openapi_types.UUID        `json:"id"`
-	Members  []IntegrationLagMemberDto `json:"members"`
-	Metadata UserDefinedEntityMetadata `json:"metadata"`
+	Id       openapi_types.UUID                   `json:"id"`
+	Members  []IntegrationSwitchStackLagMemberDto `json:"members"`
+	Metadata UserDefinedEntityMetadata            `json:"metadata"`
 }
 
-// IntegrationSwitchStackMemberDto defines model for IntegrationSwitchStackMemberDto.
-type IntegrationSwitchStackMemberDto struct {
-	DeviceId openapi_types.UUID `json:"deviceId"`
+// IntegrationSwitchStackLagMemberDto defines model for IntegrationSwitchStackLagMemberDto.
+type IntegrationSwitchStackLagMemberDto struct {
+	PortIdxs       []int32 `json:"portIdxs"`
+	UnitId         int32   `json:"unitId"`
+	UnitMacAddress string  `json:"unitMacAddress"`
 }
+
+// IntegrationSwitchStackUnitDto defines model for IntegrationSwitchStackUnitDto.
+type IntegrationSwitchStackUnitDto struct {
+	Id         int32                              `json:"id"`
+	MacAddress string                             `json:"macAddress"`
+	Order      *int32                             `json:"order,omitempty"`
+	Role       *IntegrationSwitchStackUnitDtoRole `json:"role,omitempty"`
+}
+
+// IntegrationSwitchStackUnitDtoRole defines model for IntegrationSwitchStackUnitDto.Role.
+type IntegrationSwitchStackUnitDtoRole string
 
 // IntegrationVoucherCreationResultDto defines model for IntegrationVoucherCreationResultDto.
 type IntegrationVoucherCreationResultDto struct {
@@ -1475,7 +1701,6 @@ type IntegrationWifiClientFilteringPolicyDtoAction string
 // LAGDetails defines model for LAG details.
 type LAGDetails struct {
 	Id       openapi_types.UUID        `json:"id"`
-	Members  []IntegrationLagMemberDto `json:"members"`
 	Metadata UserDefinedEntityMetadata `json:"metadata"`
 	Type     string                    `json:"type"`
 }
@@ -1773,20 +1998,26 @@ type WANOverviewPage struct {
 
 // WifiBroadcastCreateOrUpdate defines model for Wifi broadcast create or update.
 type WifiBroadcastCreateOrUpdate struct {
-	BasicDataRateKbpsByFrequencyGHz     *IntegrationWifiBasicDataRateConfigurationDto `json:"basicDataRateKbpsByFrequencyGHz,omitempty"`
-	BlackoutScheduleConfiguration       *IntegrationBlackoutScheduleConfiguration     `json:"blackoutScheduleConfiguration,omitempty"`
-	BroadcastingDeviceFilter            *BroadcastingDeviceFilter                     `json:"broadcastingDeviceFilter,omitempty"`
-	ClientFilteringPolicy               *IntegrationWifiClientFilteringPolicyDto      `json:"clientFilteringPolicy,omitempty"`
-	ClientIsolationEnabled              bool                                          `json:"clientIsolationEnabled"`
-	Enabled                             bool                                          `json:"enabled"`
-	HideName                            bool                                          `json:"hideName"`
-	MdnsProxyConfiguration              *MDNSFilteringConfiguration                   `json:"mdnsProxyConfiguration,omitempty"`
-	MulticastFilteringPolicy            *MulticastFilteringPolicy                     `json:"multicastFilteringPolicy,omitempty"`
-	MulticastToUnicastConversionEnabled bool                                          `json:"multicastToUnicastConversionEnabled"`
-	Name                                string                                        `json:"name"`
-	Network                             *WifiNetworkReference                         `json:"network,omitempty"`
-	SecurityConfiguration               WifiSecurityConfigurationDetailObject         `json:"securityConfiguration"`
-	Type                                string                                        `json:"type"`
+	BasicDataRateKbpsByFrequencyGHz *IntegrationWifiBasicDataRateConfigurationDto `json:"basicDataRateKbpsByFrequencyGHz,omitempty"`
+	BlackoutScheduleConfiguration   *IntegrationBlackoutScheduleConfiguration     `json:"blackoutScheduleConfiguration,omitempty"`
+	BroadcastingDeviceFilter        *BroadcastingDeviceFilter                     `json:"broadcastingDeviceFilter,omitempty"`
+
+	// Channel2gLockedTo6 Locks 2.4GHz radio channel to 6 on all broadcasting devices
+	Channel2gLockedTo6     bool                                     `json:"channel2gLockedTo6"`
+	ClientFilteringPolicy  *IntegrationWifiClientFilteringPolicyDto `json:"clientFilteringPolicy,omitempty"`
+	ClientIsolationEnabled bool                                     `json:"clientIsolationEnabled"`
+
+	// DtimPeriod2gLockedTo3 Locks DTIM period to 3 for 2.4GHz radio
+	DtimPeriod2gLockedTo3               bool                                  `json:"dtimPeriod2gLockedTo3"`
+	Enabled                             bool                                  `json:"enabled"`
+	HideName                            bool                                  `json:"hideName"`
+	MdnsProxyConfiguration              *MDNSFilteringConfiguration           `json:"mdnsProxyConfiguration,omitempty"`
+	MulticastFilteringPolicy            *MulticastFilteringPolicy             `json:"multicastFilteringPolicy,omitempty"`
+	MulticastToUnicastConversionEnabled bool                                  `json:"multicastToUnicastConversionEnabled"`
+	Name                                string                                `json:"name"`
+	Network                             *WifiNetworkReference                 `json:"network,omitempty"`
+	SecurityConfiguration               WifiSecurityConfigurationDetailObject `json:"securityConfiguration"`
+	Type                                string                                `json:"type"`
 
 	// UapsdEnabled Indicates whether Unscheduled Automatic Power Save Delivery (U-APSD) is enabled
 	UapsdEnabled bool `json:"uapsdEnabled"`
@@ -1794,22 +2025,28 @@ type WifiBroadcastCreateOrUpdate struct {
 
 // WifiBroadcastDetails defines model for Wifi broadcast details.
 type WifiBroadcastDetails struct {
-	BasicDataRateKbpsByFrequencyGHz     *IntegrationWifiBasicDataRateConfigurationDto `json:"basicDataRateKbpsByFrequencyGHz,omitempty"`
-	BlackoutScheduleConfiguration       *IntegrationBlackoutScheduleConfiguration     `json:"blackoutScheduleConfiguration,omitempty"`
-	BroadcastingDeviceFilter            *BroadcastingDeviceFilter                     `json:"broadcastingDeviceFilter,omitempty"`
-	ClientFilteringPolicy               *IntegrationWifiClientFilteringPolicyDto      `json:"clientFilteringPolicy,omitempty"`
-	ClientIsolationEnabled              bool                                          `json:"clientIsolationEnabled"`
-	Enabled                             bool                                          `json:"enabled"`
-	HideName                            bool                                          `json:"hideName"`
-	Id                                  openapi_types.UUID                            `json:"id"`
-	MdnsProxyConfiguration              *MDNSFilteringConfiguration                   `json:"mdnsProxyConfiguration,omitempty"`
-	Metadata                            UserOrDerivedOrOrchestratedEntityMetadata     `json:"metadata"`
-	MulticastFilteringPolicy            *MulticastFilteringPolicy                     `json:"multicastFilteringPolicy,omitempty"`
-	MulticastToUnicastConversionEnabled bool                                          `json:"multicastToUnicastConversionEnabled"`
-	Name                                string                                        `json:"name"`
-	Network                             *WifiNetworkReference                         `json:"network,omitempty"`
-	SecurityConfiguration               WifiSecurityConfigurationDetailObject         `json:"securityConfiguration"`
-	Type                                string                                        `json:"type"`
+	BasicDataRateKbpsByFrequencyGHz *IntegrationWifiBasicDataRateConfigurationDto `json:"basicDataRateKbpsByFrequencyGHz,omitempty"`
+	BlackoutScheduleConfiguration   *IntegrationBlackoutScheduleConfiguration     `json:"blackoutScheduleConfiguration,omitempty"`
+	BroadcastingDeviceFilter        *BroadcastingDeviceFilter                     `json:"broadcastingDeviceFilter,omitempty"`
+
+	// Channel2gLockedTo6 Locks 2.4GHz radio channel to 6 on all broadcasting devices
+	Channel2gLockedTo6     bool                                     `json:"channel2gLockedTo6"`
+	ClientFilteringPolicy  *IntegrationWifiClientFilteringPolicyDto `json:"clientFilteringPolicy,omitempty"`
+	ClientIsolationEnabled bool                                     `json:"clientIsolationEnabled"`
+
+	// DtimPeriod2gLockedTo3 Locks DTIM period to 3 for 2.4GHz radio
+	DtimPeriod2gLockedTo3               bool                                      `json:"dtimPeriod2gLockedTo3"`
+	Enabled                             bool                                      `json:"enabled"`
+	HideName                            bool                                      `json:"hideName"`
+	Id                                  openapi_types.UUID                        `json:"id"`
+	MdnsProxyConfiguration              *MDNSFilteringConfiguration               `json:"mdnsProxyConfiguration,omitempty"`
+	Metadata                            UserOrDerivedOrOrchestratedEntityMetadata `json:"metadata"`
+	MulticastFilteringPolicy            *MulticastFilteringPolicy                 `json:"multicastFilteringPolicy,omitempty"`
+	MulticastToUnicastConversionEnabled bool                                      `json:"multicastToUnicastConversionEnabled"`
+	Name                                string                                    `json:"name"`
+	Network                             *WifiNetworkReference                     `json:"network,omitempty"`
+	SecurityConfiguration               WifiSecurityConfigurationDetailObject     `json:"securityConfiguration"`
+	Type                                string                                    `json:"type"`
 
 	// UapsdEnabled Indicates whether Unscheduled Automatic Power Save Delivery (U-APSD) is enabled
 	UapsdEnabled bool `json:"uapsdEnabled"`
@@ -4622,7 +4859,7 @@ func NewGetDeviceTagPageRequest(server string, siteId openapi_types.UUID, params
 
 		if params.Filter != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "filter", *params.Filter, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "filter", *params.Filter, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "object", Format: ""}); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

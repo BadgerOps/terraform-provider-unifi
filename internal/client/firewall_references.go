@@ -17,9 +17,22 @@ type SwitchStackMember struct {
 	DeviceID string `json:"deviceId"`
 }
 
+// SwitchStackUnit is how UniFi Network 10.6+ describes a stack member. Older
+// controllers return SwitchStackMember entries under "members" instead.
+type SwitchStackUnit struct {
+	ID         int64   `json:"id"`
+	MacAddress string  `json:"macAddress"`
+	Role       *string `json:"role,omitempty"`
+	Order      *int64  `json:"order,omitempty"`
+}
+
+// LagMember identifies a member by DeviceID, or by UnitMacAddress for switch
+// stack LAGs on UniFi Network 10.6+.
 type LagMember struct {
-	DeviceID string  `json:"deviceId"`
-	PortIdxs []int64 `json:"portIdxs"`
+	DeviceID       string  `json:"deviceId,omitempty"`
+	UnitMacAddress string  `json:"unitMacAddress,omitempty"`
+	UnitID         *int64  `json:"unitId,omitempty"`
+	PortIdxs       []int64 `json:"portIdxs"`
 }
 
 type SwitchStackLag struct {
@@ -28,10 +41,16 @@ type SwitchStackLag struct {
 }
 
 type SwitchStack struct {
-	ID      string              `json:"id,omitempty"`
-	Name    string              `json:"name"`
-	Members []SwitchStackMember `json:"members"`
-	Lags    []SwitchStackLag    `json:"lags,omitempty"`
+	ID       string              `json:"id,omitempty"`
+	Name     string              `json:"name"`
+	DeviceID *string             `json:"deviceId,omitempty"`
+	Members  []SwitchStackMember `json:"members,omitempty"`
+	Units    []SwitchStackUnit   `json:"units,omitempty"`
+	Lags     []SwitchStackLag    `json:"lags,omitempty"`
+}
+
+type switchStackPage struct {
+	Data []SwitchStack `json:"data"`
 }
 
 type McLagPeer struct {
@@ -122,10 +141,14 @@ func (c *Client) ListSwitchStacks(ctx context.Context, siteID string) ([]SwitchS
 			return nil, err
 		}
 
-		batch, err := transcode[[]SwitchStack](page.Data)
+		// Decode the raw body rather than the generated page type: the
+		// generated DTO follows the newest snapshot and would drop the
+		// "members" field that controllers older than 10.6 still return.
+		rawPage, err := decodeBody[switchStackPage](response.Body)
 		if err != nil {
-			return nil, fmt.Errorf("translate switch stack page: %w", err)
+			return nil, fmt.Errorf("decode switch stack page: %w", err)
 		}
+		batch := rawPage.Data
 
 		stacks = append(stacks, batch...)
 		offset += len(batch)

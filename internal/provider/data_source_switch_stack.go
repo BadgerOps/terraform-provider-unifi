@@ -22,11 +22,13 @@ type switchStackDataSource struct {
 }
 
 type switchStackDataSourceModel struct {
-	ID              types.String `tfsdk:"id"`
-	SiteID          types.String `tfsdk:"site_id"`
-	Name            types.String `tfsdk:"name"`
-	MemberDeviceIDs types.Set    `tfsdk:"member_device_ids"`
-	LagIDs          types.Set    `tfsdk:"lag_ids"`
+	ID               types.String `tfsdk:"id"`
+	SiteID           types.String `tfsdk:"site_id"`
+	Name             types.String `tfsdk:"name"`
+	DeviceID         types.String `tfsdk:"device_id"`
+	MemberDeviceIDs  types.Set    `tfsdk:"member_device_ids"`
+	UnitMacAddresses types.Set    `tfsdk:"unit_mac_addresses"`
+	LagIDs           types.Set    `tfsdk:"lag_ids"`
 }
 
 func NewSwitchStackDataSource() datasource.DataSource {
@@ -52,9 +54,19 @@ func (d *switchStackDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 				Optional: true,
 				Computed: true,
 			},
+			"device_id": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "Device ID of the stack itself. Reported by UniFi Network `10.6` and newer; null on older controllers.",
+			},
 			"member_device_ids": schema.SetAttribute{
-				Computed:    true,
-				ElementType: types.StringType,
+				Computed:            true,
+				ElementType:         types.StringType,
+				MarkdownDescription: "Device IDs of the stack members. On UniFi Network `10.6` and newer the API reports stack units by MAC address, so these are resolved by matching `unit_mac_addresses` against the site's adopted devices.",
+			},
+			"unit_mac_addresses": schema.SetAttribute{
+				Computed:            true,
+				ElementType:         types.StringType,
+				MarkdownDescription: "MAC addresses of the stack units. Reported by UniFi Network `10.6` and newer; empty on older controllers.",
 			},
 			"lag_ids": schema.SetAttribute{
 				Computed:    true,
@@ -97,8 +109,22 @@ func (d *switchStackDataSource) Read(ctx context.Context, request datasource.Rea
 			state.ID = types.StringValue(stack.ID)
 			state.Name = types.StringValue(stack.Name)
 
+			state.DeviceID = nullableString(stack.DeviceID)
+
+			unitMacAddresses := flattenSwitchStackUnitMacAddresses(stack.Units)
+			memberDeviceIDs := flattenSwitchStackMemberDeviceIDs(stack.Members)
+			if len(memberDeviceIDs) == 0 && len(unitMacAddresses) > 0 {
+				memberDeviceIDs, err = d.clientProvider.client.ResolveDeviceIDsByMAC(ctx, state.SiteID.ValueString(), unitMacAddresses)
+				if err != nil {
+					response.Diagnostics.AddError("Unable to resolve UniFi switch stack units", err.Error())
+					return
+				}
+			}
+
 			var diagnostics diag.Diagnostics
-			state.MemberDeviceIDs, diagnostics = stringSetValue(ctx, flattenSwitchStackMemberDeviceIDs(stack.Members))
+			state.MemberDeviceIDs, diagnostics = stringSetValue(ctx, memberDeviceIDs)
+			response.Diagnostics.Append(diagnostics...)
+			state.UnitMacAddresses, diagnostics = stringSetValue(ctx, unitMacAddresses)
 			response.Diagnostics.Append(diagnostics...)
 			state.LagIDs, diagnostics = stringSetValue(ctx, flattenSwitchStackLagIDs(stack.Lags))
 			response.Diagnostics.Append(diagnostics...)
@@ -130,6 +156,15 @@ func matchesSwitchStackLookup(state switchStackDataSourceModel, stack client.Swi
 	default:
 		return false
 	}
+}
+
+func flattenSwitchStackUnitMacAddresses(units []client.SwitchStackUnit) []string {
+	macAddresses := make([]string, 0, len(units))
+	for _, unit := range units {
+		macAddresses = append(macAddresses, unit.MacAddress)
+	}
+
+	return macAddresses
 }
 
 func flattenSwitchStackMemberDeviceIDs(members []client.SwitchStackMember) []string {
