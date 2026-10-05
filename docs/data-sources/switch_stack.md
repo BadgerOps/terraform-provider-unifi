@@ -37,6 +37,8 @@ data "unifi_switch_stack" "core" {
 
 ### Read-Only
 
+- `device_id` (String) Device ID of the stack itself. Reported by UniFi Network `10.6` and newer; null on older controllers.
 - `id` (String) The ID of this resource.
 - `lag_ids` (Set of String)
-- `member_device_ids` (Set of String)
+- `member_device_ids` (Set of String) Device IDs of the stack members. On UniFi Network `10.6` and newer the API reports stack units by MAC address, so these are resolved by matching `unit_mac_addresses` against the site's adopted devices.
+- `unit_mac_addresses` (Set of String) MAC addresses of the stack units. Reported by UniFi Network `10.6` and newer; empty on older controllers.

@@ -8,6 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -43,6 +45,8 @@ type wifiBroadcastResourceModel struct {
 	ARPProxyEnabled                     types.Bool   `tfsdk:"arp_proxy_enabled"`
 	BandSteeringEnabled                 types.Bool   `tfsdk:"band_steering_enabled"`
 	BSSTransitionEnabled                types.Bool   `tfsdk:"bss_transition_enabled"`
+	Channel2GLockedTo6                  types.Bool   `tfsdk:"channel_2g_locked_to_6"`
+	DTIMPeriod2GLockedTo3               types.Bool   `tfsdk:"dtim_period_2g_locked_to_3"`
 	DNSAssistanceConfiguration          types.Object `tfsdk:"dns_assistance_configuration"`
 }
 
@@ -239,6 +243,22 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 			"bss_transition_enabled": schema.BoolAttribute{
 				Optional: true,
 			},
+			"channel_2g_locked_to_6": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Locks the 2.4 GHz radio channel to 6 on all broadcasting devices. Requires UniFi Network `10.6` or newer; older controllers do not report this field.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"dtim_period_2g_locked_to_3": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				MarkdownDescription: "Locks the DTIM period to 3 for the 2.4 GHz radio. Requires UniFi Network `10.6` or newer; older controllers do not report this field.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"dns_assistance_configuration": schema.SingleNestedAttribute{
 				Optional:            true,
 				MarkdownDescription: "DNS assistance configuration for `STANDARD` WiFi broadcasts. Supported modes: `AUTO`, `MANUAL`.",
@@ -355,6 +375,8 @@ func (r *wifiBroadcastResource) expandWifiBroadcast(ctx context.Context, plan wi
 		ARPProxyEnabled:                     boolPointerValue(plan.ARPProxyEnabled),
 		BandSteeringEnabled:                 boolPointerValue(plan.BandSteeringEnabled),
 		BSSTransitionEnabled:                boolPointerValue(plan.BSSTransitionEnabled),
+		Channel2GLockedTo6:                  boolPointerValue(plan.Channel2GLockedTo6),
+		DTIMPeriod2GLockedTo3:               boolPointerValue(plan.DTIMPeriod2GLockedTo3),
 	}
 
 	if err := validateWifiBroadcastModel(ctx, plan); err != nil {
@@ -584,6 +606,8 @@ func buildWifiBroadcastStateModel(ctx context.Context, siteID types.String, broa
 		ARPProxyEnabled:                     nullableBool(broadcast.ARPProxyEnabled),
 		BandSteeringEnabled:                 nullableBool(broadcast.BandSteeringEnabled),
 		BSSTransitionEnabled:                nullableBool(broadcast.BSSTransitionEnabled),
+		Channel2GLockedTo6:                  nullableBool(broadcast.Channel2GLockedTo6),
+		DTIMPeriod2GLockedTo3:               nullableBool(broadcast.DTIMPeriod2GLockedTo3),
 		DNSAssistanceConfiguration:          dnsAssistanceConfiguration,
 	}
 

@@ -89,7 +89,16 @@ func (d *lagDataSource) Read(ctx context.Context, request datasource.ReadRequest
 	state.Type = types.StringValue(lag.Type)
 	state.SwitchStackID = nullableString(lag.SwitchStackID)
 	state.McLagDomainID = nullableString(lag.McLagDomainID)
-	state.MemberDeviceIDs, diagnostics = stringSetValue(ctx, flattenLagMemberDeviceIDs(lag.Members))
+	memberDeviceIDs, unitMacAddresses := flattenLagMemberDeviceIDs(lag.Members)
+	if len(unitMacAddresses) > 0 {
+		resolvedDeviceIDs, err := d.clientProvider.client.ResolveDeviceIDsByMAC(ctx, state.SiteID.ValueString(), unitMacAddresses)
+		if err != nil {
+			response.Diagnostics.AddError("Unable to resolve UniFi LAG members", err.Error())
+			return
+		}
+		memberDeviceIDs = append(memberDeviceIDs, resolvedDeviceIDs...)
+	}
+	state.MemberDeviceIDs, diagnostics = stringSetValue(ctx, memberDeviceIDs)
 	response.Diagnostics.Append(diagnostics...)
 	if response.Diagnostics.HasError() {
 		return
@@ -98,11 +107,20 @@ func (d *lagDataSource) Read(ctx context.Context, request datasource.ReadRequest
 	response.Diagnostics.Append(response.State.Set(ctx, &state)...)
 }
 
-func flattenLagMemberDeviceIDs(members []client.LagMember) []string {
+// flattenLagMemberDeviceIDs returns the member device IDs the API reported
+// directly, plus the unit MAC addresses of members it identified only by MAC
+// (switch stack LAGs on UniFi Network 10.6+).
+func flattenLagMemberDeviceIDs(members []client.LagMember) ([]string, []string) {
 	deviceIDs := make([]string, 0, len(members))
+	var unitMacAddresses []string
 	for _, member := range members {
-		deviceIDs = append(deviceIDs, member.DeviceID)
+		switch {
+		case member.DeviceID != "":
+			deviceIDs = append(deviceIDs, member.DeviceID)
+		case member.UnitMacAddress != "":
+			unitMacAddresses = append(unitMacAddresses, member.UnitMacAddress)
+		}
 	}
 
-	return deviceIDs
+	return deviceIDs, unitMacAddresses
 }

@@ -61,6 +61,8 @@ type mockUniFiAPI struct {
 	existingSwitchStackID         string
 	existingMcLagDomainID         string
 	existingSwitchStackLagID      string
+	unitSwitchStackID             string
+	unitSwitchStackLagID          string
 	existingMcLagID               string
 	existingDHCPReservationMAC    string
 	existingAdoptedDeviceMAC      string
@@ -425,6 +427,48 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 	api.existingSwitchStackLagID = existingSwitchStackLag.ID
 	api.switchStacks[api.siteID][existingSwitchStack.ID] = existingSwitchStack
 	api.lags[api.siteID][existingSwitchStackLag.ID] = existingSwitchStackLag
+
+	// UniFi Network 10.6+ reports stack members as units keyed by MAC address
+	// and identifies switch stack LAG members by unit MAC address.
+	unitSwitchDevice := client.Device{
+		ID:         api.newID(),
+		Name:       "edge-switch-b",
+		Model:      "USW-Pro-24",
+		MacAddress: "AA:BB:CC:DD:EE:02",
+		IPAddress:  "10.0.0.11",
+		State:      "ONLINE",
+		Supported:  true,
+		Features:   []string{"switching"},
+		Interfaces: []string{"ports"},
+	}
+	api.devices[api.siteID][unitSwitchDevice.ID] = unitSwitchDevice
+
+	unitSwitchStackID := api.newID()
+	unitSwitchStackLag := client.Lag{
+		ID:            api.newID(),
+		Type:          "SWITCH_STACK",
+		SwitchStackID: stringPtr(unitSwitchStackID),
+		Members: []client.LagMember{
+			{UnitMacAddress: "aa:bb:cc:dd:ee:01", UnitID: int64Ptr(1), PortIdxs: []int64{3, 4}},
+			{UnitMacAddress: "aa:bb:cc:dd:ee:02", UnitID: int64Ptr(2), PortIdxs: []int64{3, 4}},
+		},
+	}
+	unitSwitchStack := client.SwitchStack{
+		ID:       unitSwitchStackID,
+		Name:     "edge-stack",
+		DeviceID: stringPtr(existingSwitchDevice.ID),
+		Units: []client.SwitchStackUnit{
+			{ID: 1, MacAddress: "aa:bb:cc:dd:ee:01", Role: stringPtr("ACTIVE_CONTROLLER")},
+			{ID: 2, MacAddress: "aa:bb:cc:dd:ee:02", Role: stringPtr("MEMBER")},
+		},
+		Lags: []client.SwitchStackLag{
+			{ID: unitSwitchStackLag.ID, Members: unitSwitchStackLag.Members},
+		},
+	}
+	api.unitSwitchStackID = unitSwitchStack.ID
+	api.unitSwitchStackLagID = unitSwitchStackLag.ID
+	api.switchStacks[api.siteID][unitSwitchStack.ID] = unitSwitchStack
+	api.lags[api.siteID][unitSwitchStackLag.ID] = unitSwitchStackLag
 
 	mcPeerTop := api.newID()
 	mcPeerBottom := api.newID()
@@ -1833,6 +1877,16 @@ data "unifi_lag" "existing" {
   site_id = data.unifi_site.main.id
   id      = "` + api.existingSwitchStackLagID + `"
 }
+
+data "unifi_switch_stack" "units" {
+  site_id = data.unifi_site.main.id
+  name    = "edge-stack"
+}
+
+data "unifi_lag" "units" {
+  site_id = data.unifi_site.main.id
+  id      = "` + api.unitSwitchStackLagID + `"
+}
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.unifi_site.main", "id", api.siteID),
@@ -1908,6 +1962,15 @@ data "unifi_lag" "existing" {
 					resource.TestCheckResourceAttr("data.unifi_lag.existing", "type", "SWITCH_STACK"),
 					resource.TestCheckResourceAttr("data.unifi_lag.existing", "member_device_ids.#", "2"),
 					resource.TestCheckResourceAttr("data.unifi_lag.existing", "switch_stack_id", api.existingSwitchStackID),
+					resource.TestCheckNoResourceAttr("data.unifi_switch_stack.existing", "device_id"),
+					resource.TestCheckResourceAttr("data.unifi_switch_stack.existing", "unit_mac_addresses.#", "0"),
+					resource.TestCheckResourceAttr("data.unifi_switch_stack.units", "id", api.unitSwitchStackID),
+					resource.TestCheckResourceAttr("data.unifi_switch_stack.units", "device_id", api.existingSwitchDeviceID),
+					resource.TestCheckResourceAttr("data.unifi_switch_stack.units", "unit_mac_addresses.#", "2"),
+					resource.TestCheckResourceAttr("data.unifi_switch_stack.units", "member_device_ids.#", "2"),
+					resource.TestCheckTypeSetElemAttr("data.unifi_switch_stack.units", "member_device_ids.*", api.existingSwitchDeviceID),
+					resource.TestCheckResourceAttr("data.unifi_lag.units", "member_device_ids.#", "2"),
+					resource.TestCheckTypeSetElemAttr("data.unifi_lag.units", "member_device_ids.*", api.existingSwitchDeviceID),
 				),
 			},
 		},
@@ -2945,6 +3008,8 @@ resource "unifi_wifi_broadcast" "test" {
 					resource.TestCheckResourceAttr(resourceName, "security_configuration.encryption", "ENHANCED_OPEN"),
 					resource.TestCheckResourceAttr(resourceName, "dns_assistance_configuration.mode", "MANUAL"),
 					resource.TestCheckResourceAttr(resourceName, "dns_assistance_configuration.servers.#", "2"),
+					resource.TestCheckNoResourceAttr(resourceName, "channel_2g_locked_to_6"),
+					resource.TestCheckNoResourceAttr(resourceName, "dtim_period_2g_locked_to_3"),
 					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.type", "DEVICE_TAGS"),
 					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.device_tag_ids.#", "1"),
 				),
@@ -2978,6 +3043,8 @@ resource "unifi_wifi_broadcast" "test" {
   arp_proxy_enabled                       = false
   band_steering_enabled                   = false
   bss_transition_enabled                  = true
+  channel_2g_locked_to_6                  = true
+  dtim_period_2g_locked_to_3              = false
 
   network = {
     type       = "SPECIFIC"
@@ -3004,6 +3071,8 @@ resource "unifi_wifi_broadcast" "test" {
 					resource.TestCheckResourceAttr(resourceName, "hide_name", "true"),
 					resource.TestCheckResourceAttr(resourceName, "security_configuration.encryption", "ENHANCED_OPEN_WITH_TRANSITION"),
 					resource.TestCheckResourceAttr(resourceName, "dns_assistance_configuration.mode", "AUTO"),
+					resource.TestCheckResourceAttr(resourceName, "channel_2g_locked_to_6", "true"),
+					resource.TestCheckResourceAttr(resourceName, "dtim_period_2g_locked_to_3", "false"),
 					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.type", "DEVICE_TAGS"),
 					resource.TestCheckResourceAttr(resourceName, "broadcasting_device_filter.device_tag_ids.#", "1"),
 				),

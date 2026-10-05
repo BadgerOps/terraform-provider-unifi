@@ -104,6 +104,8 @@ type WifiBroadcast struct {
 	ARPProxyEnabled                     *bool                           `json:"arpProxyEnabled,omitempty"`
 	BandSteeringEnabled                 *bool                           `json:"bandSteeringEnabled,omitempty"`
 	BSSTransitionEnabled                *bool                           `json:"bssTransitionEnabled,omitempty"`
+	Channel2GLockedTo6                  *bool                           `json:"channel2gLockedTo6,omitempty"`
+	DTIMPeriod2GLockedTo3               *bool                           `json:"dtimPeriod2gLockedTo3,omitempty"`
 	DNSAssistanceConfiguration          *WifiDNSAssistanceConfiguration `json:"dnsAssistanceConfiguration,omitempty"`
 	MDNSProxyConfiguration              map[string]any                  `json:"mdnsProxyConfiguration,omitempty"`
 	MulticastFilteringPolicy            map[string]any                  `json:"multicastFilteringPolicy,omitempty"`

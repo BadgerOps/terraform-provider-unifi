@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/badgerops/terraform-provider-unifi/internal/openapi/generated"
 )
@@ -59,4 +60,29 @@ func (c *Client) ListDevices(ctx context.Context, siteID string) ([]Device, erro
 	}
 
 	return devices, nil
+}
+
+// ResolveDeviceIDsByMAC maps adopted device MAC addresses to their device IDs.
+// MAC addresses without a matching adopted device are skipped.
+func (c *Client) ResolveDeviceIDsByMAC(ctx context.Context, siteID string, macAddresses []string) ([]string, error) {
+	if len(macAddresses) == 0 {
+		return nil, nil
+	}
+
+	devices, err := c.ListDevices(ctx, siteID)
+	if err != nil {
+		return nil, fmt.Errorf("list adopted devices: %w", err)
+	}
+
+	deviceIDs := make([]string, 0, len(macAddresses))
+	for _, macAddress := range macAddresses {
+		for _, device := range devices {
+			if strings.EqualFold(device.MacAddress, macAddress) {
+				deviceIDs = append(deviceIDs, device.ID)
+				break
+			}
+		}
+	}
+
+	return deviceIDs, nil
 }

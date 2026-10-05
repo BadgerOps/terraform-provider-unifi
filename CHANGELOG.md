@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.3.1] - 2026-10-04
+
+### Fixed
+
+- Fixed the weekly OpenAPI upstream check, which had failed on every run since 2026-08-03. It read the `stable` apt package index, which Ubiquiti left empty when that suite moved to the `10.5` line. The check now asks the Ubiquiti firmware API for the latest `unifi-native` release package and verifies the download against the published checksum.
+- The upstream check workflow now opens a tracking issue when the check itself fails, instead of only failing the scheduled run.
+- `data.unifi_switch_stack` keeps returning `member_device_ids` on controllers older than `10.6`. The client now decodes switch stack pages from the raw response, because the regenerated DTO no longer carries the `members` field those controllers return.
+
+### Changed
+
+- Refreshed the committed UniFi Network integration OpenAPI snapshot from `10.3.58` to `10.6.106` and regenerated the pinned `oapi-codegen` client. The `10.6.106` document adds no endpoints.
+- Added optional `channel_2g_locked_to_6` and `dtim_period_2g_locked_to_3` attributes to `unifi_wifi_broadcast` and its data source, for the WiFi broadcast fields that UniFi Network `10.6` introduced. They are only sent when set, so existing configurations and older controllers are unaffected.
+- `data.unifi_switch_stack` now exposes `device_id` and `unit_mac_addresses`. UniFi Network `10.6` reports stack members as units keyed by MAC address instead of device ID, so `member_device_ids` is resolved from the site's adopted devices on those controllers.
+- `data.unifi_lag` resolves `member_device_ids` for switch stack LAGs on UniFi Network `10.6`, which identifies those members by unit MAC address.
+- `scripts/check-openapi-upstream.sh` accepts `--save-spec PATH` to write the extracted `api-docs/integration.json`, and takes `--firmware-api-url`, `--product`, `--channel` and `--platform` in place of the removed apt options.
+
 ## [0.3.0] - 2026-10-04
 
 ### Security

@@ -4,24 +4,29 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MANIFEST_PATH="${ROOT_DIR}/internal/openapi/spec/manifest.json"
-REPO_BASE_URL="https://www.ui.com/downloads/unifi/debian"
-SUITE="stable"
-COMPONENT="ubiquiti"
-ARCH="amd64"
-PACKAGE_NAME="unifi"
+FIRMWARE_API_URL="https://fw-update.ubnt.com/api/firmware-latest"
+PRODUCT="unifi-native"
+CHANNEL="release"
+PLATFORM="uos-deb11-arm64"
+SAVE_SPEC_PATH=""
 
 usage() {
   cat <<'EOF'
-usage: check-openapi-upstream.sh [--manifest PATH] [--repo-base-url URL] [--suite NAME] [--component NAME] [--arch NAME] [--package-name NAME]
+usage: check-openapi-upstream.sh [--manifest PATH] [--firmware-api-url URL] [--product NAME] [--channel NAME] [--platform NAME] [--save-spec PATH]
 
-Checks the current stable UniFi package feed, downloads the latest package for the
-selected architecture, extracts api-docs/integration.json when the package ships it,
-and compares that document with the committed OpenAPI snapshot manifest.
+Asks the Ubiquiti firmware API for the latest UniFi Network package on the selected
+release channel, downloads it, extracts api-docs/integration.json when the package
+ships it, and compares that document with the committed OpenAPI snapshot manifest.
 
-When the package feed moves ahead before an OpenAPI document is published in the
-artifact, the package metadata is reported but no OpenAPI drift is raised. The
-provider is generated from the OpenAPI snapshot, not from the application package
-version alone.
+The firmware API replaced the apt Packages index as the source because the apt
+stable suite stopped listing packages when it moved to the 10.5 line.
+
+When the latest package does not ship an OpenAPI document, the package metadata is
+reported but no OpenAPI drift is raised. The provider is generated from the OpenAPI
+snapshot, not from the application package version alone.
+
+--save-spec copies the extracted api-docs/integration.json to PATH so the committed
+snapshot can be refreshed from the same artifact the check inspected.
 EOF
 }
 
@@ -31,24 +36,24 @@ while [[ $# -gt 0 ]]; do
       MANIFEST_PATH="$2"
       shift 2
       ;;
-    --repo-base-url)
-      REPO_BASE_URL="$2"
+    --firmware-api-url)
+      FIRMWARE_API_URL="$2"
       shift 2
       ;;
-    --suite)
-      SUITE="$2"
+    --product)
+      PRODUCT="$2"
       shift 2
       ;;
-    --component)
-      COMPONENT="$2"
+    --channel)
+      CHANNEL="$2"
       shift 2
       ;;
-    --arch)
-      ARCH="$2"
+    --platform)
+      PLATFORM="$2"
       shift 2
       ;;
-    --package-name)
-      PACKAGE_NAME="$2"
+    --save-spec)
+      SAVE_SPEC_PATH="$2"
       shift 2
       ;;
     -h|--help)
@@ -68,7 +73,7 @@ if [[ ! -f "${MANIFEST_PATH}" ]]; then
   exit 1
 fi
 
-required_tools=(curl gzip python3 sha256sum find mktemp tar)
+required_tools=(curl python3 sha256sum find mktemp tar)
 for tool in "${required_tools[@]}"; do
   if ! command -v "${tool}" >/dev/null 2>&1; then
     echo "required tool not found: ${tool}" >&2
@@ -130,7 +135,7 @@ extract_deb() {
   esac
 }
 
-packages_url="${REPO_BASE_URL}/dists/${SUITE}/${COMPONENT}/binary-${ARCH}/Packages.gz"
+packages_url="${FIRMWARE_API_URL}?filter=eq~~product~~${PRODUCT}&filter=eq~~channel~~${CHANNEL}"
 
 cache_root="${ROOT_DIR}/.cache/openapi-upstream-check"
 mkdir -p "${cache_root}"
@@ -160,54 +165,52 @@ current_openapi_version="${manifest_fields[1]}"
 current_source_package_version="${manifest_fields[2]}"
 current_snapshot_sha256="${manifest_fields[3]}"
 
-packages_gz_file="${work_dir}/Packages.gz"
-packages_file="${work_dir}/Packages"
-curl -fsSL -o "${packages_gz_file}" "${packages_url}"
-gzip -dc "${packages_gz_file}" > "${packages_file}"
+firmware_index_file="${work_dir}/firmware-latest.json"
+curl -fsSL -o "${firmware_index_file}" "${packages_url}"
 
 package_fields_output="$(
-  python3 - "${packages_file}" "${PACKAGE_NAME}" <<'PY'
+  python3 - "${firmware_index_file}" "${PLATFORM}" <<'PY'
+import json
 import sys
 
-packages_path = sys.argv[1]
-package_name = sys.argv[2]
+index_path = sys.argv[1]
+platform = sys.argv[2]
 
-with open(packages_path, "r", encoding="utf-8") as fh:
-    content = fh.read()
+with open(index_path, "r", encoding="utf-8") as fh:
+    index = json.load(fh)
 
-for stanza in content.split("\n\n"):
-    fields = {}
-    for line in stanza.splitlines():
-        if not line or line.startswith(" "):
-            continue
-        key, sep, value = line.partition(":")
-        if not sep:
-            continue
-        fields[key] = value.strip()
-    if fields.get("Package") == package_name:
-        print(fields.get("Version", ""))
-        print(fields.get("Filename", ""))
-        print(fields.get("SHA256", ""))
+entries = index.get("_embedded", {}).get("firmware", [])
+for entry in entries:
+    if entry.get("platform") == platform:
+        print(entry.get("version", "").removeprefix("v"))
+        print(entry.get("_links", {}).get("data", {}).get("href", ""))
+        print(entry.get("sha256_checksum", ""))
         break
 else:
-    raise SystemExit(f"package not found in Packages index: {package_name}")
+    platforms = ", ".join(sorted({entry.get("platform", "") for entry in entries})) or "none"
+    raise SystemExit(f"platform not found in firmware index: {platform} (available: {platforms})")
 PY
 )"
 
 mapfile -t package_fields <<< "${package_fields_output}"
 
 latest_package_version="${package_fields[0]}"
-latest_package_filename="${package_fields[1]}"
+package_url="${package_fields[1]}"
 latest_package_sha256="${package_fields[2]}"
 
-if [[ -z "${latest_package_version}" || -z "${latest_package_filename}" ]]; then
-  echo "unable to resolve package metadata for ${PACKAGE_NAME}" >&2
+if [[ -z "${latest_package_version}" || -z "${package_url}" || -z "${latest_package_sha256}" ]]; then
+  echo "unable to resolve package metadata for ${PRODUCT} on ${PLATFORM}" >&2
   exit 1
 fi
 
-package_url="${REPO_BASE_URL}/${latest_package_filename}"
-package_file="${work_dir}/${PACKAGE_NAME}.deb"
+package_file="${work_dir}/${PRODUCT}.deb"
 curl -fsSL -o "${package_file}" "${package_url}"
+
+downloaded_package_sha256="$(sha256sum "${package_file}" | awk '{print $1}')"
+if [[ "${downloaded_package_sha256}" != "${latest_package_sha256}" ]]; then
+  echo "package checksum mismatch for ${package_url}: expected ${latest_package_sha256}, got ${downloaded_package_sha256}" >&2
+  exit 1
+fi
 
 extract_dir="${work_dir}/extract"
 mkdir -p "${extract_dir}"
@@ -238,6 +241,13 @@ PY
   latest_api_version="${spec_fields[0]}"
   latest_openapi_version="${spec_fields[1]}"
   snapshot_source="packaged-api-docs"
+
+  if [[ -n "${SAVE_SPEC_PATH}" ]]; then
+    cp "${integration_path}" "${SAVE_SPEC_PATH}"
+  fi
+elif [[ -n "${SAVE_SPEC_PATH}" ]]; then
+  echo "package ${latest_package_version} does not ship api-docs/integration.json; nothing to save" >&2
+  exit 1
 fi
 
 changed_fields=()

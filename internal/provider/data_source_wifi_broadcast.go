@@ -138,6 +138,14 @@ func (d *wifiBroadcastDataSource) Schema(_ context.Context, _ datasource.SchemaR
 			"bss_transition_enabled": schema.BoolAttribute{
 				Computed: true,
 			},
+			"channel_2g_locked_to_6": schema.BoolAttribute{
+				Computed:            true,
+				MarkdownDescription: "Whether the 2.4 GHz radio channel is locked to 6 on all broadcasting devices. Null on controllers older than UniFi Network `10.6`.",
+			},
+			"dtim_period_2g_locked_to_3": schema.BoolAttribute{
+				Computed:            true,
+				MarkdownDescription: "Whether the DTIM period is locked to 3 for the 2.4 GHz radio. Null on controllers older than UniFi Network `10.6`.",
+			},
 			"dns_assistance_configuration": schema.SingleNestedAttribute{
 				Computed: true,
 				Attributes: map[string]schema.Attribute{

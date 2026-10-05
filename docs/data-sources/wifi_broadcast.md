@@ -43,8 +43,10 @@ data "unifi_wifi_broadcast" "staff" {
 - `broadcasting_device_filter` (Attributes) (see [below for nested schema](#nestedatt--broadcasting_device_filter))
 - `broadcasting_frequencies_ghz` (Set of Number)
 - `bss_transition_enabled` (Boolean)
+- `channel_2g_locked_to_6` (Boolean) Whether the 2.4 GHz radio channel is locked to 6 on all broadcasting devices. Null on controllers older than UniFi Network `10.6`.
 - `client_isolation_enabled` (Boolean)
 - `dns_assistance_configuration` (Attributes) (see [below for nested schema](#nestedatt--dns_assistance_configuration))
+- `dtim_period_2g_locked_to_3` (Boolean) Whether the DTIM period is locked to 3 for the 2.4 GHz radio. Null on controllers older than UniFi Network `10.6`.
 - `enabled` (Boolean)
 - `hide_name` (Boolean)
 - `id` (String) The ID of this resource.

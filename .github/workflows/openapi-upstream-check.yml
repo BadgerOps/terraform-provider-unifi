@@ -29,7 +29,7 @@ jobs:
           title="OpenAPI snapshot update available: UniFi Network ${{ steps.check.outputs.latest_api_version }}"
           body_file="$(mktemp)"
           cat > "${body_file}" <<EOF
-          The weekly upstream check found a newer UniFi Network package version than the snapshot currently committed in this repository.
+          The weekly upstream check found a newer UniFi Network OpenAPI document than the snapshot currently committed in this repository.
 
           Current committed snapshot:
           - API version: \`${{ steps.check.outputs.current_api_version }}\`
@@ -48,11 +48,11 @@ jobs:
           Changed fields: \`${{ steps.check.outputs.comparison_fields }}\`
 
           Upstream sources:
-          - Packages index: ${{ steps.check.outputs.packages_url }}
+          - Firmware index: ${{ steps.check.outputs.packages_url }}
           - Package URL: ${{ steps.check.outputs.package_url }}
 
           Suggested next steps:
-          1. Pull the matching upstream OpenAPI document for the new Network release and refresh \`internal/openapi/spec/integration.json\`.
+          1. Run \`./scripts/check-openapi-upstream.sh --save-spec internal/openapi/spec/integration.json\` to refresh the snapshot from the same package.
           2. Update \`internal/openapi/spec/manifest.json\` with the new upstream metadata and snapshot checksum.
           3. Run \`make openapi-generate\`, \`make test\`, and \`make docs-check\`.
           4. Cut a follow-up provider release if the refreshed snapshot changes supported resources or fields.
@@ -99,3 +99,40 @@ jobs:
               --repo "${GITHUB_REPOSITORY}" \
               --comment "Closed automatically: the weekly upstream OpenAPI check now matches the committed snapshot."
           done
+
+      - name: Open or update check failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="OpenAPI upstream check is failing"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body_file="$(mktemp)"
+          cat > "${body_file}" <<EOF
+          The weekly upstream OpenAPI check could not complete, so snapshot drift is not being detected.
+
+          Latest failing run: ${run_url}
+
+          Run \`make openapi-check-upstream\` locally to reproduce. A common cause is Ubiquiti changing where UniFi Network packages are published.
+          EOF
+
+          issue_number="$(
+            gh issue list \
+              --repo "${GITHUB_REPOSITORY}" \
+              --state open \
+              --search "${title} in:title" \
+              --json number,title \
+              --jq ".[] | select(.title == \"${title}\") | .number" \
+              | head -n1
+          )"
+
+          if [[ -n "${issue_number}" ]]; then
+            gh issue comment "${issue_number}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --body "Still failing: ${run_url}"
+          else
+            gh issue create \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${title}" \
+              --body-file "${body_file}"
+          fi
