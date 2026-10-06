@@ -36,6 +36,7 @@ This repository is the source for the `badgerops/unifi` Terraform provider. It i
   - `unifi_firewall_policy`
   - `unifi_firewall_policy_ordering`
   - `unifi_dhcp_reservation`
+  - `unifi_port_forward`
   - `unifi_traffic_matching_list`
   - `unifi_dns_policy`
   - `unifi_acl_rule`
@@ -43,7 +44,7 @@ This repository is the source for the `badgerops/unifi` Terraform provider. It i
 
 The implementation focuses on the common documented fields for those resources and keeps translation logic explicit rather than exposing raw JSON passthrough. Firewall policy ordering and ACL rule ordering are managed through dedicated resources because the controller exposes separate ordering endpoints and treats the per-object `index` as read-only state. `unifi_radius_profile`, `unifi_device_tag`, `unifi_wan`, `unifi_switch_stack`, `unifi_mc_lag_domain`, and `unifi_lag` are data sources because the current shipped integration API only exposes read-only endpoints for them.
 
-`unifi_dhcp_reservation` is the current exception to the integration-only model. UniFi Network `10.6.106` still does not expose DHCP reservation writes in the committed integration OpenAPI snapshot, so the provider uses the legacy local Network client database endpoint for that resource only. When the target MAC belongs to an adopted UniFi device, the provider now bootstraps the missing configured-client record before applying the reservation.
+`unifi_dhcp_reservation` and `unifi_port_forward` are exceptions to the integration-only model. UniFi Network `10.6.106` does not expose DHCP reservation writes or port forwarding in the committed integration OpenAPI snapshot, so these resources use the legacy local Network API. For DHCP reservations on adopted UniFi devices, the provider bootstraps the missing configured-client record before applying the reservation. Port forwarding also has a data source for lookup by legacy rule ID or unique name. See the [port forwarding example](examples/resources/unifi_port_forward/resource.tf).
 
 ## Firewall Prerequisite
 
@@ -127,7 +128,7 @@ terraform {
   required_providers {
     unifi = {
       source = "badgerops/unifi"
-      version = "0.3.1"
+      version = "0.4.0"
     }
   }
 }
@@ -156,7 +157,7 @@ provider_installation {
 Then build the binary in the repo root:
 
 ```bash
-go build -o terraform-provider-unifi_v0.3.1 .
+go build -o terraform-provider-unifi_v0.4.0 .
 ```
 
 ## Filesystem Mirror Installs
@@ -256,8 +257,8 @@ make sync-version
 make check-version-drift
 make docs-generate
 make docs-check
-make release-artifacts VERSION=0.3.1
-make sign-release-artifacts VERSION=0.3.1
+make release-artifacts VERSION=0.4.0
+make sign-release-artifacts VERSION=0.4.0
 make terraform-fmt-check
 make openapi-generate
 make testacc
@@ -307,6 +308,8 @@ Optional environment variables:
 - `UNIFI_TEST_ENABLE_ZONE_FIREWALL`
 
 Use a dedicated disposable UniFi site for these tests. The live suite creates and destroys real resources.
+
+To verify legacy port-forward writes separately, set `UNIFI_TEST_PORT_FORWARD_IP` to an internal IPv4 address on that disposable site and run `TF_ACC=1 go test ./internal/provider -run '^TestAccLiveResourcePortForward$' -v`. This test creates disabled rules, exercises single ports, ranges, comma lists, update, data-source lookup, import, and destroy. Mock tests alone do not verify controller write semantics.
 
 Live test behavior:
 

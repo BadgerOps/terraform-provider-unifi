@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	frameworkpath "github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -227,4 +228,23 @@ func nullableInt64(value *int64) types.Int64 {
 		return types.Int64Null()
 	}
 	return types.Int64Value(*value)
+}
+
+// stringOneOf validates a fixed set of accepted string values.
+type stringOneOf []string
+
+func (v stringOneOf) Description(context.Context) string {
+	return "Must be one of: " + strings.Join(v, ", ")
+}
+func (v stringOneOf) MarkdownDescription(ctx context.Context) string { return v.Description(ctx) }
+func (v stringOneOf) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	for _, value := range v {
+		if req.ConfigValue.ValueString() == value {
+			return
+		}
+	}
+	resp.Diagnostics.AddAttributeError(req.Path, "Invalid string value", fmt.Sprintf("%s; got %q.", v.Description(ctx), req.ConfigValue.ValueString()))
 }

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.4.0] - 2026-10-06
+
+### Added
+
+- Added `unifi_port_forward` and `data.unifi_port_forward` for WAN port forwarding rules, using the legacy UniFi Network `rest/portforward` endpoint because the integration API does not expose port forwarding. Rules support create, read, update, delete, and `<site_id>/<id>` import; the data source selects by legacy ID or unique name. Port attributes are strings so single ports, ranges, and comma-separated lists round-trip without normalisation.
+- `source` restricts a rule to an IPv4 address or CIDR prefix, or `any`. It reads back as `any` when source limiting is disabled on the controller, so a restriction switched off outside Terraform shows as a diff and is restored on apply.
+- `source`, `destination_port`, `forward_port`, and `forward_ip` are validated at plan time.
+
+### Changed
+
+- Port forward updates send the complete controller object with only the modelled fields overlaid, so destination IP filters, source firewall groups, and fields the provider does not expose survive the legacy API's full-replace `PUT`. Setting a specific `source` on a rule that uses a source firewall group is rejected, because the controller treats the two as mutually exclusive.
+- The legacy API helper shared with `unifi_dhcp_reservation` now reads the `meta` envelope on every response, so a failure reported with HTTP `200` is an error rather than a success, and `api.err.IdInvalid` and `api.err.NotFound` are treated as not found so deleting a rule that was already removed on the controller succeeds.
+- Client error diagnostics include the controller response body when it carries more detail than the code and message, so legacy validation errors name the rejected field.
+
 ## [0.3.1] - 2026-10-04
 
 ### Fixed
