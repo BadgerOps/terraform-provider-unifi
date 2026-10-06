@@ -90,6 +90,7 @@ type mockUniFiAPI struct {
 	mcLagDomains             map[string]map[string]client.McLagDomain
 	lags                     map[string]map[string]client.Lag
 	dhcpReservations         map[string]map[string]client.DHCPReservation
+	portForwards             map[string]map[string]any
 }
 
 func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
@@ -120,6 +121,7 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 		mcLagDomains:             make(map[string]map[string]client.McLagDomain),
 		lags:                     make(map[string]map[string]client.Lag),
 		dhcpReservations:         make(map[string]map[string]client.DHCPReservation),
+		portForwards:             make(map[string]map[string]any),
 	}
 
 	api.siteID = api.newID()
@@ -832,6 +834,10 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 
 func (api *mockUniFiAPI) handleLegacyHTTP(writer http.ResponseWriter, request *http.Request) {
 	segments := strings.Split(strings.Trim(strings.TrimPrefix(request.URL.Path, "/proxy/network/api"), "/"), "/")
+	if len(segments) >= 4 && segments[0] == "s" && segments[2] == "rest" && segments[3] == "portforward" {
+		api.handlePortForwards(writer, request, segments)
+		return
+	}
 	if len(segments) != 4 || segments[0] != "s" || segments[2] != "rest" || segments[3] != "user" {
 		if len(segments) == 5 && segments[0] == "s" && segments[2] == "rest" && segments[3] == "user" {
 			api.handleDHCPReservation(writer, request, segments[1], segments[4])

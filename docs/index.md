@@ -11,7 +11,7 @@ The `badgerops/unifi` provider manages UniFi Network configuration primarily thr
 
 Use it when you want Terraform to manage declarative site configuration such as networks, WiFi broadcasts, firewall policy, DNS policy, traffic matching lists, and ACL rules. It is designed for configuration state, not day-2 controller operations such as device adoption, client telemetry, or controller analytics.
 
-This provider follows the committed UniFi OpenAPI snapshot and focuses on the parts of the current integration API that make sense for Terraform-managed configuration. The current exception is `unifi_dhcp_reservation`, which uses the legacy local Network client database endpoint because UniFi Network `10.6.106` still does not expose DHCP reservation writes in the committed integration OpenAPI snapshot.
+This provider follows the committed UniFi OpenAPI snapshot and focuses on the parts of the current integration API that make sense for Terraform-managed configuration. The exceptions are `unifi_dhcp_reservation` and `unifi_port_forward`, which use the legacy local Network API because UniFi Network `10.6.106` does not expose DHCP reservation writes or port forwarding in the committed integration OpenAPI snapshot.
 
 ## Requirements
 
@@ -31,6 +31,7 @@ Managed resources include:
 - [`unifi_firewall_policy`](./resources/firewall_policy.md)
 - [`unifi_firewall_policy_ordering`](./resources/firewall_policy_ordering.md)
 - [`unifi_dhcp_reservation`](./resources/dhcp_reservation.md)
+- [`unifi_port_forward`](./resources/port_forward.md)
 - [`unifi_traffic_matching_list`](./resources/traffic_matching_list.md)
 - [`unifi_dns_policy`](./resources/dns_policy.md)
 - [`unifi_acl_rule`](./resources/acl_rule.md)
@@ -39,6 +40,7 @@ Managed resources include:
 Read-only data sources include:
 
 - [`unifi_site`](./data-sources/site.md)
+- [`unifi_port_forward`](./data-sources/port_forward.md)
 - [`unifi_device`](./data-sources/device.md)
 - [`unifi_network`](./data-sources/network.md)
 - [`unifi_wifi_broadcast`](./data-sources/wifi_broadcast.md)
