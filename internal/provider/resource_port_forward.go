@@ -2,7 +2,10 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
+	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -48,7 +51,7 @@ func (r *portForwardResource) Metadata(_ context.Context, req resource.MetadataR
 
 func (r *portForwardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with `<site_id>/<id>`, where `id` is the legacy rule `_id`. Updates preserve controller fields that are not exposed by this resource, including destination IP filters and source firewall groups. Existing source-group restrictions remain active when changing modelled settings. Configure IP or CIDR restrictions using `source`.",
+		MarkdownDescription: "Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with `<site_id>/<id>`, where `id` is the legacy rule `_id`. Updates preserve controller fields that are not exposed by this resource, including destination IP filters and source firewall groups. Existing source-group restrictions remain active when changing modelled settings, but setting a specific `source` on a rule that uses a source firewall group is rejected because the controller treats them as mutually exclusive; keep `source = \"any\"` or remove the group on the controller first.",
 		Attributes: map[string]schema.Attribute{
 			"id":               schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, MarkdownDescription: "Legacy port forwarding rule ID (`_id`)."},
 			"site_id":          schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}, MarkdownDescription: "Integration site UUID. Changing the site replaces the rule."},
@@ -56,10 +59,10 @@ func (r *portForwardResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"enabled":          schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), MarkdownDescription: "Whether the rule is enabled. Defaults to `true`."},
 			"wan_interface":    schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("wan"), Validators: []validator.String{stringOneOf{"wan", "wan2", "both"}}, MarkdownDescription: "WAN interface: `wan`, `wan2`, or `both`. Defaults to `wan`."},
 			"protocol":         schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("tcp_udp"), Validators: []validator.String{stringOneOf{"tcp", "udp", "tcp_udp"}}, MarkdownDescription: "Protocol: `tcp`, `udp`, or `tcp_udp`. Defaults to `tcp_udp`."},
-			"source":           schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("any"), Validators: []validator.String{portForwardSourceValidator{}}, MarkdownDescription: "Allowed source IP, CIDR, or `any`. Defaults to `any`; a specific source enables source limiting."},
-			"destination_port": schema.StringAttribute{Required: true, MarkdownDescription: "WAN destination port, range, or comma-separated list. Kept as a string, for example `3074`, `3000-3010`, or `80,443`."},
-			"forward_ip":       schema.StringAttribute{Required: true, MarkdownDescription: "Internal IPv4 address to forward traffic to."},
-			"forward_port":     schema.StringAttribute{Required: true, MarkdownDescription: "Internal destination port, range, or comma-separated list, expressed as a string."},
+			"source":           schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("any"), Validators: []validator.String{portForwardSourceValidator{}}, MarkdownDescription: "Allowed source IPv4 address, CIDR prefix, or `any`. Defaults to `any`; a specific source enables source limiting. Reads back as `any` when source limiting is disabled on the controller, so a restriction switched off outside Terraform shows as a diff and is restored on apply."},
+			"destination_port": schema.StringAttribute{Required: true, Validators: []validator.String{portForwardPortsValidator{}}, MarkdownDescription: "WAN destination port, range, or comma-separated list. Kept as a string, for example `3074`, `3000-3010`, or `80,443`."},
+			"forward_ip":       schema.StringAttribute{Required: true, Validators: []validator.String{ipv4AddressValidator{}}, MarkdownDescription: "Internal IPv4 address to forward traffic to."},
+			"forward_port":     schema.StringAttribute{Required: true, Validators: []validator.String{portForwardPortsValidator{}}, MarkdownDescription: "Internal destination port, range, or comma-separated list, expressed as a string."},
 			"logging_enabled":  schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false), MarkdownDescription: "Whether to log traffic matching the rule. Defaults to `false`."},
 		},
 	}
@@ -68,7 +71,7 @@ func (r *portForwardResource) Schema(_ context.Context, _ resource.SchemaRequest
 type portForwardSourceValidator struct{}
 
 func (portForwardSourceValidator) Description(context.Context) string {
-	return "Must be the literal any, an IP address, or a CIDR prefix."
+	return "Must be the literal any, an IPv4 address, or an IPv4 CIDR prefix with no host bits set."
 }
 func (v portForwardSourceValidator) MarkdownDescription(ctx context.Context) string {
 	return v.Description(ctx)
@@ -81,13 +84,76 @@ func (v portForwardSourceValidator) ValidateString(ctx context.Context, req vali
 	if value == "any" {
 		return
 	}
-	if address, err := netip.ParseAddr(value); err == nil && address.Zone() == "" {
+	// The legacy port-forward src field is IPv4 only, and the controller
+	// normalises unmasked prefixes, which would surface as a perpetual diff.
+	if address, err := netip.ParseAddr(value); err == nil && address.Is4() {
 		return
 	}
-	if _, err := netip.ParsePrefix(value); err == nil {
+	if prefix, err := netip.ParsePrefix(value); err == nil && prefix.Addr().Is4() && prefix == prefix.Masked() {
 		return
 	}
 	resp.Diagnostics.AddAttributeError(req.Path, "Invalid source", v.Description(ctx))
+}
+
+// portForwardPortsValidator accepts the controller's port syntax: a single
+// port, an ascending range, or a comma-separated list of either.
+type portForwardPortsValidator struct{}
+
+func (portForwardPortsValidator) Description(context.Context) string {
+	return "Must be a port (1-65535), an ascending range such as 3000-3010, or a comma-separated list of ports and ranges without spaces."
+}
+func (v portForwardPortsValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+func (v portForwardPortsValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	for _, item := range strings.Split(req.ConfigValue.ValueString(), ",") {
+		if !validPortOrRange(item) {
+			resp.Diagnostics.AddAttributeError(req.Path, "Invalid "+req.Path.String(), fmt.Sprintf("%s; got %q.", v.Description(ctx), req.ConfigValue.ValueString()))
+			return
+		}
+	}
+}
+
+func validPortOrRange(item string) bool {
+	low, high, isRange := strings.Cut(item, "-")
+	start, ok := parsePort(low)
+	if !ok {
+		return false
+	}
+	if !isRange {
+		return true
+	}
+	end, ok := parsePort(high)
+	return ok && start < end
+}
+
+func parsePort(value string) (int, bool) {
+	port, err := strconv.Atoi(value)
+	if err != nil || port < 1 || port > 65535 || strconv.Itoa(port) != value {
+		return 0, false
+	}
+	return port, true
+}
+
+// ipv4AddressValidator accepts a single IPv4 address with no prefix or zone.
+type ipv4AddressValidator struct{}
+
+func (ipv4AddressValidator) Description(context.Context) string {
+	return "Must be an IPv4 address."
+}
+func (v ipv4AddressValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+func (v ipv4AddressValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if address, err := netip.ParseAddr(req.ConfigValue.ValueString()); err != nil || !address.Is4() {
+		resp.Diagnostics.AddAttributeError(req.Path, "Invalid "+req.Path.String(), fmt.Sprintf("%s; got %q.", v.Description(ctx), req.ConfigValue.ValueString()))
+	}
 }
 
 func (r *portForwardResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -161,7 +227,13 @@ func expandPortForward(model portForwardModel) client.PortForward {
 }
 
 func flattenPortForward(siteID types.String, rule *client.PortForward) portForwardModel {
-	return portForwardModel{ID: types.StringValue(rule.ID), SiteID: siteID, Name: types.StringValue(rule.Name), Enabled: types.BoolValue(rule.Enabled), WANInterface: types.StringValue(rule.WANInterface), Protocol: types.StringValue(rule.Protocol), Source: types.StringValue(rule.Source), DestinationPort: types.StringValue(rule.DestinationPort), ForwardIP: types.StringValue(rule.ForwardIP), ForwardPort: types.StringValue(rule.ForwardPort), LoggingEnabled: types.BoolValue(rule.LoggingEnabled)}
+	// The controller only enforces src while src_limiting_enabled is set. Report
+	// an open rule as "any" so a restriction disabled outside Terraform is a diff.
+	source := rule.Source
+	if !rule.SourceLimitingEnabled || source == "" {
+		source = "any"
+	}
+	return portForwardModel{ID: types.StringValue(rule.ID), SiteID: siteID, Name: types.StringValue(rule.Name), Enabled: types.BoolValue(rule.Enabled), WANInterface: types.StringValue(rule.WANInterface), Protocol: types.StringValue(rule.Protocol), Source: types.StringValue(source), DestinationPort: types.StringValue(rule.DestinationPort), ForwardIP: types.StringValue(rule.ForwardIP), ForwardPort: types.StringValue(rule.ForwardPort), LoggingEnabled: types.BoolValue(rule.LoggingEnabled)}
 }
 
 func writePortForwardState(ctx context.Context, state *tfsdk.State, diags *diag.Diagnostics, siteID types.String, rule *client.PortForward) {

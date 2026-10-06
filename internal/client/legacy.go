@@ -104,17 +104,17 @@ func (c *Client) doLegacyRequestWithExpectedStatus(
 	if err := requireStatus(response.StatusCode, body, expectedStatusCodes...); err != nil {
 		return err
 	}
-	if len(body) == 0 {
-		if target != nil {
-			return fmt.Errorf("empty legacy response body")
-		}
+	// Callers that ignore the response (PUT/DELETE acknowledgements) must not
+	// fail on an empty or non-JSON 2xx body; the status and envelope checks above
+	// already caught reported failures.
+	if target == nil {
 		return nil
+	}
+	if len(body) == 0 {
+		return fmt.Errorf("empty legacy response body")
 	}
 	if decodeErr != nil {
 		return fmt.Errorf("decode legacy response envelope: %w", decodeErr)
-	}
-	if target == nil {
-		return nil
 	}
 
 	if err := json.Unmarshal(body, target); err != nil {

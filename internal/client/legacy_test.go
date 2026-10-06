@@ -50,3 +50,23 @@ func TestDHCPReservationEmptyLegacyList(t *testing.T) {
 		})
 	}
 }
+
+func TestLegacyErrorIncludesValidationDetail(t *testing.T) {
+	body := `{"meta":{"rc":"error","msg":"api.err.InvalidPayload","validationError":{"field":"dst_port","pattern":"port"}}}`
+	c := portForwardTestClient(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(400); _, _ = fmt.Fprint(w, body) })
+	err := c.DeletePortForward(context.Background(), "11111111-1111-1111-1111-111111111111", "rule-id")
+	if err == nil || !strings.Contains(err.Error(), "api.err.InvalidPayload") || !strings.Contains(err.Error(), `"field":"dst_port"`) {
+		t.Fatalf("validation detail missing from diagnostic: %v", err)
+	}
+}
+
+func TestLegacyWriteToleratesNonJSONBody(t *testing.T) {
+	for _, body := range []string{"OK", "<html>ok</html>"} {
+		t.Run(body, func(t *testing.T) {
+			c := portForwardTestClient(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = fmt.Fprint(w, body) })
+			if err := c.DeletePortForward(context.Background(), "11111111-1111-1111-1111-111111111111", "rule-id"); err != nil {
+				t.Fatalf("2xx write with a non-JSON body must succeed when no data is expected: %v", err)
+			}
+		})
+	}
+}

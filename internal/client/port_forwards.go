@@ -17,7 +17,7 @@ type PortForward struct {
 	Protocol              string `json:"proto"`
 	Source                string `json:"src"`
 	SourceLimitingEnabled bool   `json:"src_limiting_enabled"`
-	SourceFirewallGroupID string `json:"src_firewall_group_id,omitempty"`
+	SourceFirewallGroupID string `json:"src_firewall_group_id"`
 	DestinationPort       string `json:"dst_port"`
 	ForwardIP             string `json:"fwd"`
 	ForwardPort           string `json:"fwd_port"`
@@ -88,13 +88,13 @@ func (c *Client) CreatePortForward(ctx context.Context, siteID string, rule Port
 		return nil, fmt.Errorf("create port forward site: %w", err)
 	}
 	rule.ID = ""
+	rule.SourceFirewallGroupID = ""
 	rule.SourceLimitingEnabled = rule.Source != "any"
 	// Initialize unmodelled fields on create; updates preserve controller values.
 	payload := struct {
 		PortForward
-		DestinationIP         string   `json:"destination_ip"`
-		DestinationIPs        []string `json:"destination_ips"`
-		SourceFirewallGroupID string   `json:"src_firewall_group_id"`
+		DestinationIP  string   `json:"destination_ip"`
+		DestinationIPs []string `json:"destination_ips"`
 	}{PortForward: rule, DestinationIP: "any", DestinationIPs: []string{}}
 	var response legacyResponse[[]PortForward]
 	if err := c.doLegacyRequestWithExpectedStatus(ctx, http.MethodPost, []string{"s", site, "rest", "portforward"}, payload, &response, http.StatusOK, http.StatusCreated); err != nil {
@@ -115,12 +115,16 @@ func (c *Client) UpdatePortForward(ctx context.Context, siteID, id string, rule 
 	if err != nil {
 		return nil, err
 	}
+	// A specific source and a firewall group are mutually exclusive on the
+	// controller. Refuse to guess which restriction should win.
+	if rule.Source != "any" && existing.SourceFirewallGroupID != "" {
+		return nil, fmt.Errorf("port forward %s uses source firewall group %s, which this resource does not manage; keep source = \"any\" to preserve it, or remove the group on the controller before setting a specific source", id, existing.SourceFirewallGroupID)
+	}
 	rule.ID = id
 	rule.SourceFirewallGroupID = existing.SourceFirewallGroupID
-	rule.SourceLimitingEnabled = existing.SourceLimitingEnabled
-	if rule.Source != existing.Source {
-		rule.SourceLimitingEnabled = rule.Source != "any" || (existing.SourceFirewallGroupID != "" && existing.SourceLimitingEnabled)
-	}
+	// Derive limiting from the desired source rather than the controller flag so
+	// a restriction switched off outside Terraform is restored on apply.
+	rule.SourceLimitingEnabled = rule.Source != "any" || (existing.SourceFirewallGroupID != "" && existing.SourceLimitingEnabled)
 	modelled, err := json.Marshal(rule)
 	if err != nil {
 		return nil, fmt.Errorf("encode port forward: %w", err)

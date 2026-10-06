@@ -3,12 +3,12 @@
 page_title: "unifi_port_forward Resource - unifi"
 subcategory: ""
 description: |-
-  Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with <site_id>/<id>, where id is the legacy rule _id. Updates preserve controller fields that are not exposed by this resource, including destination IP filters and source firewall groups. Existing source-group restrictions remain active when changing modelled settings. Configure IP or CIDR restrictions using source.
+  Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with <site_id>/<id>, where id is the legacy rule _id. Updates preserve controller fields that are not exposed by this resource, including destination IP filters and source firewall groups. Existing source-group restrictions remain active when changing modelled settings, but setting a specific source on a rule that uses a source firewall group is rejected because the controller treats them as mutually exclusive; keep source = "any" or remove the group on the controller first.
 ---
 
 # unifi_port_forward (Resource)
 
-Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with `<site_id>/<id>`, where `id` is the legacy rule `_id`. Updates preserve controller fields that are not exposed by this resource, including destination IP filters and source firewall groups. Existing source-group restrictions remain active when changing modelled settings. Configure IP or CIDR restrictions using `source`.
+Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with `<site_id>/<id>`, where `id` is the legacy rule `_id`. Updates preserve controller fields that are not exposed by this resource, including destination IP filters and source firewall groups. Existing source-group restrictions remain active when changing modelled settings, but setting a specific `source` on a rule that uses a source firewall group is rejected because the controller treats them as mutually exclusive; keep `source = "any"` or remove the group on the controller first.
 
 ## Example Usage
 
@@ -44,7 +44,7 @@ resource "unifi_port_forward" "game" {
 - `enabled` (Boolean) Whether the rule is enabled. Defaults to `true`.
 - `logging_enabled` (Boolean) Whether to log traffic matching the rule. Defaults to `false`.
 - `protocol` (String) Protocol: `tcp`, `udp`, or `tcp_udp`. Defaults to `tcp_udp`.
-- `source` (String) Allowed source IP, CIDR, or `any`. Defaults to `any`; a specific source enables source limiting.
+- `source` (String) Allowed source IPv4 address, CIDR prefix, or `any`. Defaults to `any`; a specific source enables source limiting. Reads back as `any` when source limiting is disabled on the controller, so a restriction switched off outside Terraform shows as a diff and is restored on apply.
 - `wan_interface` (String) WAN interface: `wan`, `wan2`, or `both`. Defaults to `wan`.
 
 ### Read-Only

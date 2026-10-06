@@ -18,12 +18,21 @@ func (e *Error) Error() string {
 	case e == nil:
 		return ""
 	case e.Code != "" && e.Message != "":
-		return fmt.Sprintf("unifi API error: status=%d code=%s message=%s", e.StatusCode, e.Code, e.Message)
+		return fmt.Sprintf("unifi API error: status=%d code=%s message=%s%s", e.StatusCode, e.Code, e.Message, e.bodySuffix())
 	case e.Message != "":
-		return fmt.Sprintf("unifi API error: status=%d message=%s", e.StatusCode, e.Message)
+		return fmt.Sprintf("unifi API error: status=%d message=%s%s", e.StatusCode, e.Message, e.bodySuffix())
 	default:
 		return fmt.Sprintf("unifi API error: status=%d body=%s", e.StatusCode, e.Body)
 	}
+}
+
+// bodySuffix keeps controller detail (for example a legacy validationError)
+// visible in diagnostics when the body says more than the code and message.
+func (e *Error) bodySuffix() string {
+	if e.Body == "" || e.Body == e.Message {
+		return ""
+	}
+	return " body=" + e.Body
 }
 
 func IsNotFound(err error) bool {

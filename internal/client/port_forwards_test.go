@@ -226,3 +226,57 @@ func TestPortForwardUpdateRequestCount(t *testing.T) {
 		})
 	}
 }
+
+func TestPortForwardUpdateRepairsDisabledSourceLimiting(t *testing.T) {
+	// An admin can switch source limiting off in the UI while leaving src in
+	// place. Re-applying the same source must re-enable the restriction.
+	wrote := false
+	c := portForwardTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			wrote = true
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			if body["src"] != "198.51.100.0/24" || body["src_limiting_enabled"] != true {
+				t.Errorf("source limiting was not repaired: %#v", body)
+			}
+		}
+		_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"rule-id","src":"198.51.100.0/24","src_limiting_enabled":false,"src_firewall_group_id":""}]}`)
+	})
+	if _, err := c.UpdatePortForward(context.Background(), "11111111-1111-1111-1111-111111111111", "rule-id", PortForward{Source: "198.51.100.0/24"}); err != nil {
+		t.Fatal(err)
+	}
+	if !wrote {
+		t.Fatal("rule was not updated")
+	}
+}
+
+func TestPortForwardUpdateRejectsSourceConflictingWithFirewallGroup(t *testing.T) {
+	c := portForwardTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("unexpected write %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"rule-id","src":"any","src_limiting_enabled":true,"src_firewall_group_id":"group-id"}]}`)
+	})
+	_, err := c.UpdatePortForward(context.Background(), "11111111-1111-1111-1111-111111111111", "rule-id", PortForward{Source: "203.0.113.9"})
+	if err == nil || !strings.Contains(err.Error(), "source firewall group") {
+		t.Fatalf("expected a source-group conflict error, got %v", err)
+	}
+}
+
+func TestPortForwardCreateSendsEmptySourceFirewallGroup(t *testing.T) {
+	c := portForwardTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if value, ok := body["src_firewall_group_id"]; !ok || value != "" {
+			t.Errorf("create must send an empty src_firewall_group_id: %#v", body)
+		}
+		_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"rule-id"}]}`)
+	})
+	if _, err := c.CreatePortForward(context.Background(), "11111111-1111-1111-1111-111111111111", PortForward{Source: "any"}); err != nil {
+		t.Fatal(err)
+	}
+}

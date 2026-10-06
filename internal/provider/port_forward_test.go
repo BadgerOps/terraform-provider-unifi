@@ -232,7 +232,7 @@ func TestAccResourcePortForwardRejectsInvalidEnums(t *testing.T) {
 }
 
 func TestAccResourcePortForwardRejectsInvalidSource(t *testing.T) {
-	for _, source := range []string{"Any", "", "not-an-ip", "192.0.2.1/99", " any "} {
+	for _, source := range []string{"Any", "", "not-an-ip", "192.0.2.1/99", " any ", "2001:db8::1", "2001:db8::/64", "198.51.100.7/24"} {
 		t.Run(source, func(t *testing.T) {
 			api := newMockUniFiAPI(t)
 			defer api.Close()
@@ -275,6 +275,94 @@ func TestAccResourcePortForwardPreservesControllerRestrictions(t *testing.T) {
 				}
 				return nil
 			},
+		}},
+	})
+}
+
+func TestAccResourcePortForwardRejectsInvalidPortsAndForwardIP(t *testing.T) {
+	for name, values := range map[string][3]string{
+		"destination_port": {"80;443", "192.0.2.90", "3074"},
+		"forward_ip":       {"3074", "example.lan", "3074"},
+		"forward_port":     {"3074", "192.0.2.90", "3010-3000"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			api := newMockUniFiAPI(t)
+			defer api.Close()
+			config := siteLookupConfig(api.URL()) + fmt.Sprintf(`
+resource "unifi_port_forward" "test" {
+  site_id = data.unifi_site.main.id
+  name = "test-forward"
+  destination_port = %q
+  forward_ip = %q
+  forward_port = %q
+}
+`, values[0], values[1], values[2])
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps:                    []resource.TestStep{{Config: config, ExpectError: regexp.MustCompile("Invalid " + name)}},
+			})
+		})
+	}
+}
+
+func TestAccResourcePortForwardRepairsDisabledSourceLimiting(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+	config := portForwardTestConfig(api, "3074", `source = "198.51.100.0/24"`)
+	ruleOf := func(s *tfstate.State) map[string]any {
+		return api.portForwards[s.RootModule().Resources["unifi_port_forward.test"].Primary.ID]
+	}
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: config,
+			Check: func(s *tfstate.State) error {
+				api.mu.Lock()
+				defer api.mu.Unlock()
+				// Simulate an admin switching source limiting off in the UI.
+				ruleOf(s)["src_limiting_enabled"] = false
+				return nil
+			},
+			ExpectNonEmptyPlan: true,
+		}, {
+			// The refresh must report the rule as open and the re-apply must restore the restriction.
+			RefreshState: true, ExpectNonEmptyPlan: true,
+			Check: resource.TestCheckResourceAttr("unifi_port_forward.test", "source", "any"),
+		}, {
+			Config: config,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("unifi_port_forward.test", "source", "198.51.100.0/24"),
+				func(s *tfstate.State) error {
+					api.mu.Lock()
+					defer api.mu.Unlock()
+					if rule := ruleOf(s); rule["src_limiting_enabled"] != true || rule["src"] != "198.51.100.0/24" {
+						return fmt.Errorf("source limiting was not repaired: %#v", rule)
+					}
+					return nil
+				},
+			),
+		}},
+	})
+}
+
+func TestAccResourcePortForwardRejectsSourceConflictingWithFirewallGroup(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: portForwardTestConfig(api, "3074", ""),
+			Check: func(s *tfstate.State) error {
+				api.mu.Lock()
+				defer api.mu.Unlock()
+				rule := api.portForwards[s.RootModule().Resources["unifi_port_forward.test"].Primary.ID]
+				rule["src_firewall_group_id"] = "group-id"
+				rule["src_limiting_enabled"] = true
+				return nil
+			},
+		}, {
+			Config:      portForwardTestConfig(api, "3074", `source = "203.0.113.9"`),
+			ExpectError: regexp.MustCompile(`(?s)source\s+firewall\s+group`),
 		}},
 	})
 }
