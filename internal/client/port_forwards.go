@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 )
@@ -21,6 +22,22 @@ type PortForward struct {
 	ForwardIP             string `json:"fwd"`
 	ForwardPort           string `json:"fwd_port"`
 	LoggingEnabled        bool   `json:"log"`
+	rawFields             map[string]json.RawMessage
+}
+
+// Retain every controller field for read-modify-write, including fields this
+// provider does not expose. RawMessage also preserves numbers without float conversion.
+func (p *PortForward) UnmarshalJSON(data []byte) error {
+	type wirePortForward PortForward
+	var decoded wirePortForward
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, &decoded.rawFields); err != nil {
+		return err
+	}
+	*p = PortForward(decoded)
+	return nil
 }
 
 func (c *Client) ListPortForwards(ctx context.Context, siteID string) ([]PortForward, error) {
@@ -28,15 +45,32 @@ func (c *Client) ListPortForwards(ctx context.Context, siteID string) ([]PortFor
 	if err != nil {
 		return nil, fmt.Errorf("list port forwards site: %w", err)
 	}
+	return c.listPortForwards(ctx, site)
+}
+
+func (c *Client) listPortForwards(ctx context.Context, site string) ([]PortForward, error) {
 	var response legacyResponse[[]PortForward]
 	if err := c.doLegacyRequest(ctx, http.MethodGet, []string{"s", site, "rest", "portforward"}, nil, &response); err != nil {
 		return nil, fmt.Errorf("list port forwards: %w", err)
+	}
+	// A port-forward refresh must not forget state on an incomplete list. Keep
+	// this endpoint-specific so DHCP retains its existing empty-table behavior.
+	if response.Data == nil {
+		return nil, fmt.Errorf("port forward list has missing or null data")
 	}
 	return response.Data, nil
 }
 
 func (c *Client) GetPortForward(ctx context.Context, siteID, id string) (*PortForward, error) {
-	rules, err := c.ListPortForwards(ctx, siteID)
+	site, err := c.resolveLegacySiteReference(ctx, siteID)
+	if err != nil {
+		return nil, err
+	}
+	return c.getPortForward(ctx, site, id)
+}
+
+func (c *Client) getPortForward(ctx context.Context, site, id string) (*PortForward, error) {
+	rules, err := c.listPortForwards(ctx, site)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +79,7 @@ func (c *Client) GetPortForward(ctx context.Context, siteID, id string) (*PortFo
 			return &rule, nil
 		}
 	}
-	return nil, &Error{StatusCode: http.StatusNotFound, Message: fmt.Sprintf("port forward %s not found in site %s", id, siteID)}
+	return nil, &Error{StatusCode: http.StatusNotFound, Message: fmt.Sprintf("port forward %s not found in site %s", id, site)}
 }
 
 func (c *Client) CreatePortForward(ctx context.Context, siteID string, rule PortForward) (*PortForward, error) {
@@ -55,8 +89,7 @@ func (c *Client) CreatePortForward(ctx context.Context, siteID string, rule Port
 	}
 	rule.ID = ""
 	rule.SourceLimitingEnabled = rule.Source != "any"
-	// These unmodelled fields are initialized only on create. Sending them on
-	// update would reset restrictions configured outside this resource.
+	// Initialize unmodelled fields on create; updates preserve controller values.
 	payload := struct {
 		PortForward
 		DestinationIP         string   `json:"destination_ip"`
@@ -74,24 +107,48 @@ func (c *Client) CreatePortForward(ctx context.Context, siteID string, rule Port
 }
 
 func (c *Client) UpdatePortForward(ctx context.Context, siteID, id string, rule PortForward) (*PortForward, error) {
-	existing, err := c.GetPortForward(ctx, siteID, id)
-	if err != nil {
-		return nil, err
-	}
-	if existing.SourceFirewallGroupID != "" {
-		return nil, fmt.Errorf("port forward %s uses a source firewall group, which this resource does not manage; remove the group restriction on the controller before updating this rule", id)
-	}
 	site, err := c.resolveLegacySiteReference(ctx, siteID)
 	if err != nil {
 		return nil, fmt.Errorf("update port forward site: %w", err)
 	}
+	existing, err := c.getPortForward(ctx, site, id)
+	if err != nil {
+		return nil, err
+	}
 	rule.ID = id
-	rule.SourceFirewallGroupID = ""
-	rule.SourceLimitingEnabled = rule.Source != "any"
-	if err := c.doLegacyRequest(ctx, http.MethodPut, []string{"s", site, "rest", "portforward", id}, rule, nil); err != nil {
+	rule.SourceFirewallGroupID = existing.SourceFirewallGroupID
+	rule.SourceLimitingEnabled = existing.SourceLimitingEnabled
+	if rule.Source != existing.Source {
+		rule.SourceLimitingEnabled = rule.Source != "any" || (existing.SourceFirewallGroupID != "" && existing.SourceLimitingEnabled)
+	}
+	modelled, err := json.Marshal(rule)
+	if err != nil {
+		return nil, fmt.Errorf("encode port forward: %w", err)
+	}
+	// Overlay only modelled fields onto the complete fetched object. Omitted
+	// destination filters, source groups, and future fields survive full replacement.
+	payload := existing.rawFields
+	if err := json.Unmarshal(modelled, &payload); err != nil {
+		return nil, fmt.Errorf("merge port forward: %w", err)
+	}
+	var response legacyResponse[[]PortForward]
+	if err := c.doLegacyRequest(ctx, http.MethodPut, []string{"s", site, "rest", "portforward", id}, payload, &response); err != nil {
 		return nil, fmt.Errorf("update port forward: %w", err)
 	}
-	return c.GetPortForward(ctx, siteID, id)
+	if len(response.Data) == 1 && response.Data[0].ID == id && completePortForwardState(response.Data[0]) {
+		return &response.Data[0], nil
+	}
+	// Some controllers return only an acknowledgement rather than the rule.
+	return c.getPortForward(ctx, site, id)
+}
+
+func completePortForwardState(rule PortForward) bool {
+	for _, key := range []string{"name", "enabled", "pfwd_interface", "proto", "src", "dst_port", "fwd", "fwd_port", "log"} {
+		if _, ok := rule.rawFields[key]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *Client) DeletePortForward(ctx context.Context, siteID, id string) error {

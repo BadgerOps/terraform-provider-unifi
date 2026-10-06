@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -79,19 +78,8 @@ func (c *Client) doLegacyRequestWithExpectedStatus(
 		return fmt.Errorf("read legacy response body: %w", err)
 	}
 
-	if err := requireStatus(response.StatusCode, body, expectedStatusCodes...); err != nil {
-		return err
-	}
-
-	if len(body) == 0 {
-		if target != nil {
-			return fmt.Errorf("empty legacy response body")
-		}
-		return nil
-	}
-
 	// Legacy failures can arrive with HTTP 200. Check meta even when callers
-	// ignore the data (PUT/DELETE), and never interpret a missing list as drift.
+	// ignore the data (PUT/DELETE), including error envelopes returned with 400.
 	var envelope struct {
 		Meta struct {
 			RC      string `json:"rc"`
@@ -99,17 +87,34 @@ func (c *Client) doLegacyRequestWithExpectedStatus(
 		} `json:"meta"`
 		Data json.RawMessage `json:"data"`
 	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return fmt.Errorf("decode legacy response envelope: %w", err)
+	decodeErr := json.Unmarshal(body, &envelope)
+	if decodeErr == nil && envelope.Meta.RC != "" && envelope.Meta.RC != "ok" {
+		status := response.StatusCode
+		if status == http.StatusOK || status == http.StatusBadRequest {
+			switch envelope.Meta.Message {
+			case "api.err.IdInvalid", "api.err.NotFound":
+				status = http.StatusNotFound
+			}
+		}
+		if status >= 200 && status < 300 {
+			status = http.StatusBadRequest
+		}
+		return &Error{StatusCode: status, Code: envelope.Meta.RC, Message: envelope.Meta.Message, Body: string(body)}
 	}
-	if envelope.Meta.RC != "" && envelope.Meta.RC != "ok" {
-		return &Error{StatusCode: response.StatusCode, Code: envelope.Meta.RC, Message: envelope.Meta.Message}
+	if err := requireStatus(response.StatusCode, body, expectedStatusCodes...); err != nil {
+		return err
+	}
+	if len(body) == 0 {
+		if target != nil {
+			return fmt.Errorf("empty legacy response body")
+		}
+		return nil
+	}
+	if decodeErr != nil {
+		return fmt.Errorf("decode legacy response envelope: %w", decodeErr)
 	}
 	if target == nil {
 		return nil
-	}
-	if len(envelope.Data) == 0 || bytes.Equal(bytes.TrimSpace(envelope.Data), []byte("null")) {
-		return fmt.Errorf("legacy response has missing or null data")
 	}
 
 	if err := json.Unmarshal(body, target); err != nil {

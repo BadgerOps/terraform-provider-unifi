@@ -2,8 +2,7 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"strings"
+	"net/netip"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -49,15 +48,15 @@ func (r *portForwardResource) Metadata(_ context.Context, req resource.MetadataR
 
 func (r *portForwardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with `<site_id>/<id>`, where `id` is the legacy rule `_id`. Destination IP filters and source firewall groups are not managed; configure source restrictions using `source`. Updates to existing rules with a source firewall group are rejected to avoid changing unsupported restrictions; remove the group restriction on the controller before updating the rule through Terraform.",
+		MarkdownDescription: "Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with `<site_id>/<id>`, where `id` is the legacy rule `_id`. Updates preserve controller fields that are not exposed by this resource, including destination IP filters and source firewall groups. Existing source-group restrictions remain active when changing modelled settings. Configure IP or CIDR restrictions using `source`.",
 		Attributes: map[string]schema.Attribute{
 			"id":               schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, MarkdownDescription: "Legacy port forwarding rule ID (`_id`)."},
 			"site_id":          schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}, MarkdownDescription: "Integration site UUID. Changing the site replaces the rule."},
 			"name":             schema.StringAttribute{Required: true, MarkdownDescription: "Rule name."},
 			"enabled":          schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(true), MarkdownDescription: "Whether the rule is enabled. Defaults to `true`."},
-			"wan_interface":    schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("wan"), Validators: []validator.String{portForwardEnum{"wan", "wan2", "both"}}, MarkdownDescription: "WAN interface: `wan`, `wan2`, or `both`. Defaults to `wan`."},
-			"protocol":         schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("tcp_udp"), Validators: []validator.String{portForwardEnum{"tcp", "udp", "tcp_udp"}}, MarkdownDescription: "Protocol: `tcp`, `udp`, or `tcp_udp`. Defaults to `tcp_udp`."},
-			"source":           schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("any"), MarkdownDescription: "Allowed source IP, CIDR, or `any`. Defaults to `any`; a specific source enables source limiting."},
+			"wan_interface":    schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("wan"), Validators: []validator.String{stringOneOf{"wan", "wan2", "both"}}, MarkdownDescription: "WAN interface: `wan`, `wan2`, or `both`. Defaults to `wan`."},
+			"protocol":         schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("tcp_udp"), Validators: []validator.String{stringOneOf{"tcp", "udp", "tcp_udp"}}, MarkdownDescription: "Protocol: `tcp`, `udp`, or `tcp_udp`. Defaults to `tcp_udp`."},
+			"source":           schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("any"), Validators: []validator.String{portForwardSourceValidator{}}, MarkdownDescription: "Allowed source IP, CIDR, or `any`. Defaults to `any`; a specific source enables source limiting."},
 			"destination_port": schema.StringAttribute{Required: true, MarkdownDescription: "WAN destination port, range, or comma-separated list. Kept as a string, for example `3074`, `3000-3010`, or `80,443`."},
 			"forward_ip":       schema.StringAttribute{Required: true, MarkdownDescription: "Internal IPv4 address to forward traffic to."},
 			"forward_port":     schema.StringAttribute{Required: true, MarkdownDescription: "Internal destination port, range, or comma-separated list, expressed as a string."},
@@ -66,23 +65,29 @@ func (r *portForwardResource) Schema(_ context.Context, _ resource.SchemaRequest
 	}
 }
 
-// Keep enum validation local rather than adding a dependency for two attributes.
-type portForwardEnum []string
+type portForwardSourceValidator struct{}
 
-func (v portForwardEnum) Description(context.Context) string {
-	return "Must be one of: " + strings.Join(v, ", ")
+func (portForwardSourceValidator) Description(context.Context) string {
+	return "Must be the literal any, an IP address, or a CIDR prefix."
 }
-func (v portForwardEnum) MarkdownDescription(ctx context.Context) string { return v.Description(ctx) }
-func (v portForwardEnum) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+func (v portForwardSourceValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+func (v portForwardSourceValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
 	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
 		return
 	}
-	for _, value := range v {
-		if req.ConfigValue.ValueString() == value {
-			return
-		}
+	value := req.ConfigValue.ValueString()
+	if value == "any" {
+		return
 	}
-	resp.Diagnostics.AddAttributeError(req.Path, "Invalid port forward value", fmt.Sprintf("%s; got %q.", v.Description(ctx), req.ConfigValue.ValueString()))
+	if address, err := netip.ParseAddr(value); err == nil && address.Zone() == "" {
+		return
+	}
+	if _, err := netip.ParsePrefix(value); err == nil {
+		return
+	}
+	resp.Diagnostics.AddAttributeError(req.Path, "Invalid source", v.Description(ctx))
 }
 
 func (r *portForwardResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {

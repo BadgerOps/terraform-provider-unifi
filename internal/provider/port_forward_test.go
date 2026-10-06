@@ -58,7 +58,7 @@ func (api *mockUniFiAPI) handlePortForwards(w http.ResponseWriter, r *http.Reque
 				return
 			}
 		}
-		if rule["src_limiting_enabled"] != (rule["src"] != "any") {
+		if rule["src_firewall_group_id"] == "" && rule["src_limiting_enabled"] != (rule["src"] != "any") {
 			http.Error(w, "incorrect source limiting", 400)
 			return
 		}
@@ -75,12 +75,8 @@ func (api *mockUniFiAPI) handlePortForwards(w http.ResponseWriter, r *http.Reque
 			rule["_id"] = api.newID()
 			status = http.StatusCreated
 		} else {
-			// Preserve unmodelled settings, as a partial legacy PUT should.
-			existing := api.portForwards[segments[4]]
-			for k, v := range rule {
-				existing[k] = v
-			}
-			rule = existing
+			// Replace the whole object: missing fields must not be rescued by the mock.
+			rule["_id"] = segments[4]
 		}
 		api.portForwards[rule["_id"].(string)] = rule
 		api.writeLegacyJSON(w, status, []map[string]any{rule})
@@ -228,9 +224,77 @@ func TestAccResourcePortForwardRejectsInvalidEnums(t *testing.T) {
 				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 				Steps: []resource.TestStep{{
 					Config:      portForwardTestConfig(api, "3074", attribute+" = \"invalid\""),
-					ExpectError: regexp.MustCompile("Invalid port forward value"),
+					ExpectError: regexp.MustCompile("Invalid string value"),
 				}},
 			})
 		})
 	}
+}
+
+func TestAccResourcePortForwardRejectsInvalidSource(t *testing.T) {
+	for _, source := range []string{"Any", "", "not-an-ip", "192.0.2.1/99", " any "} {
+		t.Run(source, func(t *testing.T) {
+			api := newMockUniFiAPI(t)
+			defer api.Close()
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps:                    []resource.TestStep{{Config: portForwardTestConfig(api, "3074", fmt.Sprintf("source = %q", source)), ExpectError: regexp.MustCompile("Invalid source")}},
+			})
+		})
+	}
+}
+
+func TestAccResourcePortForwardPreservesControllerRestrictions(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+	config := portForwardTestConfig(api, "3074", "")
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: config,
+			Check: func(s *tfstate.State) error {
+				api.mu.Lock()
+				defer api.mu.Unlock()
+				rule := api.portForwards[s.RootModule().Resources["unifi_port_forward.test"].Primary.ID]
+				rule["destination_ip"] = "203.0.113.5"
+				rule["destination_ips"] = []any{"203.0.113.5"}
+				rule["src_firewall_group_id"] = "group-id"
+				rule["src_limiting_enabled"] = true
+				return nil
+			},
+		}, {
+			ResourceName: "unifi_port_forward.test", ImportState: true, ImportStateVerify: true, ImportStateIdFunc: testImportCompositeID("unifi_port_forward.test", api.siteID),
+		}, {
+			Config: portForwardTestConfig(api, "3074", "enabled = false"),
+			Check: func(s *tfstate.State) error {
+				api.mu.Lock()
+				defer api.mu.Unlock()
+				rule := api.portForwards[s.RootModule().Resources["unifi_port_forward.test"].Primary.ID]
+				if rule["enabled"] != false || rule["destination_ip"] != "203.0.113.5" || rule["src_firewall_group_id"] != "group-id" || rule["src_limiting_enabled"] != true {
+					return fmt.Errorf("lost controller restrictions: %#v", rule)
+				}
+				return nil
+			},
+		}},
+	})
+}
+
+func TestAccResourceDHCPReservationBootstrapsNullClientTable(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+	// The existing legacy mock serializes its nil result slice as data:null.
+	clear(api.dhcpReservations["default"])
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: siteLookupConfig(api.URL()) + fmt.Sprintf(`
+resource "unifi_dhcp_reservation" "test" {
+  site_id = data.unifi_site.main.id
+  mac_address = %q
+  fixed_ip = "10.200.0.25"
+}
+`, api.existingAdoptedDeviceMAC),
+			Check: resource.TestCheckResourceAttr("unifi_dhcp_reservation.test", "fixed_ip", "10.200.0.25"),
+		}},
+	})
 }

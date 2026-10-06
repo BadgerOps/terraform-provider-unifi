@@ -47,6 +47,7 @@ func TestPortForwardJSONRoundTrip(t *testing.T) {
 			if err := json.Unmarshal(body, &decoded); err != nil {
 				t.Fatal(err)
 			}
+			decoded.rawFields = nil
 			if !reflect.DeepEqual(original, decoded) {
 				t.Fatalf("round trip = %#v, want %#v", decoded, original)
 			}
@@ -87,6 +88,10 @@ func TestPortForwardDeleteResponses(t *testing.T) {
 		{"deleted", `{"meta":{"rc":"ok"},"data":[]}`, 200, false},
 		{"no content", "", 204, false},
 		{"already absent", "", 404, false},
+		{"legacy invalid id 200", `{"meta":{"rc":"error","msg":"api.err.IdInvalid"}}`, 200, false},
+		{"legacy invalid id 400", `{"meta":{"rc":"error","msg":"api.err.IdInvalid"}}`, 400, false},
+		{"legacy not found 200", `{"meta":{"rc":"error","msg":"api.err.NotFound"}}`, 200, false},
+		{"legacy not found 400", `{"meta":{"rc":"error","msg":"api.err.NotFound"}}`, 400, false},
 		{"forbidden", "", 403, true},
 		{"legacy error", `{"meta":{"rc":"error","msg":"denied"}}`, 200, true},
 	} {
@@ -122,10 +127,8 @@ func TestPortForwardUpdatePreservesUnmanagedFields(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Error(err)
 			}
-			for _, key := range []string{"destination_ip", "destination_ips", "src_firewall_group_id"} {
-				if _, ok := body[key]; ok {
-					t.Errorf("update overwrites %s", key)
-				}
+			if body["destination_ip"] != "203.0.113.5" || !reflect.DeepEqual(body["destination_ips"], []any{"203.0.113.5"}) || body["src_firewall_group_id"] != "" || body["future_option"] != "preserve-me" {
+				t.Errorf("update lost controller fields: %#v", body)
 			}
 			if body["src_limiting_enabled"] != true {
 				t.Error("source limiting must be enabled")
@@ -133,7 +136,7 @@ func TestPortForwardUpdatePreservesUnmanagedFields(t *testing.T) {
 			_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[]}`)
 			return
 		}
-		_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"rule-id","dst_port":"80,443","fwd_port":"8080,8443"}]}`)
+		_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"rule-id","dst_port":"80,443","fwd_port":"8080,8443","destination_ip":"203.0.113.5","destination_ips":["203.0.113.5"],"src_firewall_group_id":"","future_option":"preserve-me"}]}`)
 	})
 	rule, err := c.UpdatePortForward(context.Background(), "11111111-1111-1111-1111-111111111111", "rule-id", PortForward{Source: "198.51.100.1"})
 	if err != nil {
@@ -144,19 +147,82 @@ func TestPortForwardUpdatePreservesUnmanagedFields(t *testing.T) {
 	}
 }
 
-func TestPortForwardUpdateRejectsSourceFirewallGroup(t *testing.T) {
+func TestPortForwardUpdatePreservesSourceFirewallGroup(t *testing.T) {
 	wrote := false
 	c := portForwardTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			wrote = true
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			if body["src_firewall_group_id"] != "group-id" || body["src_limiting_enabled"] != true || body["name"] != "renamed" || body["enabled"] != false {
+				t.Errorf("unexpected update: %#v", body)
+			}
 		}
 		_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"rule-id","src":"any","src_limiting_enabled":true,"src_firewall_group_id":"group-id"}]}`)
 	})
 	_, err := c.UpdatePortForward(context.Background(), "11111111-1111-1111-1111-111111111111", "rule-id", PortForward{Name: "renamed", Source: "any"})
-	if err == nil || !strings.Contains(err.Error(), "source firewall group") {
-		t.Fatalf("expected unsupported source group diagnostic, got %v", err)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if wrote {
-		t.Fatal("sent a write that could disable source restrictions")
+	if !wrote {
+		t.Fatal("rule with a source group was not updated")
+	}
+}
+
+type portForwardCountingTransport struct {
+	http.RoundTripper
+	sites, total int
+}
+
+func (c *portForwardCountingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	c.total++
+	if req.URL.Path == "/integration/v1/sites" {
+		c.sites++
+	}
+	return c.RoundTripper.RoundTrip(req)
+}
+
+func TestPortForwardUpdateRequestCount(t *testing.T) {
+	for _, echo := range []bool{true, false} {
+		t.Run(fmt.Sprint(echo), func(t *testing.T) {
+			stored := map[string]any{"_id": "rule-id", "name": "before", "enabled": true, "pfwd_interface": "wan", "proto": "tcp_udp", "src": "any", "src_limiting_enabled": false, "src_firewall_group_id": "", "dst_port": "80", "fwd": "192.0.2.90", "fwd_port": "80", "log": false, "destination_ips": []any{"203.0.113.5"}, "future_config": map[string]any{"keep": true}}
+			c := portForwardTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPut {
+					// Full replacement, not merge.
+					stored = nil
+					if err := json.NewDecoder(r.Body).Decode(&stored); err != nil {
+						t.Error(err)
+					}
+					if !echo {
+						_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[]}`)
+						return
+					}
+				}
+				if err := json.NewEncoder(w).Encode(map[string]any{"meta": map[string]string{"rc": "ok"}, "data": []any{stored}}); err != nil {
+					t.Error(err)
+				}
+			})
+			counter := &portForwardCountingTransport{RoundTripper: c.httpClient.Transport}
+			c.httpClient.Transport = counter
+			rule, err := c.UpdatePortForward(context.Background(), "11111111-1111-1111-1111-111111111111", "rule-id", PortForward{Name: "after", Source: "any", DestinationPort: "80", ForwardPort: "80", ForwardIP: "192.0.2.90", WANInterface: "wan", Protocol: "tcp_udp"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rule.Name != "after" || rule.Enabled {
+				t.Fatalf("did not read updated state: %#v", rule)
+			}
+			if !reflect.DeepEqual(stored["destination_ips"], []any{"203.0.113.5"}) || !reflect.DeepEqual(stored["future_config"], map[string]any{"keep": true}) {
+				t.Fatalf("lost unmodelled fields: %#v", stored)
+			}
+			want := 3
+			if !echo {
+				want = 4
+			}
+			if counter.sites != 1 || counter.total != want {
+				t.Fatalf("requests: %d sites, %d total; want 1 site, %d total", counter.sites, counter.total, want)
+			}
+		})
 	}
 }

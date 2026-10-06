@@ -3,12 +3,12 @@
 page_title: "unifi_port_forward Resource - unifi"
 subcategory: ""
 description: |-
-  Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with <site_id>/<id>, where id is the legacy rule _id. Destination IP filters and source firewall groups are not managed; configure source restrictions using source. Updates to existing rules with a source firewall group are rejected to avoid changing unsupported restrictions; remove the group restriction on the controller before updating the rule through Terraform.
+  Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with <site_id>/<id>, where id is the legacy rule _id. Updates preserve controller fields that are not exposed by this resource, including destination IP filters and source firewall groups. Existing source-group restrictions remain active when changing modelled settings. Configure IP or CIDR restrictions using source.
 ---
 
 # unifi_port_forward (Resource)
 
-Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with `<site_id>/<id>`, where `id` is the legacy rule `_id`. Destination IP filters and source firewall groups are not managed; configure source restrictions using `source`. Updates to existing rules with a source firewall group are rejected to avoid changing unsupported restrictions; remove the group restriction on the controller before updating the rule through Terraform.
+Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with `<site_id>/<id>`, where `id` is the legacy rule `_id`. Updates preserve controller fields that are not exposed by this resource, including destination IP filters and source firewall groups. Existing source-group restrictions remain active when changing modelled settings. Configure IP or CIDR restrictions using `source`.
 
 ## Example Usage
 
