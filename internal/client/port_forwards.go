@@ -16,6 +16,7 @@ type PortForward struct {
 	Protocol              string `json:"proto"`
 	Source                string `json:"src"`
 	SourceLimitingEnabled bool   `json:"src_limiting_enabled"`
+	SourceFirewallGroupID string `json:"src_firewall_group_id,omitempty"`
 	DestinationPort       string `json:"dst_port"`
 	ForwardIP             string `json:"fwd"`
 	ForwardPort           string `json:"fwd_port"`
@@ -73,11 +74,19 @@ func (c *Client) CreatePortForward(ctx context.Context, siteID string, rule Port
 }
 
 func (c *Client) UpdatePortForward(ctx context.Context, siteID, id string, rule PortForward) (*PortForward, error) {
+	existing, err := c.GetPortForward(ctx, siteID, id)
+	if err != nil {
+		return nil, err
+	}
+	if existing.SourceFirewallGroupID != "" {
+		return nil, fmt.Errorf("port forward %s uses a source firewall group, which this resource does not manage; remove the group restriction on the controller before updating this rule", id)
+	}
 	site, err := c.resolveLegacySiteReference(ctx, siteID)
 	if err != nil {
 		return nil, fmt.Errorf("update port forward site: %w", err)
 	}
 	rule.ID = id
+	rule.SourceFirewallGroupID = ""
 	rule.SourceLimitingEnabled = rule.Source != "any"
 	if err := c.doLegacyRequest(ctx, http.MethodPut, []string{"s", site, "rest", "portforward", id}, rule, nil); err != nil {
 		return nil, fmt.Errorf("update port forward: %w", err)

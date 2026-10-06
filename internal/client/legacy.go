@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -107,8 +108,8 @@ func (c *Client) doLegacyRequestWithExpectedStatus(
 	if target == nil {
 		return nil
 	}
-	if len(envelope.Data) == 0 {
-		return fmt.Errorf("legacy response is missing data")
+	if len(envelope.Data) == 0 || bytes.Equal(bytes.TrimSpace(envelope.Data), []byte("null")) {
+		return fmt.Errorf("legacy response has missing or null data")
 	}
 
 	if err := json.Unmarshal(body, target); err != nil {

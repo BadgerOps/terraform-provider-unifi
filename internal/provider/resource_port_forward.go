@@ -49,7 +49,7 @@ func (r *portForwardResource) Metadata(_ context.Context, req resource.MetadataR
 
 func (r *portForwardResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with `<site_id>/<id>`, where `id` is the legacy rule `_id`. Destination IP filters and source firewall groups are not managed; configure source restrictions using `source`.",
+		MarkdownDescription: "Manage a UniFi WAN port forwarding rule using the legacy local Network API. Import with `<site_id>/<id>`, where `id` is the legacy rule `_id`. Destination IP filters and source firewall groups are not managed; configure source restrictions using `source`. Updates to existing rules with a source firewall group are rejected to avoid changing unsupported restrictions; remove the group restriction on the controller before updating the rule through Terraform.",
 		Attributes: map[string]schema.Attribute{
 			"id":               schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, MarkdownDescription: "Legacy port forwarding rule ID (`_id`)."},
 			"site_id":          schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}, MarkdownDescription: "Integration site UUID. Changing the site replaces the rule."},

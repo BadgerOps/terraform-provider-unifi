@@ -64,6 +64,7 @@ func TestPortForwardReadErrors(t *testing.T) {
 		{"forbidden", `{"meta":{"rc":"error","msg":"denied"}}`, 403, false},
 		{"legacy error", `{"meta":{"rc":"error","msg":"denied"},"data":[]}`, 200, false},
 		{"missing data", `{"meta":{"rc":"ok"}}`, 200, false},
+		{"null data", `{"meta":{"rc":"ok"},"data":null}`, 200, false},
 		{"empty body", "", 200, false},
 		{"malformed", "not-json", 200, false},
 	} {
@@ -140,5 +141,22 @@ func TestPortForwardUpdatePreservesUnmanagedFields(t *testing.T) {
 	}
 	if rule.DestinationPort != "80,443" || rule.ForwardPort != "8080,8443" {
 		t.Fatalf("update did not read controller state: %#v", rule)
+	}
+}
+
+func TestPortForwardUpdateRejectsSourceFirewallGroup(t *testing.T) {
+	wrote := false
+	c := portForwardTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			wrote = true
+		}
+		_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"rule-id","src":"any","src_limiting_enabled":true,"src_firewall_group_id":"group-id"}]}`)
+	})
+	_, err := c.UpdatePortForward(context.Background(), "11111111-1111-1111-1111-111111111111", "rule-id", PortForward{Name: "renamed", Source: "any"})
+	if err == nil || !strings.Contains(err.Error(), "source firewall group") {
+		t.Fatalf("expected unsupported source group diagnostic, got %v", err)
+	}
+	if wrote {
+		t.Fatal("sent a write that could disable source restrictions")
 	}
 }
