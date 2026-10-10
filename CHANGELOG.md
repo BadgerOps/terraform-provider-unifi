@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Added a `request_timeout_seconds` provider attribute for the per-request HTTP timeout, which was hardcoded to 30 seconds with no way to change it. A UniFi Network application can stop answering its API for minutes while it reprovisions devices after a WiFi change, which left a plan or apply failing partway through with `context deadline exceeded (Client.Timeout exceeded while awaiting headers)`. The default is unchanged at 30 seconds.
+
 ## [0.4.0] - 2026-10-06
 
 ### Added

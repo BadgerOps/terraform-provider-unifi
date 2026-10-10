@@ -15,11 +15,16 @@ import (
 
 const defaultPageLimit = 100
 
+const DefaultRequestTimeout = 30 * time.Second
+
 type Config struct {
 	BaseURL       string
 	APIKey        string
 	AllowInsecure bool
 	UserAgent     string
+	// RequestTimeout bounds each HTTP request to the controller. Zero selects
+	// DefaultRequestTimeout.
+	RequestTimeout time.Duration
 }
 
 type Client struct {
@@ -58,6 +63,9 @@ func New(config Config) (*Client, error) {
 	if strings.TrimSpace(config.APIKey) == "" {
 		return nil, fmt.Errorf("api_key must not be empty")
 	}
+	if config.RequestTimeout < 0 {
+		return nil, fmt.Errorf("request_timeout_seconds must not be negative")
+	}
 
 	integrationBaseURL, err := normalizeBaseURL(config.BaseURL)
 	if err != nil {
@@ -74,8 +82,13 @@ func New(config Config) (*Client, error) {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 	}
 
+	requestTimeout := config.RequestTimeout
+	if requestTimeout == 0 {
+		requestTimeout = DefaultRequestTimeout
+	}
+
 	httpClient := &http.Client{
-		Timeout:   30 * time.Second,
+		Timeout:   requestTimeout,
 		Transport: transport,
 	}
 
