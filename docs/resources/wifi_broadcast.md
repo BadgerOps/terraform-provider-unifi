@@ -3,12 +3,12 @@
 page_title: "unifi_wifi_broadcast Resource - unifi"
 subcategory: ""
 description: |-
-  Manage a UniFi WiFi broadcast.
+  Manage a UniFi WiFi broadcast. Enterprise security references an existing RADIUS profile; unifi_radius_profile is a data source because the UniFi Integration API exposes RADIUS profiles as supporting/read-only resources. WPA2 PPSK and Enterprise authentication are separate security modes and must not be assumed to coexist on one broadcast. UniFi responses may omit PPSK passphrases; known state secrets are preserved during refresh, while imported PPSK broadcasts require the passphrases to be supplied in configuration.
 ---
 
 # unifi_wifi_broadcast (Resource)
 
-Manage a UniFi WiFi broadcast.
+Manage a UniFi WiFi broadcast. Enterprise security references an existing RADIUS profile; `unifi_radius_profile` is a data source because the UniFi Integration API exposes RADIUS profiles as supporting/read-only resources. WPA2 PPSK and Enterprise authentication are separate security modes and must not be assumed to coexist on one broadcast. UniFi responses may omit PPSK passphrases; known state secrets are preserved during refresh, while imported PPSK broadcasts require the passphrases to be supplied in configuration.
 
 ## Example Usage
 
@@ -85,7 +85,6 @@ resource "unifi_wifi_broadcast" "staff" {
 - `hide_name` (Boolean)
 - `multicast_to_unicast_conversion_enabled` (Boolean)
 - `name` (String)
-- `network` (Attributes) (see [below for nested schema](#nestedatt--network))
 - `security_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration))
 - `site_id` (String)
 - `type` (String) Broadcast type. Supported values: `STANDARD`, `IOT_OPTIMIZED`.
@@ -102,39 +101,87 @@ resource "unifi_wifi_broadcast" "staff" {
 - `channel_2g_locked_to_6` (Boolean) Locks the 2.4 GHz radio channel to 6 on all broadcasting devices. Requires UniFi Network `10.6` or newer; older controllers do not report this field.
 - `dns_assistance_configuration` (Attributes) DNS assistance configuration for `STANDARD` WiFi broadcasts. Supported modes: `AUTO`, `MANUAL`. (see [below for nested schema](#nestedatt--dns_assistance_configuration))
 - `dtim_period_2g_locked_to_3` (Boolean) Locks the DTIM period to 3 for the 2.4 GHz radio. Requires UniFi Network `10.6` or newer; older controllers do not report this field.
+- `network` (Attributes) Network this broadcast is bound to. Required unless `security_configuration.preshared_keys` is set, which the controller forbids combining with a broadcast-level network because each preshared key carries its own. (see [below for nested schema](#nestedatt--network))
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-
-<a id="nestedatt--network"></a>
-### Nested Schema for `network`
-
-Required:
-
-- `type` (String) WiFi network binding. Supported values: `NATIVE`, `SPECIFIC`.
-
-Optional:
-
-- `network_id` (String)
-
 
 <a id="nestedatt--security_configuration"></a>
 ### Nested Schema for `security_configuration`
 
 Required:
 
-- `type` (String) Security mode. Supported values: `OPEN`, `WPA2_PERSONAL`, `WPA3_PERSONAL`, `WPA2_WPA3_PERSONAL`.
+- `type` (String) Security mode. Supported values: `OPEN`, `WPA2_PERSONAL`, `WPA3_PERSONAL`, `WPA2_WPA3_PERSONAL`, `WPA2_ENTERPRISE`, `WPA2_WPA3_ENTERPRISE`, `WPA3_ENTERPRISE`.
 
 Optional:
 
+- `coa_enabled` (Boolean)
 - `encryption` (String) Open security encryption mode. Supported values for `OPEN` security: `ENHANCED_OPEN`, `ENHANCED_OPEN_WITH_TRANSITION`. Leave unset for plain open WiFi.
-- `fast_roaming_enabled` (Boolean)
-- `group_rekey_interval_seconds` (Number)
+- `fast_roaming_enabled` (Boolean) Fast roaming enabled flag. Not available for `IOT_OPTIMIZED` broadcasts. Recent controllers reject a `STANDARD` broadcast that uses WPA security without this set, reporting `WPA security combined with standard WiFi requires fast roaming setting`.
+- `group_rekey_interval_seconds` (Number) Group rekey interval in seconds. Disabled when omitted. Not available for `IOT_OPTIMIZED` broadcasts.
 - `passphrase` (String, Sensitive)
-- `pmf_mode` (String)
+- `pmf_mode` (String) Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Not available for `IOT_OPTIMIZED` broadcasts.
+- `preshared_keys` (Attributes List) (see [below for nested schema](#nestedatt--security_configuration--preshared_keys))
+- `radius_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration))
 - `sae_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--sae_configuration))
+- `security_mode` (String) WPA3 Enterprise security mode. Supported values: `DEFAULT`, `HIGH_SECURITY_192_BIT`.
 - `wpa3_fast_roaming_enabled` (Boolean)
+
+<a id="nestedatt--security_configuration--preshared_keys"></a>
+### Nested Schema for `security_configuration.preshared_keys`
+
+Required:
+
+- `network` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--preshared_keys--network))
+- `passphrase` (String, Sensitive)
+
+<a id="nestedatt--security_configuration--preshared_keys--network"></a>
+### Nested Schema for `security_configuration.preshared_keys.network`
+
+Required:
+
+- `type` (String)
+
+Optional:
+
+- `network_id` (String)
+
+
+
+<a id="nestedatt--security_configuration--radius_configuration"></a>
+### Nested Schema for `security_configuration.radius_configuration`
+
+Required:
+
+- `nas_id` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration--nas_id))
+- `profile_id` (String)
+
+Optional:
+
+- `mac_authentication_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration--mac_authentication_configuration))
+
+<a id="nestedatt--security_configuration--radius_configuration--nas_id"></a>
+### Nested Schema for `security_configuration.radius_configuration.nas_id`
+
+Required:
+
+- `type` (String)
+
+Optional:
+
+- `source` (String)
+- `value` (String)
+
+
+<a id="nestedatt--security_configuration--radius_configuration--mac_authentication_configuration"></a>
+### Nested Schema for `security_configuration.radius_configuration.mac_authentication_configuration`
+
+Required:
+
+- `mac_address_format` (String)
+
+
 
 <a id="nestedatt--security_configuration--sae_configuration"></a>
 ### Nested Schema for `security_configuration.sae_configuration`
@@ -168,6 +215,18 @@ Required:
 Optional:
 
 - `servers` (List of String)
+
+
+<a id="nestedatt--network"></a>
+### Nested Schema for `network`
+
+Required:
+
+- `type` (String) WiFi network binding. Supported values: `NATIVE`, `SPECIFIC`.
+
+Optional:
+
+- `network_id` (String)
 
 ## Import
 

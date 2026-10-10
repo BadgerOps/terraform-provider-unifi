@@ -30,7 +30,7 @@ func (d *wifiBroadcastDataSource) Metadata(_ context.Context, request datasource
 
 func (d *wifiBroadcastDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, response *datasource.SchemaResponse) {
 	response.Schema = schema.Schema{
-		MarkdownDescription: "Look up a UniFi WiFi broadcast by `id` or `name` within a site.",
+		MarkdownDescription: "Look up a UniFi WiFi broadcast by `id` or `name` within a site, including Enterprise RADIUS configuration and PPSK metadata returned by UniFi. PPSK secrets that the API omits are not invented.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Optional: true,
@@ -95,6 +95,41 @@ func (d *wifiBroadcastDataSource) Schema(_ context.Context, _ datasource.SchemaR
 								Computed: true,
 							},
 						},
+					},
+					"radius_configuration": schema.SingleNestedAttribute{
+						Computed: true,
+						Attributes: map[string]schema.Attribute{
+							"profile_id": schema.StringAttribute{Computed: true},
+							"nas_id": schema.SingleNestedAttribute{
+								Computed: true,
+								Attributes: map[string]schema.Attribute{
+									"type":   schema.StringAttribute{Computed: true},
+									"source": schema.StringAttribute{Computed: true},
+									"value":  schema.StringAttribute{Computed: true},
+								},
+							},
+							"mac_authentication_configuration": schema.SingleNestedAttribute{
+								Computed: true,
+								Attributes: map[string]schema.Attribute{
+									"mac_address_format": schema.StringAttribute{Computed: true},
+								},
+							},
+						},
+					},
+					"coa_enabled":   schema.BoolAttribute{Computed: true},
+					"security_mode": schema.StringAttribute{Computed: true},
+					"preshared_keys": schema.ListNestedAttribute{
+						Computed: true,
+						NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
+							"passphrase": schema.StringAttribute{Computed: true, Sensitive: true},
+							"network": schema.SingleNestedAttribute{
+								Computed: true,
+								Attributes: map[string]schema.Attribute{
+									"type":       schema.StringAttribute{Computed: true},
+									"network_id": schema.StringAttribute{Computed: true},
+								},
+							},
+						}},
 					},
 				},
 			},
