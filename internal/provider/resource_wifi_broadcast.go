@@ -234,13 +234,16 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 						MarkdownDescription: "Open security encryption mode. Supported values for `OPEN` security: `ENHANCED_OPEN`, `ENHANCED_OPEN_WITH_TRANSITION`. Leave unset for plain open WiFi.",
 					},
 					"pmf_mode": schema.StringAttribute{
-						Optional: true,
+						Optional:            true,
+						MarkdownDescription: "Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Not available for `IOT_OPTIMIZED` broadcasts.",
 					},
 					"fast_roaming_enabled": schema.BoolAttribute{
-						Optional: true,
+						Optional:            true,
+						MarkdownDescription: "Fast roaming enabled flag. Not available for `IOT_OPTIMIZED` broadcasts.",
 					},
 					"group_rekey_interval_seconds": schema.Int64Attribute{
-						Optional: true,
+						Optional:            true,
+						MarkdownDescription: "Group rekey interval in seconds. Disabled when omitted. Not available for `IOT_OPTIMIZED` broadcasts.",
 					},
 					"wpa3_fast_roaming_enabled": schema.BoolAttribute{
 						Optional: true,
@@ -781,6 +784,9 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		if !plan.BroadcastingFrequenciesGHz.IsNull() || !plan.AdvertiseDeviceName.IsNull() || !plan.ARPProxyEnabled.IsNull() || !plan.BSSTransitionEnabled.IsNull() || !plan.BandSteeringEnabled.IsNull() || !plan.DNSAssistanceConfiguration.IsNull() {
 			return fmt.Errorf("standard-only attributes must not be set for IOT_OPTIMIZED broadcasts")
 		}
+		if err := rejectIoTSecurityFields(security); err != nil {
+			return err
+		}
 	}
 
 	if !plan.DNSAssistanceConfiguration.IsNull() && !plan.DNSAssistanceConfiguration.IsUnknown() {
@@ -844,17 +850,31 @@ func isNonEnterpriseSecurityType(value string) bool {
 	}
 }
 
-func rejectSecurityFields(security wifiSecurityConfigurationModel, securityType string, fields ...string) error {
-	set := map[string]bool{
+func securityFieldsSet(security wifiSecurityConfigurationModel) map[string]bool {
+	return map[string]bool{
 		"passphrase": !security.Passphrase.IsNull(), "encryption": !security.Encryption.IsNull(), "pmf_mode": !security.PMFMode.IsNull(),
 		"fast_roaming_enabled": !security.FastRoamingEnabled.IsNull(), "group_rekey_interval_seconds": !security.GroupRekeyIntervalSeconds.IsNull(),
 		"wpa3_fast_roaming_enabled": !security.WPA3FastRoamingEnabled.IsNull(), "sae_configuration": !security.SAEConfiguration.IsNull(),
 		"radius_configuration": !security.RadiusConfiguration.IsNull(), "coa_enabled": !security.CoAEnabled.IsNull(), "security_mode": !security.SecurityMode.IsNull(),
 		"preshared_keys": !security.PresharedKeys.IsNull(),
 	}
+}
+
+func rejectSecurityFields(security wifiSecurityConfigurationModel, securityType string, fields ...string) error {
+	set := securityFieldsSet(security)
 	for _, field := range fields {
 		if set[field] {
 			return fmt.Errorf("security_configuration.%s is not valid for %s", field, securityType)
+		}
+	}
+	return nil
+}
+
+func rejectIoTSecurityFields(security wifiSecurityConfigurationModel) error {
+	set := securityFieldsSet(security)
+	for _, field := range []string{"pmf_mode", "fast_roaming_enabled", "group_rekey_interval_seconds"} {
+		if set[field] {
+			return fmt.Errorf("security_configuration.%s is not valid for IOT_OPTIMIZED broadcasts", field)
 		}
 	}
 	return nil

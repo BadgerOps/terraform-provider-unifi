@@ -132,3 +132,125 @@ func TestPreserveWifiPresharedKeySecrets(t *testing.T) {
 		t.Fatalf("network-a passphrase = %#v, want secret-a", security.PresharedKeys[1].Passphrase)
 	}
 }
+
+func wifiSecurityWithField(t *testing.T, field string, value attr.Value) types.Object {
+	t.Helper()
+
+	attributes := map[string]attr.Value{
+		"type":                         types.StringValue("WPA2_PERSONAL"),
+		"passphrase":                   types.StringValue("acceptance-passphrase"),
+		"encryption":                   types.StringNull(),
+		"pmf_mode":                     types.StringNull(),
+		"fast_roaming_enabled":         types.BoolNull(),
+		"group_rekey_interval_seconds": types.Int64Null(),
+		"wpa3_fast_roaming_enabled":    types.BoolNull(),
+		"sae_configuration":            types.ObjectNull(wifiSAEConfigurationAttrTypes()),
+		"radius_configuration":         types.ObjectNull(wifiRadiusConfigurationAttrTypes()),
+		"coa_enabled":                  types.BoolNull(),
+		"security_mode":                types.StringNull(),
+		"preshared_keys":               types.ListNull(types.ObjectType{AttrTypes: wifiPresharedKeyAttrTypes()}),
+	}
+	if field != "" {
+		attributes[field] = value
+	}
+
+	security, diagnostics := types.ObjectValue(wifiSecurityConfigurationAttrTypes(), attributes)
+	if diagnostics.HasError() {
+		t.Fatalf("construct security configuration: %v", diagnostics)
+	}
+	return security
+}
+
+func wifiNativeNetwork(t *testing.T) types.Object {
+	t.Helper()
+
+	network, diagnostics := types.ObjectValue(wifiNetworkAttrTypes(), map[string]attr.Value{
+		"type": types.StringValue("NATIVE"), "network_id": types.StringNull(),
+	})
+	if diagnostics.HasError() {
+		t.Fatalf("construct network: %v", diagnostics)
+	}
+	return network
+}
+
+func TestValidateWifiBroadcastModelIoTUnsupportedSecurityFields(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		field string
+		value attr.Value
+	}{
+		{name: "pmf_mode", field: "pmf_mode", value: types.StringValue("OPTIONAL")},
+		{name: "fast_roaming_enabled", field: "fast_roaming_enabled", value: types.BoolValue(true)},
+		{name: "group_rekey_interval_seconds", field: "group_rekey_interval_seconds", value: types.Int64Value(3600)},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			plan := wifiBroadcastResourceModel{
+				Type:                  types.StringValue("IOT_OPTIMIZED"),
+				Network:               wifiNativeNetwork(t),
+				SecurityConfiguration: wifiSecurityWithField(t, testCase.field, testCase.value),
+			}
+
+			err := validateWifiBroadcastModel(context.Background(), plan)
+			if err == nil {
+				t.Fatalf("validateWifiBroadcastModel() error = nil, want error for %s", testCase.field)
+			}
+			expected := "security_configuration." + testCase.field + " is not valid for IOT_OPTIMIZED broadcasts"
+			if err.Error() != expected {
+				t.Fatalf("validateWifiBroadcastModel() error = %q, want %q", err.Error(), expected)
+			}
+		})
+	}
+}
+
+func TestValidateWifiBroadcastModelIoTAllowsSupportedSecurity(t *testing.T) {
+	t.Parallel()
+
+	plan := wifiBroadcastResourceModel{
+		Type:                  types.StringValue("IOT_OPTIMIZED"),
+		Network:               wifiNativeNetwork(t),
+		SecurityConfiguration: wifiSecurityWithField(t, "", nil),
+	}
+
+	if err := validateWifiBroadcastModel(context.Background(), plan); err != nil {
+		t.Fatalf("validateWifiBroadcastModel() error = %v", err)
+	}
+}
+
+func TestValidateWifiBroadcastModelStandardAllowsIoTUnsupportedSecurityFields(t *testing.T) {
+	t.Parallel()
+
+	frequencies, diagnostics := types.SetValue(types.Float64Type, []attr.Value{types.Float64Value(2.4)})
+	if diagnostics.HasError() {
+		t.Fatalf("construct broadcasting frequencies: %v", diagnostics)
+	}
+
+	for _, testCase := range []struct {
+		field string
+		value attr.Value
+	}{
+		{field: "pmf_mode", value: types.StringValue("OPTIONAL")},
+		{field: "fast_roaming_enabled", value: types.BoolValue(true)},
+		{field: "group_rekey_interval_seconds", value: types.Int64Value(3600)},
+	} {
+		plan := wifiBroadcastResourceModel{
+			Type:                       types.StringValue("STANDARD"),
+			Network:                    wifiNativeNetwork(t),
+			SecurityConfiguration:      wifiSecurityWithField(t, testCase.field, testCase.value),
+			BroadcastingFrequenciesGHz: frequencies,
+			AdvertiseDeviceName:        types.BoolValue(true),
+			ARPProxyEnabled:            types.BoolValue(false),
+			BSSTransitionEnabled:       types.BoolValue(true),
+		}
+
+		if err := validateWifiBroadcastModel(context.Background(), plan); err != nil {
+			t.Fatalf("validateWifiBroadcastModel() error = %v for %s", err, testCase.field)
+		}
+	}
+}

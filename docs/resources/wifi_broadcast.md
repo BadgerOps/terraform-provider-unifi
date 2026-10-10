@@ -130,10 +130,10 @@ Optional:
 
 - `coa_enabled` (Boolean)
 - `encryption` (String) Open security encryption mode. Supported values for `OPEN` security: `ENHANCED_OPEN`, `ENHANCED_OPEN_WITH_TRANSITION`. Leave unset for plain open WiFi.
-- `fast_roaming_enabled` (Boolean)
-- `group_rekey_interval_seconds` (Number)
+- `fast_roaming_enabled` (Boolean) Fast roaming enabled flag. Not available for `IOT_OPTIMIZED` broadcasts.
+- `group_rekey_interval_seconds` (Number) Group rekey interval in seconds. Disabled when omitted. Not available for `IOT_OPTIMIZED` broadcasts.
 - `passphrase` (String, Sensitive)
-- `pmf_mode` (String)
+- `pmf_mode` (String) Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Not available for `IOT_OPTIMIZED` broadcasts.
 - `preshared_keys` (Attributes List) (see [below for nested schema](#nestedatt--security_configuration--preshared_keys))
 - `radius_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration))
 - `sae_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--sae_configuration))

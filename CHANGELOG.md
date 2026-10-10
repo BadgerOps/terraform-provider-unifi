@@ -11,6 +11,10 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 - Added official Integration API support for WPA2 Enterprise, mixed WPA2/WPA3 Enterprise, and WPA3 Enterprise WiFi security, including RADIUS profiles, NAS-ID, MAC authentication, Change of Authorization, roaming, PMF, rekeying, and WPA3 security mode.
 - Added WPA2 Personal PPSKs with per-key network assignment, sensitive state handling, and refresh preservation for passphrases omitted by UniFi responses.
 
+### Fixed
+
+- Rejected `security_configuration.pmf_mode`, `security_configuration.fast_roaming_enabled`, and `security_configuration.group_rekey_interval_seconds` at plan time for `IOT_OPTIMIZED` broadcasts. The integration API documents all three as unavailable for IoT configuration, for every security type, so the controller silently ignored them.
+
 ## [0.4.0] - 2026-10-06
 
 ### Added
