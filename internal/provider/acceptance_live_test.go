@@ -524,8 +524,9 @@ resource "unifi_wifi_broadcast" "test" {
   }
 
   security_configuration = {
-    type       = "WPA2_PERSONAL"
-    passphrase = %q
+    type                 = "WPA2_PERSONAL"
+    passphrase           = %q
+    fast_roaming_enabled = true
   }
 
   broadcasting_device_filter = {
@@ -565,8 +566,9 @@ resource "unifi_wifi_broadcast" "test" {
   }
 
   security_configuration = {
-    type       = "WPA2_PERSONAL"
-    passphrase = %q
+    type                 = "WPA2_PERSONAL"
+    passphrase           = %q
+    fast_roaming_enabled = true
   }
 
   broadcasting_device_filter = {
@@ -628,8 +630,9 @@ resource "unifi_wifi_broadcast" "test" {
   }
 
   security_configuration = {
-    type       = "WPA2_PERSONAL"
-    passphrase = %q
+    type                 = "WPA2_PERSONAL"
+    passphrase           = %q
+    fast_roaming_enabled = true
   }
 
   broadcasting_device_filter = {
@@ -692,8 +695,9 @@ func TestAccLiveResourceWifiBroadcastEnterprise(t *testing.T) {
       profile_id = %q
       nas_id      = { type = "DERIVED", source = "BSSID" }
     }
-    coa_enabled  = true
-    security_mode = "DEFAULT"
+    coa_enabled          = true
+    security_mode        = "DEFAULT"
+    fast_roaming_enabled = true
   }`, profile.ID),
 	}
 
@@ -785,9 +789,9 @@ resource "unifi_wifi_broadcast" "test" {
   arp_proxy_enabled                       = false
   band_steering_enabled                   = true
   bss_transition_enabled                  = true
-  network                                 = { type = "NATIVE" }
   security_configuration = {
-    type = "WPA2_PERSONAL"
+    type                 = "WPA2_PERSONAL"
+    fast_roaming_enabled = true
     preshared_keys = [
       { passphrase = %q, network = { type = "SPECIFIC", network_id = unifi_network.psk_a.id } },
       { passphrase = %q, network = { type = "SPECIFIC", network_id = unifi_network.psk_b.id } }
@@ -805,6 +809,7 @@ resource "unifi_wifi_broadcast" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "security_configuration.type", "WPA2_PERSONAL"),
 					resource.TestCheckResourceAttr(resourceName, "security_configuration.preshared_keys.#", "2"),
+					resource.TestCheckNoResourceAttr(resourceName, "network.type"),
 					resource.TestCheckResourceAttrPair(resourceName, "security_configuration.preshared_keys.0.network.network_id", "unifi_network.psk_a", "id"),
 					resource.TestCheckResourceAttrPair(resourceName, "security_configuration.preshared_keys.1.network.network_id", "unifi_network.psk_b", "id"),
 				),

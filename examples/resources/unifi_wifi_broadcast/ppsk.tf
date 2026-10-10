@@ -23,10 +23,12 @@ resource "unifi_wifi_broadcast" "iot_ppsk" {
   band_steering_enabled                   = true
   bss_transition_enabled                  = true
 
-  network = { type = "NATIVE" }
+  # The controller forbids a broadcast-level network alongside preshared keys,
+  # because each key carries its own.
 
   security_configuration = {
-    type = "WPA2_PERSONAL"
+    type                 = "WPA2_PERSONAL"
+    fast_roaming_enabled = true
     preshared_keys = [
       {
         passphrase = var.iot_local_psk

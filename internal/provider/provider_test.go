@@ -3164,9 +3164,9 @@ resource "unifi_wifi_broadcast" "ppsk" {
   arp_proxy_enabled = false
   band_steering_enabled = true
   bss_transition_enabled = true
-  network = { type = "NATIVE" }
   security_configuration = {
     type = "WPA2_PERSONAL"
+    fast_roaming_enabled = true
     preshared_keys = [
       { passphrase = "network-a-secret", network = { type = "SPECIFIC", network_id = unifi_network.psk_a.id } },
       { passphrase = "network-b-secret", network = { type = "SPECIFIC", network_id = unifi_network.psk_b.id } }

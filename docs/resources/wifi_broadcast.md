@@ -85,7 +85,6 @@ resource "unifi_wifi_broadcast" "staff" {
 - `hide_name` (Boolean)
 - `multicast_to_unicast_conversion_enabled` (Boolean)
 - `name` (String)
-- `network` (Attributes) (see [below for nested schema](#nestedatt--network))
 - `security_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration))
 - `site_id` (String)
 - `type` (String) Broadcast type. Supported values: `STANDARD`, `IOT_OPTIMIZED`.
@@ -102,22 +101,11 @@ resource "unifi_wifi_broadcast" "staff" {
 - `channel_2g_locked_to_6` (Boolean) Locks the 2.4 GHz radio channel to 6 on all broadcasting devices. Requires UniFi Network `10.6` or newer; older controllers do not report this field.
 - `dns_assistance_configuration` (Attributes) DNS assistance configuration for `STANDARD` WiFi broadcasts. Supported modes: `AUTO`, `MANUAL`. (see [below for nested schema](#nestedatt--dns_assistance_configuration))
 - `dtim_period_2g_locked_to_3` (Boolean) Locks the DTIM period to 3 for the 2.4 GHz radio. Requires UniFi Network `10.6` or newer; older controllers do not report this field.
+- `network` (Attributes) Network this broadcast is bound to. Required unless `security_configuration.preshared_keys` is set, which the controller forbids combining with a broadcast-level network because each preshared key carries its own. (see [below for nested schema](#nestedatt--network))
 
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-
-<a id="nestedatt--network"></a>
-### Nested Schema for `network`
-
-Required:
-
-- `type` (String) WiFi network binding. Supported values: `NATIVE`, `SPECIFIC`.
-
-Optional:
-
-- `network_id` (String)
-
 
 <a id="nestedatt--security_configuration"></a>
 ### Nested Schema for `security_configuration`
@@ -130,7 +118,7 @@ Optional:
 
 - `coa_enabled` (Boolean)
 - `encryption` (String) Open security encryption mode. Supported values for `OPEN` security: `ENHANCED_OPEN`, `ENHANCED_OPEN_WITH_TRANSITION`. Leave unset for plain open WiFi.
-- `fast_roaming_enabled` (Boolean) Fast roaming enabled flag. Not available for `IOT_OPTIMIZED` broadcasts.
+- `fast_roaming_enabled` (Boolean) Fast roaming enabled flag. Not available for `IOT_OPTIMIZED` broadcasts. Recent controllers reject a `STANDARD` broadcast that uses WPA security without this set, reporting `WPA security combined with standard WiFi requires fast roaming setting`.
 - `group_rekey_interval_seconds` (Number) Group rekey interval in seconds. Disabled when omitted. Not available for `IOT_OPTIMIZED` broadcasts.
 - `passphrase` (String, Sensitive)
 - `pmf_mode` (String) Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Not available for `IOT_OPTIMIZED` broadcasts.
@@ -227,6 +215,18 @@ Required:
 Optional:
 
 - `servers` (List of String)
+
+
+<a id="nestedatt--network"></a>
+### Nested Schema for `network`
+
+Required:
+
+- `type` (String) WiFi network binding. Supported values: `NATIVE`, `SPECIFIC`.
+
+Optional:
+
+- `network_id` (String)
 
 ## Import
 

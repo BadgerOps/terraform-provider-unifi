@@ -207,7 +207,8 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 				Required: true,
 			},
 			"network": schema.SingleNestedAttribute{
-				Required: true,
+				Optional:            true,
+				MarkdownDescription: "Network this broadcast is bound to. Required unless `security_configuration.preshared_keys` is set, which the controller forbids combining with a broadcast-level network because each preshared key carries its own.",
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
 						Required:            true,
@@ -239,7 +240,7 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 					},
 					"fast_roaming_enabled": schema.BoolAttribute{
 						Optional:            true,
-						MarkdownDescription: "Fast roaming enabled flag. Not available for `IOT_OPTIMIZED` broadcasts.",
+						MarkdownDescription: "Fast roaming enabled flag. Not available for `IOT_OPTIMIZED` broadcasts. Recent controllers reject a `STANDARD` broadcast that uses WPA security without this set, reporting `WPA security combined with standard WiFi requires fast roaming setting`.",
 					},
 					"group_rekey_interval_seconds": schema.Int64Attribute{
 						Optional:            true,
@@ -484,11 +485,13 @@ func (r *wifiBroadcastResource) expandWifiBroadcast(ctx context.Context, plan wi
 		return broadcast
 	}
 
-	var network wifiNetworkModel
-	diags.Append(plan.Network.As(ctx, &network, basetypes.ObjectAsOptions{})...)
-	broadcast.Network = &client.WifiNetworkReference{
-		Type:      network.Type.ValueString(),
-		NetworkID: network.NetworkID.ValueString(),
+	if !plan.Network.IsNull() && !plan.Network.IsUnknown() {
+		var network wifiNetworkModel
+		diags.Append(plan.Network.As(ctx, &network, basetypes.ObjectAsOptions{})...)
+		broadcast.Network = &client.WifiNetworkReference{
+			Type:      network.Type.ValueString(),
+			NetworkID: network.NetworkID.ValueString(),
+		}
 	}
 
 	var security wifiSecurityConfigurationModel
@@ -669,27 +672,37 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		return fmt.Errorf("type must be STANDARD or IOT_OPTIMIZED")
 	}
 
-	var network wifiNetworkModel
-	if diags := plan.Network.As(ctx, &network, basetypes.ObjectAsOptions{}); diags.HasError() {
-		return fmt.Errorf("unable to decode network block")
-	}
-
-	switch network.Type.ValueString() {
-	case "NATIVE":
-		if !network.NetworkID.IsNull() {
-			return fmt.Errorf("network.network_id must not be set when network.type is NATIVE")
-		}
-	case "SPECIFIC":
-		if network.NetworkID.IsNull() {
-			return fmt.Errorf("network.network_id is required when network.type is SPECIFIC")
-		}
-	default:
-		return fmt.Errorf("network.type must be NATIVE or SPECIFIC")
-	}
-
 	var security wifiSecurityConfigurationModel
 	if diags := plan.SecurityConfiguration.As(ctx, &security, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return fmt.Errorf("unable to decode security_configuration block")
+	}
+
+	if !security.PresharedKeys.IsNull() {
+		if !plan.Network.IsNull() {
+			return fmt.Errorf("network must not be set when security_configuration.preshared_keys is set, because each preshared key carries its own network")
+		}
+	} else if plan.Network.IsNull() {
+		return fmt.Errorf("network is required unless security_configuration.preshared_keys is set")
+	}
+
+	if !plan.Network.IsNull() && !plan.Network.IsUnknown() {
+		var network wifiNetworkModel
+		if diags := plan.Network.As(ctx, &network, basetypes.ObjectAsOptions{}); diags.HasError() {
+			return fmt.Errorf("unable to decode network block")
+		}
+
+		switch network.Type.ValueString() {
+		case "NATIVE":
+			if !network.NetworkID.IsNull() {
+				return fmt.Errorf("network.network_id must not be set when network.type is NATIVE")
+			}
+		case "SPECIFIC":
+			if network.NetworkID.IsNull() {
+				return fmt.Errorf("network.network_id is required when network.type is SPECIFIC")
+			}
+		default:
+			return fmt.Errorf("network.type must be NATIVE or SPECIFIC")
+		}
 	}
 
 	switch security.Type.ValueString() {
@@ -700,6 +713,9 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 	case "WPA2_PERSONAL":
 		if security.Passphrase.IsNull() && security.PresharedKeys.IsNull() && security.RadiusConfiguration.IsNull() {
 			return fmt.Errorf("security_configuration.passphrase, preshared_keys, or radius_configuration is required for WPA2_PERSONAL")
+		}
+		if !security.Passphrase.IsNull() && !security.PresharedKeys.IsNull() {
+			return fmt.Errorf("security_configuration.passphrase and security_configuration.preshared_keys are mutually exclusive")
 		}
 		if err := rejectSecurityFields(security, "WPA2_PERSONAL", "encryption", "wpa3_fast_roaming_enabled", "sae_configuration", "coa_enabled", "security_mode"); err != nil {
 			return err

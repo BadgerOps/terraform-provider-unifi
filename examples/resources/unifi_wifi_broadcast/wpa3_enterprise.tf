@@ -26,7 +26,8 @@ resource "unifi_wifi_broadcast" "wpa3_enterprise" {
       profile_id = data.unifi_radius_profile.wpa3_enterprise.id
       nas_id     = { type = "DERIVED", source = "BSSID" }
     }
-    coa_enabled   = true
-    security_mode = "DEFAULT"
+    coa_enabled          = true
+    security_mode        = "DEFAULT"
+    fast_roaming_enabled = true
   }
 }

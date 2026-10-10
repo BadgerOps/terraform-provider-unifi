@@ -9,10 +9,12 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 ### Added
 
 - Added official Integration API support for WPA2 Enterprise, mixed WPA2/WPA3 Enterprise, and WPA3 Enterprise WiFi security, including RADIUS profiles, NAS-ID, MAC authentication, Change of Authorization, roaming, PMF, rekeying, and WPA3 security mode.
-- Added WPA2 Personal PPSKs with per-key network assignment, sensitive state handling, and refresh preservation for passphrases omitted by UniFi responses.
+- Added WPA2 Personal PPSKs with per-key network assignment, sensitive state handling, and refresh preservation for passphrases omitted by UniFi responses. A PPSK broadcast omits the broadcast-level `network`, because each key carries its own.
 
 ### Fixed
 
+- Made `network` optional on `unifi_wifi_broadcast`. The controller forbids a broadcast-level network alongside `security_configuration.preshared_keys`, because each preshared key carries its own, so PPSK broadcasts could not be created at all while the attribute was required. It is still required for every other configuration, and the integration schema never listed it as required.
+- Rejected `network` and `security_configuration.passphrase` alongside `security_configuration.preshared_keys` at plan time, matching the controller.
 - Rejected `security_configuration.pmf_mode`, `security_configuration.fast_roaming_enabled`, and `security_configuration.group_rekey_interval_seconds` at plan time for `IOT_OPTIMIZED` broadcasts. The integration API documents all three as unavailable for IoT configuration, for every security type, so the controller silently ignored them.
 
 ## [0.4.0] - 2026-10-06

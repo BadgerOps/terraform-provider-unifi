@@ -254,3 +254,121 @@ func TestValidateWifiBroadcastModelStandardAllowsIoTUnsupportedSecurityFields(t 
 		}
 	}
 }
+
+func wifiPresharedKeyList(t *testing.T) types.List {
+	t.Helper()
+
+	network, diagnostics := types.ObjectValue(wifiNetworkAttrTypes(), map[string]attr.Value{
+		"type": types.StringValue("SPECIFIC"), "network_id": types.StringValue("00000000-0000-0000-0000-000000000201"),
+	})
+	if diagnostics.HasError() {
+		t.Fatalf("construct preshared key network: %v", diagnostics)
+	}
+	key, diagnostics := types.ObjectValue(wifiPresharedKeyAttrTypes(), map[string]attr.Value{
+		"passphrase": types.StringValue("preshared-passphrase"), "network": network,
+	})
+	if diagnostics.HasError() {
+		t.Fatalf("construct preshared key: %v", diagnostics)
+	}
+	list, diagnostics := types.ListValue(types.ObjectType{AttrTypes: wifiPresharedKeyAttrTypes()}, []attr.Value{key})
+	if diagnostics.HasError() {
+		t.Fatalf("construct preshared keys: %v", diagnostics)
+	}
+	return list
+}
+
+func wifiPresharedKeySecurity(t *testing.T, withPassphrase bool) types.Object {
+	t.Helper()
+
+	attributes := map[string]attr.Value{
+		"type":                         types.StringValue("WPA2_PERSONAL"),
+		"passphrase":                   types.StringNull(),
+		"encryption":                   types.StringNull(),
+		"pmf_mode":                     types.StringNull(),
+		"fast_roaming_enabled":         types.BoolValue(true),
+		"group_rekey_interval_seconds": types.Int64Null(),
+		"wpa3_fast_roaming_enabled":    types.BoolNull(),
+		"sae_configuration":            types.ObjectNull(wifiSAEConfigurationAttrTypes()),
+		"radius_configuration":         types.ObjectNull(wifiRadiusConfigurationAttrTypes()),
+		"coa_enabled":                  types.BoolNull(),
+		"security_mode":                types.StringNull(),
+		"preshared_keys":               wifiPresharedKeyList(t),
+	}
+	if withPassphrase {
+		attributes["passphrase"] = types.StringValue("acceptance-passphrase")
+	}
+
+	security, diagnostics := types.ObjectValue(wifiSecurityConfigurationAttrTypes(), attributes)
+	if diagnostics.HasError() {
+		t.Fatalf("construct PPSK security configuration: %v", diagnostics)
+	}
+	return security
+}
+
+func wifiStandardPlan(network types.Object, security types.Object) wifiBroadcastResourceModel {
+	frequencies := types.SetValueMust(types.Float64Type, []attr.Value{types.Float64Value(2.4)})
+	return wifiBroadcastResourceModel{
+		Type:                       types.StringValue("STANDARD"),
+		Network:                    network,
+		SecurityConfiguration:      security,
+		BroadcastingFrequenciesGHz: frequencies,
+		AdvertiseDeviceName:        types.BoolValue(true),
+		ARPProxyEnabled:            types.BoolValue(false),
+		BSSTransitionEnabled:       types.BoolValue(true),
+	}
+}
+
+func TestValidateWifiBroadcastModelPresharedKeysForbidNetwork(t *testing.T) {
+	t.Parallel()
+
+	plan := wifiStandardPlan(wifiNativeNetwork(t), wifiPresharedKeySecurity(t, false))
+
+	err := validateWifiBroadcastModel(context.Background(), plan)
+	if err == nil {
+		t.Fatal("validateWifiBroadcastModel() error = nil, want error")
+	}
+	expected := "network must not be set when security_configuration.preshared_keys is set, because each preshared key carries its own network"
+	if err.Error() != expected {
+		t.Fatalf("validateWifiBroadcastModel() error = %q, want %q", err.Error(), expected)
+	}
+}
+
+func TestValidateWifiBroadcastModelPresharedKeysWithoutNetwork(t *testing.T) {
+	t.Parallel()
+
+	plan := wifiStandardPlan(types.ObjectNull(wifiNetworkAttrTypes()), wifiPresharedKeySecurity(t, false))
+
+	if err := validateWifiBroadcastModel(context.Background(), plan); err != nil {
+		t.Fatalf("validateWifiBroadcastModel() error = %v", err)
+	}
+}
+
+func TestValidateWifiBroadcastModelPresharedKeysForbidPassphrase(t *testing.T) {
+	t.Parallel()
+
+	plan := wifiStandardPlan(types.ObjectNull(wifiNetworkAttrTypes()), wifiPresharedKeySecurity(t, true))
+
+	err := validateWifiBroadcastModel(context.Background(), plan)
+	if err == nil {
+		t.Fatal("validateWifiBroadcastModel() error = nil, want error")
+	}
+	expected := "security_configuration.passphrase and security_configuration.preshared_keys are mutually exclusive"
+	if err.Error() != expected {
+		t.Fatalf("validateWifiBroadcastModel() error = %q, want %q", err.Error(), expected)
+	}
+}
+
+func TestValidateWifiBroadcastModelNetworkRequiredWithoutPresharedKeys(t *testing.T) {
+	t.Parallel()
+
+	plan := wifiStandardPlan(types.ObjectNull(wifiNetworkAttrTypes()), wifiSecurityWithField(t, "", nil))
+
+	err := validateWifiBroadcastModel(context.Background(), plan)
+	if err == nil {
+		t.Fatal("validateWifiBroadcastModel() error = nil, want error")
+	}
+	expected := "network is required unless security_configuration.preshared_keys is set"
+	if err.Error() != expected {
+		t.Fatalf("validateWifiBroadcastModel() error = %q, want %q", err.Error(), expected)
+	}
+}
