@@ -161,6 +161,37 @@ func TestValidateWifiBroadcastModelUnknownValues(t *testing.T) {
 				return plan
 			},
 		},
+		{
+			name: "dns servers unknown with AUTO mode",
+			plan: func(t *testing.T) wifiBroadcastResourceModel {
+				plan := wifiStandardPlan(wifiNativeNetwork(t), wifiSecurityWithField(t, "", nil))
+				plan.DNSAssistanceConfiguration = objectWith(t, wifiDNSAssistanceConfigurationAttrTypes(), map[string]attr.Value{
+					"mode":    types.StringValue("AUTO"),
+					"servers": types.ListUnknown(types.StringType),
+				})
+				return plan
+			},
+		},
+		{
+			name: "native network_id unknown",
+			plan: func(t *testing.T) wifiBroadcastResourceModel {
+				network := objectWith(t, wifiNetworkAttrTypes(), map[string]attr.Value{
+					"type":       types.StringValue("NATIVE"),
+					"network_id": types.StringUnknown(),
+				})
+				return wifiStandardPlan(network, wifiSecurityWithField(t, "", nil))
+			},
+		},
+		{
+			name: "preshared keys list unknown with known network",
+			plan: func(t *testing.T) wifiBroadcastResourceModel {
+				security := objectWith(t, wifiSecurityConfigurationAttrTypes(), map[string]attr.Value{
+					"type":           types.StringValue("WPA2_PERSONAL"),
+					"preshared_keys": types.ListUnknown(types.ObjectType{AttrTypes: wifiPresharedKeyAttrTypes()}),
+				})
+				return wifiStandardPlan(wifiNativeNetwork(t), security)
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -210,6 +241,37 @@ func TestValidateWifiBroadcastModelKnownInvalidStillRejected(t *testing.T) {
 				return wifiStandardPlan(network, wifiSecurityWithField(t, "", nil))
 			},
 			expected: "network.type must be NATIVE or SPECIFIC",
+		},
+		{
+			name: "native network with known network_id",
+			plan: func(t *testing.T) wifiBroadcastResourceModel {
+				network := objectWith(t, wifiNetworkAttrTypes(), map[string]attr.Value{
+					"type":       types.StringValue("NATIVE"),
+					"network_id": types.StringValue("00000000-0000-0000-0000-000000000201"),
+				})
+				return wifiStandardPlan(network, wifiSecurityWithField(t, "", nil))
+			},
+			expected: "network.network_id must not be set when network.type is NATIVE",
+		},
+		{
+			name: "radius nas_id source bogus",
+			plan: func(t *testing.T) wifiBroadcastResourceModel {
+				nasID := objectWith(t, wifiNASIDConfigurationAttrTypes(), map[string]attr.Value{
+					"type":   types.StringValue("DERIVED"),
+					"source": types.StringValue("BOGUS"),
+				})
+				radius := objectWith(t, wifiRadiusConfigurationAttrTypes(), map[string]attr.Value{
+					"profile_id": types.StringValue("00000000-0000-0000-0000-000000000101"),
+					"nas_id":     nasID,
+				})
+				security := objectWith(t, wifiSecurityConfigurationAttrTypes(), map[string]attr.Value{
+					"type":                 types.StringValue("WPA2_ENTERPRISE"),
+					"radius_configuration": radius,
+					"coa_enabled":          types.BoolValue(false),
+				})
+				return wifiStandardPlan(wifiNativeNetwork(t), security)
+			},
+			expected: "NAS-ID source must be DEVICE_MAC_ADDRESS, DEVICE_NAME, SITE_NAME, or BSSID",
 		},
 	}
 
