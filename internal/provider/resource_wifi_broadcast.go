@@ -687,11 +687,14 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		return nil
 	}
 
-	if !security.PresharedKeys.IsNull() {
+	switch {
+	case security.PresharedKeys.IsUnknown():
+		// Whether network is allowed depends on the list; decided at apply.
+	case !security.PresharedKeys.IsNull():
 		if isKnownValue(plan.Network) {
 			return fmt.Errorf("network must not be set when security_configuration.preshared_keys is set, because each preshared key carries its own network")
 		}
-	} else if plan.Network.IsNull() {
+	case plan.Network.IsNull():
 		return fmt.Errorf("network is required unless security_configuration.preshared_keys is set")
 	}
 
@@ -704,7 +707,7 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		if !network.Type.IsUnknown() {
 			switch network.Type.ValueString() {
 			case "NATIVE":
-				if !network.NetworkID.IsNull() {
+				if isKnownValue(network.NetworkID) {
 					return fmt.Errorf("network.network_id must not be set when network.type is NATIVE")
 				}
 			case "SPECIFIC":
@@ -826,7 +829,7 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		if !dnsAssistance.Mode.IsUnknown() {
 			switch dnsAssistance.Mode.ValueString() {
 			case "AUTO":
-				if !dnsAssistance.Servers.IsNull() {
+				if isKnownValue(dnsAssistance.Servers) {
 					return fmt.Errorf("dns_assistance_configuration.servers must not be set when mode is AUTO")
 				}
 			case "MANUAL":
@@ -998,7 +1001,7 @@ func validateWifiPresharedKeys(ctx context.Context, value types.List) error {
 		}
 		switch network.Type.ValueString() {
 		case "NATIVE":
-			if !network.NetworkID.IsNull() {
+			if isKnownValue(network.NetworkID) {
 				return fmt.Errorf("preshared key %d network_id must not be set for NATIVE", i)
 			}
 		case "SPECIFIC":
