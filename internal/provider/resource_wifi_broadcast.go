@@ -932,11 +932,15 @@ var deprecatedWifiSecurityFields = map[string][]string{
 // configuration but were accepted for IOT_OPTIMIZED broadcasts by 0.4.0.
 var deprecatedIoTSecurityFields = []string{"pmf_mode", "fast_roaming_enabled", "group_rekey_interval_seconds"}
 
+// wifiDeprecation is one plan-time warning about a security field that is
+// deprecated for the configured security type or broadcast type.
 type wifiDeprecation struct {
 	Field  string
 	Detail string
 }
 
+// wifiBroadcastDeprecations lists the deprecated security fields configured on
+// model, each reported at most once.
 func wifiBroadcastDeprecations(ctx context.Context, model wifiBroadcastResourceModel) []wifiDeprecation {
 	if !isKnownValue(model.SecurityConfiguration) {
 		return nil
@@ -946,7 +950,7 @@ func wifiBroadcastDeprecations(ctx context.Context, model wifiBroadcastResourceM
 		return nil
 	}
 
-	set := securityFieldsSet(security)
+	set := deprecatedFieldsConfigured(security)
 	securityType := security.Type.ValueString()
 	reported := make(map[string]bool)
 	var deprecations []wifiDeprecation
@@ -985,6 +989,19 @@ func isNonEnterpriseSecurityType(value string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// deprecatedFieldsConfigured reports which fields are present in the
+// configuration. Unlike securityFieldsSet it counts unknown values as set,
+// because a warning only needs to know the attribute was written.
+func deprecatedFieldsConfigured(security wifiSecurityConfigurationModel) map[string]bool {
+	return map[string]bool{
+		"pmf_mode":                     !security.PMFMode.IsNull(),
+		"fast_roaming_enabled":         !security.FastRoamingEnabled.IsNull(),
+		"group_rekey_interval_seconds": !security.GroupRekeyIntervalSeconds.IsNull(),
+		"wpa3_fast_roaming_enabled":    !security.WPA3FastRoamingEnabled.IsNull(),
+		"sae_configuration":            !security.SAEConfiguration.IsNull(),
 	}
 }
 
