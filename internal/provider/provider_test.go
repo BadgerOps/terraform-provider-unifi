@@ -3316,3 +3316,44 @@ resource "unifi_wifi_broadcast" "test" {
 		t.Fatalf("mock API holds %d wifi broadcasts, want %d: an invalid config must not reach the API", got, broadcastsBefore)
 	}
 }
+
+func TestAccResourceWifiBroadcastDeprecatedFieldStillApplies(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_wifi_broadcast" "test" {
+  site_id                                 = data.unifi_site.main.id
+  type                                    = "STANDARD"
+  name                                    = "deprecated-open-pmf"
+  enabled                                 = true
+  client_isolation_enabled                = false
+  hide_name                               = false
+  uapsd_enabled                           = true
+  multicast_to_unicast_conversion_enabled = false
+  broadcasting_frequencies_ghz            = [2.4, 5]
+  advertise_device_name                   = false
+  arp_proxy_enabled                       = false
+  bss_transition_enabled                  = true
+
+  network = {
+    type = "NATIVE"
+  }
+
+  security_configuration = {
+    type     = "OPEN"
+    pmf_mode = "OPTIONAL"
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_wifi_broadcast.test", "security_configuration.pmf_mode", "OPTIONAL"),
+				),
+			},
+		},
+	})
+}
