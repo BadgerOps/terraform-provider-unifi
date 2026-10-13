@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed `scripts/generate-docs.sh` provider version extraction to use portable awk. It relied on the three-argument `match()` that only GNU awk provides, so the version came back empty and documentation generation failed on macOS and on any system where `awk` is BSD awk or mawk.
+
 ## [0.4.0] - 2026-10-06
 
 ### Added
