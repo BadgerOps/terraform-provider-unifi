@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	frameworkpath "github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -228,6 +229,13 @@ func nullableInt64(value *int64) types.Int64 {
 		return types.Int64Null()
 	}
 	return types.Int64Value(*value)
+}
+
+// isKnownValue reports whether a configuration value is set and known. Plan-time
+// validation skips forbidden-value and enum checks on unknown values; the same
+// rules run again at apply, when every value is known.
+func isKnownValue(value attr.Value) bool {
+	return !value.IsNull() && !value.IsUnknown()
 }
 
 // stringOneOf validates a fixed set of accepted string values.

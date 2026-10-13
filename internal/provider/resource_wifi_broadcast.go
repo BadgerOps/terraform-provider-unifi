@@ -667,6 +667,13 @@ func preserveWifiSecuritySecrets(ctx context.Context, security *client.WifiSecur
 }
 
 func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceModel) error {
+	// ValidateConfig calls this with values that may be unknown until apply.
+	// Every rule that depends on an unknown value is skipped here and enforced
+	// when expandWifiBroadcast calls this again with the final values.
+	if plan.Type.IsUnknown() || !isKnownValue(plan.SecurityConfiguration) {
+		return nil
+	}
+
 	broadcastType := plan.Type.ValueString()
 	if broadcastType != "STANDARD" && broadcastType != "IOT_OPTIMIZED" {
 		return fmt.Errorf("type must be STANDARD or IOT_OPTIMIZED")
@@ -676,32 +683,37 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 	if diags := plan.SecurityConfiguration.As(ctx, &security, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return fmt.Errorf("unable to decode security_configuration block")
 	}
+	if security.Type.IsUnknown() {
+		return nil
+	}
 
 	if !security.PresharedKeys.IsNull() {
-		if !plan.Network.IsNull() {
+		if isKnownValue(plan.Network) {
 			return fmt.Errorf("network must not be set when security_configuration.preshared_keys is set, because each preshared key carries its own network")
 		}
 	} else if plan.Network.IsNull() {
 		return fmt.Errorf("network is required unless security_configuration.preshared_keys is set")
 	}
 
-	if !plan.Network.IsNull() && !plan.Network.IsUnknown() {
+	if isKnownValue(plan.Network) {
 		var network wifiNetworkModel
 		if diags := plan.Network.As(ctx, &network, basetypes.ObjectAsOptions{}); diags.HasError() {
 			return fmt.Errorf("unable to decode network block")
 		}
 
-		switch network.Type.ValueString() {
-		case "NATIVE":
-			if !network.NetworkID.IsNull() {
-				return fmt.Errorf("network.network_id must not be set when network.type is NATIVE")
+		if !network.Type.IsUnknown() {
+			switch network.Type.ValueString() {
+			case "NATIVE":
+				if !network.NetworkID.IsNull() {
+					return fmt.Errorf("network.network_id must not be set when network.type is NATIVE")
+				}
+			case "SPECIFIC":
+				if network.NetworkID.IsNull() {
+					return fmt.Errorf("network.network_id is required when network.type is SPECIFIC")
+				}
+			default:
+				return fmt.Errorf("network.type must be NATIVE or SPECIFIC")
 			}
-		case "SPECIFIC":
-			if network.NetworkID.IsNull() {
-				return fmt.Errorf("network.network_id is required when network.type is SPECIFIC")
-			}
-		default:
-			return fmt.Errorf("network.type must be NATIVE or SPECIFIC")
 		}
 	}
 
@@ -714,7 +726,7 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		if security.Passphrase.IsNull() && security.PresharedKeys.IsNull() && security.RadiusConfiguration.IsNull() {
 			return fmt.Errorf("security_configuration.passphrase, preshared_keys, or radius_configuration is required for WPA2_PERSONAL")
 		}
-		if !security.Passphrase.IsNull() && !security.PresharedKeys.IsNull() {
+		if isKnownValue(security.Passphrase) && isKnownValue(security.PresharedKeys) {
 			return fmt.Errorf("security_configuration.passphrase and security_configuration.preshared_keys are mutually exclusive")
 		}
 		if err := rejectSecurityFields(security, "WPA2_PERSONAL", "encryption", "wpa3_fast_roaming_enabled", "sae_configuration", "coa_enabled", "security_mode"); err != nil {
@@ -762,7 +774,7 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		return fmt.Errorf("security_configuration.type must be OPEN, WPA2_PERSONAL, WPA3_PERSONAL, WPA2_WPA3_PERSONAL, WPA2_ENTERPRISE, WPA2_WPA3_ENTERPRISE, or WPA3_ENTERPRISE")
 	}
 
-	if !security.RadiusConfiguration.IsNull() {
+	if isKnownValue(security.RadiusConfiguration) {
 		if err := validateWifiRadiusConfiguration(ctx, security.RadiusConfiguration); err != nil {
 			return err
 		}
@@ -777,7 +789,7 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		return err
 	}
 
-	if !security.Encryption.IsNull() {
+	if isKnownValue(security.Encryption) {
 		if security.Type.ValueString() != "OPEN" {
 			return fmt.Errorf("security_configuration.encryption is only valid when security_configuration.type is OPEN")
 		}
@@ -797,7 +809,7 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 			return fmt.Errorf("broadcasting_frequencies_ghz, advertise_device_name, arp_proxy_enabled, and bss_transition_enabled are required for STANDARD broadcasts")
 		}
 	} else {
-		if !plan.BroadcastingFrequenciesGHz.IsNull() || !plan.AdvertiseDeviceName.IsNull() || !plan.ARPProxyEnabled.IsNull() || !plan.BSSTransitionEnabled.IsNull() || !plan.BandSteeringEnabled.IsNull() || !plan.DNSAssistanceConfiguration.IsNull() {
+		if isKnownValue(plan.BroadcastingFrequenciesGHz) || isKnownValue(plan.AdvertiseDeviceName) || isKnownValue(plan.ARPProxyEnabled) || isKnownValue(plan.BSSTransitionEnabled) || isKnownValue(plan.BandSteeringEnabled) || isKnownValue(plan.DNSAssistanceConfiguration) {
 			return fmt.Errorf("standard-only attributes must not be set for IOT_OPTIMIZED broadcasts")
 		}
 		if err := rejectIoTSecurityFields(security); err != nil {
@@ -811,20 +823,22 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 			return fmt.Errorf("unable to decode dns_assistance_configuration block")
 		}
 
-		switch dnsAssistance.Mode.ValueString() {
-		case "AUTO":
-			if !dnsAssistance.Servers.IsNull() {
-				return fmt.Errorf("dns_assistance_configuration.servers must not be set when mode is AUTO")
+		if !dnsAssistance.Mode.IsUnknown() {
+			switch dnsAssistance.Mode.ValueString() {
+			case "AUTO":
+				if !dnsAssistance.Servers.IsNull() {
+					return fmt.Errorf("dns_assistance_configuration.servers must not be set when mode is AUTO")
+				}
+			case "MANUAL":
+				if dnsAssistance.Servers.IsNull() {
+					return fmt.Errorf("dns_assistance_configuration.servers is required when mode is MANUAL")
+				}
+				if len(dnsAssistance.Servers.Elements()) > 2 {
+					return fmt.Errorf("dns_assistance_configuration.servers supports at most two DNS servers")
+				}
+			default:
+				return fmt.Errorf("dns_assistance_configuration.mode must be AUTO or MANUAL")
 			}
-		case "MANUAL":
-			if dnsAssistance.Servers.IsNull() {
-				return fmt.Errorf("dns_assistance_configuration.servers is required when mode is MANUAL")
-			}
-			if len(listToStrings(ctx, dnsAssistance.Servers, "dns_assistance_configuration.servers", &diag.Diagnostics{})) > 2 {
-				return fmt.Errorf("dns_assistance_configuration.servers supports at most two DNS servers")
-			}
-		default:
-			return fmt.Errorf("dns_assistance_configuration.mode must be AUTO or MANUAL")
 		}
 	}
 
@@ -834,16 +848,18 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 			return fmt.Errorf("unable to decode broadcasting_device_filter block")
 		}
 
-		if deviceFilter.Type.IsNull() || deviceFilter.Type.ValueString() == "" {
-			return fmt.Errorf("broadcasting_device_filter.type must not be empty")
-		}
-
-		if deviceFilter.Type.ValueString() == "DEVICE_TAGS" {
-			if len(setToStrings(ctx, deviceFilter.DeviceTagIDs, "broadcasting_device_filter.device_tag_ids", &diag.Diagnostics{})) == 0 {
-				return fmt.Errorf("broadcasting_device_filter.device_tag_ids must contain at least one device tag id when type is DEVICE_TAGS")
+		if !deviceFilter.Type.IsUnknown() {
+			if deviceFilter.Type.IsNull() || deviceFilter.Type.ValueString() == "" {
+				return fmt.Errorf("broadcasting_device_filter.type must not be empty")
 			}
-		} else if !deviceFilter.DeviceTagIDs.IsNull() && !deviceFilter.DeviceTagIDs.IsUnknown() {
-			return fmt.Errorf("broadcasting_device_filter.device_tag_ids is only supported when broadcasting_device_filter.type is DEVICE_TAGS")
+
+			if deviceFilter.Type.ValueString() == "DEVICE_TAGS" {
+				if !deviceFilter.DeviceTagIDs.IsUnknown() && len(deviceFilter.DeviceTagIDs.Elements()) == 0 {
+					return fmt.Errorf("broadcasting_device_filter.device_tag_ids must contain at least one device tag id when type is DEVICE_TAGS")
+				}
+			} else if isKnownValue(deviceFilter.DeviceTagIDs) {
+				return fmt.Errorf("broadcasting_device_filter.device_tag_ids is only supported when broadcasting_device_filter.type is DEVICE_TAGS")
+			}
 		}
 	}
 
@@ -868,11 +884,11 @@ func isNonEnterpriseSecurityType(value string) bool {
 
 func securityFieldsSet(security wifiSecurityConfigurationModel) map[string]bool {
 	return map[string]bool{
-		"passphrase": !security.Passphrase.IsNull(), "encryption": !security.Encryption.IsNull(), "pmf_mode": !security.PMFMode.IsNull(),
-		"fast_roaming_enabled": !security.FastRoamingEnabled.IsNull(), "group_rekey_interval_seconds": !security.GroupRekeyIntervalSeconds.IsNull(),
-		"wpa3_fast_roaming_enabled": !security.WPA3FastRoamingEnabled.IsNull(), "sae_configuration": !security.SAEConfiguration.IsNull(),
-		"radius_configuration": !security.RadiusConfiguration.IsNull(), "coa_enabled": !security.CoAEnabled.IsNull(), "security_mode": !security.SecurityMode.IsNull(),
-		"preshared_keys": !security.PresharedKeys.IsNull(),
+		"passphrase": isKnownValue(security.Passphrase), "encryption": isKnownValue(security.Encryption), "pmf_mode": isKnownValue(security.PMFMode),
+		"fast_roaming_enabled": isKnownValue(security.FastRoamingEnabled), "group_rekey_interval_seconds": isKnownValue(security.GroupRekeyIntervalSeconds),
+		"wpa3_fast_roaming_enabled": isKnownValue(security.WPA3FastRoamingEnabled), "sae_configuration": isKnownValue(security.SAEConfiguration),
+		"radius_configuration": isKnownValue(security.RadiusConfiguration), "coa_enabled": isKnownValue(security.CoAEnabled), "security_mode": isKnownValue(security.SecurityMode),
+		"preshared_keys": isKnownValue(security.PresharedKeys),
 	}
 }
 
@@ -897,13 +913,41 @@ func rejectIoTSecurityFields(security wifiSecurityConfigurationModel) error {
 }
 
 func validateWifiRadiusConfiguration(ctx context.Context, value types.Object) error {
+	if !isKnownValue(value) {
+		return nil
+	}
 	var radius wifiRadiusConfigurationModel
 	if diags := value.As(ctx, &radius, basetypes.ObjectAsOptions{}); diags.HasError() {
 		return fmt.Errorf("unable to decode security_configuration.radius_configuration")
 	}
-	var nasID wifiNASIDConfigurationModel
-	if diags := radius.NASID.As(ctx, &nasID, basetypes.ObjectAsOptions{}); diags.HasError() {
-		return fmt.Errorf("unable to decode security_configuration.radius_configuration.nas_id")
+	if isKnownValue(radius.NASID) {
+		var nasID wifiNASIDConfigurationModel
+		if diags := radius.NASID.As(ctx, &nasID, basetypes.ObjectAsOptions{}); diags.HasError() {
+			return fmt.Errorf("unable to decode security_configuration.radius_configuration.nas_id")
+		}
+		if err := validateWifiNASID(nasID); err != nil {
+			return err
+		}
+	}
+	if isKnownValue(radius.MACAuthenticationConfiguration) {
+		var macAuth wifiRadiusMACAuthenticationConfigurationModel
+		if diags := radius.MACAuthenticationConfiguration.As(ctx, &macAuth, basetypes.ObjectAsOptions{}); diags.HasError() {
+			return fmt.Errorf("unable to decode MAC authentication configuration")
+		}
+		if !macAuth.MACAddressFormat.IsUnknown() {
+			switch macAuth.MACAddressFormat.ValueString() {
+			case "UPPERCASE_NOT_SEPARATED", "UPPERCASE_DASH_SEPARATED", "UPPERCASE_COLON_SEPARATED", "LOWERCASE_NOT_SEPARATED", "LOWERCASE_COLON_SEPARATED", "LOWERCASE_DASH_SEPARATED":
+			default:
+				return fmt.Errorf("unsupported MAC authentication address format")
+			}
+		}
+	}
+	return nil
+}
+
+func validateWifiNASID(nasID wifiNASIDConfigurationModel) error {
+	if nasID.Type.IsUnknown() || nasID.Source.IsUnknown() || nasID.Value.IsUnknown() {
+		return nil
 	}
 	switch nasID.Type.ValueString() {
 	case "DERIVED":
@@ -922,35 +966,35 @@ func validateWifiRadiusConfiguration(ctx context.Context, value types.Object) er
 	default:
 		return fmt.Errorf("NAS-ID type must be DERIVED or USER_DEFINED")
 	}
-	if !radius.MACAuthenticationConfiguration.IsNull() {
-		var macAuth wifiRadiusMACAuthenticationConfigurationModel
-		if diags := radius.MACAuthenticationConfiguration.As(ctx, &macAuth, basetypes.ObjectAsOptions{}); diags.HasError() {
-			return fmt.Errorf("unable to decode MAC authentication configuration")
-		}
-		switch macAuth.MACAddressFormat.ValueString() {
-		case "UPPERCASE_NOT_SEPARATED", "UPPERCASE_DASH_SEPARATED", "UPPERCASE_COLON_SEPARATED", "LOWERCASE_NOT_SEPARATED", "LOWERCASE_COLON_SEPARATED", "LOWERCASE_DASH_SEPARATED":
-		default:
-			return fmt.Errorf("unsupported MAC authentication address format")
-		}
-	}
 	return nil
 }
 
 func validateWifiPresharedKeys(ctx context.Context, value types.List) error {
-	if value.IsNull() || value.IsUnknown() {
+	if !isKnownValue(value) {
 		return nil
 	}
-	if len(value.Elements()) == 0 {
+	elements := value.Elements()
+	if len(elements) == 0 {
 		return fmt.Errorf("security_configuration.preshared_keys must contain at least one key")
 	}
-	var keys []wifiPresharedKeyModel
-	if diags := value.ElementsAs(ctx, &keys, false); diags.HasError() {
-		return fmt.Errorf("unable to decode security_configuration.preshared_keys")
-	}
-	for i, key := range keys {
+	for i, element := range elements {
+		object, ok := element.(types.Object)
+		if !ok || !isKnownValue(object) {
+			continue
+		}
+		var key wifiPresharedKeyModel
+		if diags := object.As(ctx, &key, basetypes.ObjectAsOptions{}); diags.HasError() {
+			return fmt.Errorf("unable to decode preshared key %d", i)
+		}
+		if !isKnownValue(key.Network) {
+			continue
+		}
 		var network wifiNetworkModel
 		if diags := key.Network.As(ctx, &network, basetypes.ObjectAsOptions{}); diags.HasError() {
 			return fmt.Errorf("unable to decode preshared key %d network", i)
+		}
+		if network.Type.IsUnknown() {
+			continue
 		}
 		switch network.Type.ValueString() {
 		case "NATIVE":
