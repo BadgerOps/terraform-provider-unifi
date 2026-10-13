@@ -527,3 +527,85 @@ func TestWifiBroadcastValidateConfigWarnsOnDeprecatedFieldPath(t *testing.T) {
 		t.Fatalf("warning path = %s, want %s", withPath.Path(), want)
 	}
 }
+
+func TestValidateWifiBroadcastModelMixedSecurityPMFMode(t *testing.T) {
+	t.Parallel()
+
+	sae := objectWith(t, wifiSAEConfigurationAttrTypes(), map[string]attr.Value{
+		"anticlogging_threshold_seconds": types.Int64Value(5),
+		"sync_time_seconds":              types.Int64Value(5),
+	})
+	nasID := objectWith(t, wifiNASIDConfigurationAttrTypes(), map[string]attr.Value{
+		"type": types.StringValue("DERIVED"), "source": types.StringValue("DEVICE_NAME"),
+	})
+	radius := objectWith(t, wifiRadiusConfigurationAttrTypes(), map[string]attr.Value{
+		"profile_id": types.StringValue("00000000-0000-0000-0000-000000000101"), "nas_id": nasID,
+	})
+	personal := func(t *testing.T, extra map[string]attr.Value) types.Object {
+		values := map[string]attr.Value{
+			"type":                      types.StringValue("WPA2_WPA3_PERSONAL"),
+			"passphrase":                types.StringValue("acceptance-passphrase"),
+			"sae_configuration":         sae,
+			"wpa3_fast_roaming_enabled": types.BoolValue(true),
+		}
+		for k, v := range extra {
+			values[k] = v
+		}
+		return objectWith(t, wifiSecurityConfigurationAttrTypes(), values)
+	}
+	enterprise := func(t *testing.T) types.Object {
+		return objectWith(t, wifiSecurityConfigurationAttrTypes(), map[string]attr.Value{
+			"type":                      types.StringValue("WPA2_WPA3_ENTERPRISE"),
+			"radius_configuration":      radius,
+			"coa_enabled":               types.BoolValue(false),
+			"wpa3_fast_roaming_enabled": types.BoolValue(true),
+		})
+	}
+	iotPlan := func(t *testing.T, security types.Object) wifiBroadcastResourceModel {
+		return wifiBroadcastResourceModel{Type: types.StringValue("IOT_OPTIMIZED"), Network: wifiNativeNetwork(t), SecurityConfiguration: security}
+	}
+
+	testCases := []struct {
+		name     string
+		plan     func(t *testing.T) wifiBroadcastResourceModel
+		expected string
+	}{
+		{name: "IoT personal without pmf_mode is valid", plan: func(t *testing.T) wifiBroadcastResourceModel {
+			return iotPlan(t, personal(t, nil))
+		}},
+		{name: "IoT personal without passphrase", plan: func(t *testing.T) wifiBroadcastResourceModel {
+			return iotPlan(t, personal(t, map[string]attr.Value{"passphrase": types.StringNull()}))
+		}, expected: "security_configuration.passphrase, sae_configuration, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_PERSONAL on IOT_OPTIMIZED broadcasts"},
+		{name: "STANDARD personal without pmf_mode", plan: func(t *testing.T) wifiBroadcastResourceModel {
+			return wifiStandardPlan(wifiNativeNetwork(t), personal(t, nil))
+		}, expected: "security_configuration.passphrase, pmf_mode, sae_configuration, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_PERSONAL"},
+		{name: "IoT enterprise without pmf_mode is valid", plan: func(t *testing.T) wifiBroadcastResourceModel {
+			return iotPlan(t, enterprise(t))
+		}},
+		{name: "STANDARD enterprise without pmf_mode", plan: func(t *testing.T) wifiBroadcastResourceModel {
+			return wifiStandardPlan(wifiNativeNetwork(t), enterprise(t))
+		}, expected: "security_configuration.radius_configuration, coa_enabled, pmf_mode, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_ENTERPRISE"},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			plan := testCase.plan(t)
+			err := validateWifiBroadcastModel(context.Background(), plan)
+			if testCase.expected == "" {
+				if err != nil {
+					t.Fatalf("validateWifiBroadcastModel() error = %v, want nil", err)
+				}
+				if deprecations := wifiBroadcastDeprecations(context.Background(), plan); len(deprecations) != 0 {
+					t.Fatalf("wifiBroadcastDeprecations() = %+v, want none", deprecations)
+				}
+				return
+			}
+			if err == nil || err.Error() != testCase.expected {
+				t.Fatalf("validateWifiBroadcastModel() error = %v, want %q", err, testCase.expected)
+			}
+		})
+	}
+}
