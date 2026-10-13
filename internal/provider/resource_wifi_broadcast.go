@@ -237,7 +237,7 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 					},
 					"pmf_mode": schema.StringAttribute{
 						Optional:            true,
-						MarkdownDescription: "Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.",
+						MarkdownDescription: "Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Required for `WPA2_WPA3_PERSONAL` and `WPA2_WPA3_ENTERPRISE` on `STANDARD` broadcasts. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.",
 					},
 					"fast_roaming_enabled": schema.BoolAttribute{
 						Optional:            true,
@@ -783,7 +783,13 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 			return err
 		}
 	case "WPA2_WPA3_PERSONAL":
-		if security.Passphrase.IsNull() || security.PMFMode.IsNull() || security.SAEConfiguration.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
+		// pmf_mode is documented as unavailable for IoT configuration, so it is
+		// only required on STANDARD broadcasts.
+		if broadcastType == "IOT_OPTIMIZED" {
+			if security.Passphrase.IsNull() || security.SAEConfiguration.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
+				return fmt.Errorf("security_configuration.passphrase, sae_configuration, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_PERSONAL on IOT_OPTIMIZED broadcasts")
+			}
+		} else if security.Passphrase.IsNull() || security.PMFMode.IsNull() || security.SAEConfiguration.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
 			return fmt.Errorf("security_configuration.passphrase, pmf_mode, sae_configuration, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_PERSONAL")
 		}
 		if err := rejectSecurityFields(security, "WPA2_WPA3_PERSONAL", "encryption", "coa_enabled", "security_mode", "preshared_keys"); err != nil {
@@ -797,7 +803,11 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 			return err
 		}
 	case "WPA2_WPA3_ENTERPRISE":
-		if security.RadiusConfiguration.IsNull() || security.CoAEnabled.IsNull() || security.PMFMode.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
+		if broadcastType == "IOT_OPTIMIZED" {
+			if security.RadiusConfiguration.IsNull() || security.CoAEnabled.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
+				return fmt.Errorf("security_configuration.radius_configuration, coa_enabled, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_ENTERPRISE on IOT_OPTIMIZED broadcasts")
+			}
+		} else if security.RadiusConfiguration.IsNull() || security.CoAEnabled.IsNull() || security.PMFMode.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
 			return fmt.Errorf("security_configuration.radius_configuration, coa_enabled, pmf_mode, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_ENTERPRISE")
 		}
 		if err := rejectSecurityFields(security, "WPA2_WPA3_ENTERPRISE", "passphrase", "encryption", "sae_configuration", "security_mode", "preshared_keys"); err != nil {
