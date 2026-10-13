@@ -378,6 +378,20 @@ func (r *wifiBroadcastResource) Configure(_ context.Context, request resource.Co
 	r.providerData = configureResource(request, response)
 }
 
+var _ resource.ResourceWithValidateConfig = &wifiBroadcastResource{}
+
+func (r *wifiBroadcastResource) ValidateConfig(ctx context.Context, request resource.ValidateConfigRequest, response *resource.ValidateConfigResponse) {
+	var config wifiBroadcastResourceModel
+	response.Diagnostics.Append(request.Config.Get(ctx, &config)...)
+	if response.Diagnostics.HasError() {
+		return
+	}
+
+	if err := validateWifiBroadcastModel(ctx, config); err != nil {
+		response.Diagnostics.AddError("Invalid WiFi broadcast configuration", err.Error())
+	}
+}
+
 func (r *wifiBroadcastResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
 	var plan wifiBroadcastResourceModel
 	response.Diagnostics.Append(request.Plan.Get(ctx, &plan)...)
@@ -480,6 +494,8 @@ func (r *wifiBroadcastResource) expandWifiBroadcast(ctx context.Context, plan wi
 		DTIMPeriod2GLockedTo3:               boolPointerValue(plan.DTIMPeriod2GLockedTo3),
 	}
 
+	// ValidateConfig already ran these rules at plan time, skipping any whose
+	// inputs were unknown. Run them again now that every value is known.
 	if err := validateWifiBroadcastModel(ctx, plan); err != nil {
 		diags.AddError("Invalid WiFi broadcast configuration", err.Error())
 		return broadcast
