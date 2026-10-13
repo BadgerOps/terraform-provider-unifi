@@ -121,7 +121,7 @@ Optional:
 - `fast_roaming_enabled` (Boolean) Fast roaming enabled flag. Recent controllers reject a `STANDARD` broadcast that uses WPA security without this set, reporting `WPA security combined with standard WiFi requires fast roaming setting`. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.
 - `group_rekey_interval_seconds` (Number) Group rekey interval in seconds. Disabled when omitted. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.
 - `passphrase` (String, Sensitive)
-- `pmf_mode` (String) Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.
+- `pmf_mode` (String) Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Required for `WPA2_WPA3_PERSONAL` and `WPA2_WPA3_ENTERPRISE` on `STANDARD` broadcasts. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.
 - `preshared_keys` (Attributes List) (see [below for nested schema](#nestedatt--security_configuration--preshared_keys))
 - `radius_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration))
 - `sae_configuration` (Attributes) WPA3 SAE settings. Required for `WPA3_PERSONAL` and `WPA2_WPA3_PERSONAL`. Setting it for `OPEN` or `WPA2_PERSONAL` security is deprecated and will be rejected from v0.6.0. (see [below for nested schema](#nestedatt--security_configuration--sae_configuration))
