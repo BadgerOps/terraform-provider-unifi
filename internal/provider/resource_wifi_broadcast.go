@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
@@ -236,21 +237,23 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 					},
 					"pmf_mode": schema.StringAttribute{
 						Optional:            true,
-						MarkdownDescription: "Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Not available for `IOT_OPTIMIZED` broadcasts.",
+						MarkdownDescription: "Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.",
 					},
 					"fast_roaming_enabled": schema.BoolAttribute{
 						Optional:            true,
-						MarkdownDescription: "Fast roaming enabled flag. Not available for `IOT_OPTIMIZED` broadcasts. Recent controllers reject a `STANDARD` broadcast that uses WPA security without this set, reporting `WPA security combined with standard WiFi requires fast roaming setting`.",
+						MarkdownDescription: "Fast roaming enabled flag. Recent controllers reject a `STANDARD` broadcast that uses WPA security without this set, reporting `WPA security combined with standard WiFi requires fast roaming setting`. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.",
 					},
 					"group_rekey_interval_seconds": schema.Int64Attribute{
 						Optional:            true,
-						MarkdownDescription: "Group rekey interval in seconds. Disabled when omitted. Not available for `IOT_OPTIMIZED` broadcasts.",
+						MarkdownDescription: "Group rekey interval in seconds. Disabled when omitted. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.",
 					},
 					"wpa3_fast_roaming_enabled": schema.BoolAttribute{
-						Optional: true,
+						Optional:            true,
+						MarkdownDescription: "WPA3 fast roaming enabled flag. Used by `WPA2_WPA3_PERSONAL` and `WPA2_WPA3_ENTERPRISE`. Setting it for `OPEN`, `WPA2_PERSONAL` or `WPA3_PERSONAL` security is deprecated and will be rejected from v0.6.0.",
 					},
 					"sae_configuration": schema.SingleNestedAttribute{
-						Optional: true,
+						Optional:            true,
+						MarkdownDescription: "WPA3 SAE settings. Required for `WPA3_PERSONAL` and `WPA2_WPA3_PERSONAL`. Setting it for `OPEN` or `WPA2_PERSONAL` security is deprecated and will be rejected from v0.6.0.",
 						Attributes: map[string]schema.Attribute{
 							"anticlogging_threshold_seconds": schema.Int64Attribute{
 								Required: true,
@@ -385,6 +388,14 @@ func (r *wifiBroadcastResource) ValidateConfig(ctx context.Context, request reso
 	response.Diagnostics.Append(request.Config.Get(ctx, &config)...)
 	if response.Diagnostics.HasError() {
 		return
+	}
+
+	for _, deprecation := range wifiBroadcastDeprecations(ctx, config) {
+		response.Diagnostics.AddAttributeWarning(
+			path.Root("security_configuration").AtName(deprecation.Field),
+			"Deprecated WiFi security attribute",
+			deprecation.Detail,
+		)
 	}
 
 	if err := validateWifiBroadcastModel(ctx, config); err != nil {
@@ -548,6 +559,12 @@ func expandWifiSecurityConfiguration(ctx context.Context, model wifiSecurityConf
 	case "OPEN":
 		configuration.Encryption = stringPointerValue(model.Encryption)
 		configuration.RadiusConfiguration = expandWifiRadiusConfiguration(ctx, model.RadiusConfiguration, diags)
+		// Deprecated for OPEN (see deprecatedWifiSecurityFields); still sent so
+		// existing configurations apply exactly as they did in 0.4.0.
+		configuration.PMFMode = stringPointerValue(model.PMFMode)
+		configuration.FastRoamingEnabled = boolPointerValue(model.FastRoamingEnabled)
+		configuration.GroupRekeyIntervalSeconds = int64PointerValue(model.GroupRekeyIntervalSeconds)
+		configuration.WPA3FastRoamingEnabled = boolPointerValue(model.WPA3FastRoamingEnabled)
 	case "WPA2_PERSONAL":
 		configuration.Passphrase = stringPointerValue(model.Passphrase)
 		configuration.RadiusConfiguration = expandWifiRadiusConfiguration(ctx, model.RadiusConfiguration, diags)
@@ -555,12 +572,16 @@ func expandWifiSecurityConfiguration(ctx context.Context, model wifiSecurityConf
 		configuration.FastRoamingEnabled = boolPointerValue(model.FastRoamingEnabled)
 		configuration.GroupRekeyIntervalSeconds = int64PointerValue(model.GroupRekeyIntervalSeconds)
 		configuration.PresharedKeys = expandWifiPresharedKeys(ctx, model.PresharedKeys, diags)
+		// Deprecated for WPA2_PERSONAL; still sent as in 0.4.0.
+		configuration.WPA3FastRoamingEnabled = boolPointerValue(model.WPA3FastRoamingEnabled)
 	case "WPA3_PERSONAL":
 		configuration.Passphrase = stringPointerValue(model.Passphrase)
 		configuration.RadiusConfiguration = expandWifiRadiusConfiguration(ctx, model.RadiusConfiguration, diags)
 		configuration.PMFMode = stringPointerValue(model.PMFMode)
 		configuration.FastRoamingEnabled = boolPointerValue(model.FastRoamingEnabled)
 		configuration.GroupRekeyIntervalSeconds = int64PointerValue(model.GroupRekeyIntervalSeconds)
+		// Deprecated for WPA3_PERSONAL; still sent as in 0.4.0.
+		configuration.WPA3FastRoamingEnabled = boolPointerValue(model.WPA3FastRoamingEnabled)
 	case "WPA2_WPA3_PERSONAL":
 		configuration.Passphrase = stringPointerValue(model.Passphrase)
 		configuration.RadiusConfiguration = expandWifiRadiusConfiguration(ctx, model.RadiusConfiguration, diags)
@@ -738,7 +759,7 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 
 	switch security.Type.ValueString() {
 	case "OPEN":
-		if err := rejectSecurityFields(security, "OPEN", "passphrase", "pmf_mode", "fast_roaming_enabled", "group_rekey_interval_seconds", "wpa3_fast_roaming_enabled", "sae_configuration", "coa_enabled", "security_mode", "preshared_keys"); err != nil {
+		if err := rejectSecurityFields(security, "OPEN", "passphrase", "coa_enabled", "security_mode", "preshared_keys"); err != nil {
 			return err
 		}
 	case "WPA2_PERSONAL":
@@ -748,7 +769,7 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		if isKnownValue(security.Passphrase) && isKnownValue(security.PresharedKeys) {
 			return fmt.Errorf("security_configuration.passphrase and security_configuration.preshared_keys are mutually exclusive")
 		}
-		if err := rejectSecurityFields(security, "WPA2_PERSONAL", "encryption", "wpa3_fast_roaming_enabled", "sae_configuration", "coa_enabled", "security_mode"); err != nil {
+		if err := rejectSecurityFields(security, "WPA2_PERSONAL", "encryption", "coa_enabled", "security_mode"); err != nil {
 			return err
 		}
 		if err := validateWifiPresharedKeys(ctx, security.PresharedKeys); err != nil {
@@ -758,7 +779,7 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		if security.Passphrase.IsNull() || security.SAEConfiguration.IsNull() {
 			return fmt.Errorf("security_configuration.passphrase and security_configuration.sae_configuration are required for WPA3_PERSONAL")
 		}
-		if err := rejectSecurityFields(security, "WPA3_PERSONAL", "encryption", "wpa3_fast_roaming_enabled", "coa_enabled", "security_mode", "preshared_keys"); err != nil {
+		if err := rejectSecurityFields(security, "WPA3_PERSONAL", "encryption", "coa_enabled", "security_mode", "preshared_keys"); err != nil {
 			return err
 		}
 	case "WPA2_WPA3_PERSONAL":
@@ -831,9 +852,6 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		if isKnownValue(plan.BroadcastingFrequenciesGHz) || isKnownValue(plan.AdvertiseDeviceName) || isKnownValue(plan.ARPProxyEnabled) || isKnownValue(plan.BSSTransitionEnabled) || isKnownValue(plan.BandSteeringEnabled) || isKnownValue(plan.DNSAssistanceConfiguration) {
 			return fmt.Errorf("standard-only attributes must not be set for IOT_OPTIMIZED broadcasts")
 		}
-		if err := rejectIoTSecurityFields(security); err != nil {
-			return err
-		}
 	}
 
 	if !plan.DNSAssistanceConfiguration.IsNull() && !plan.DNSAssistanceConfiguration.IsUnknown() {
@@ -885,6 +903,65 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 	return nil
 }
 
+// wifiDeprecationRemovalVersion is the release in which the deprecated
+// combinations below become plan-time errors.
+const wifiDeprecationRemovalVersion = "0.6.0"
+
+// deprecatedWifiSecurityFields lists, per security type, fields that 0.4.0
+// accepted but the UniFi Integration API does not support for that type. They
+// warn rather than fail so existing configurations keep applying, and are still
+// sent to the controller as before. The Enterprise types have no entries
+// because no released version accepted these fields for them.
+var deprecatedWifiSecurityFields = map[string][]string{
+	"OPEN":          {"pmf_mode", "fast_roaming_enabled", "group_rekey_interval_seconds", "wpa3_fast_roaming_enabled", "sae_configuration"},
+	"WPA2_PERSONAL": {"wpa3_fast_roaming_enabled", "sae_configuration"},
+	"WPA3_PERSONAL": {"wpa3_fast_roaming_enabled"},
+}
+
+// deprecatedIoTSecurityFields are documented as unavailable for IoT
+// configuration but were accepted for IOT_OPTIMIZED broadcasts by 0.4.0.
+var deprecatedIoTSecurityFields = []string{"pmf_mode", "fast_roaming_enabled", "group_rekey_interval_seconds"}
+
+type wifiDeprecation struct {
+	Field  string
+	Detail string
+}
+
+func wifiBroadcastDeprecations(ctx context.Context, model wifiBroadcastResourceModel) []wifiDeprecation {
+	if !isKnownValue(model.SecurityConfiguration) {
+		return nil
+	}
+	var security wifiSecurityConfigurationModel
+	if diags := model.SecurityConfiguration.As(ctx, &security, basetypes.ObjectAsOptions{}); diags.HasError() {
+		return nil
+	}
+
+	set := securityFieldsSet(security)
+	securityType := security.Type.ValueString()
+	reported := make(map[string]bool)
+	var deprecations []wifiDeprecation
+	for _, field := range deprecatedWifiSecurityFields[securityType] {
+		if set[field] {
+			reported[field] = true
+			deprecations = append(deprecations, wifiDeprecation{
+				Field:  field,
+				Detail: fmt.Sprintf("security_configuration.%s is not supported for %s security by the UniFi Integration API and will be rejected from v%s. Remove it from the configuration.", field, securityType, wifiDeprecationRemovalVersion),
+			})
+		}
+	}
+	if model.Type.ValueString() == "IOT_OPTIMIZED" {
+		for _, field := range deprecatedIoTSecurityFields {
+			if set[field] && !reported[field] {
+				deprecations = append(deprecations, wifiDeprecation{
+					Field:  field,
+					Detail: fmt.Sprintf("security_configuration.%s is not available for IOT_OPTIMIZED broadcasts and will be rejected from v%s. Remove it from the configuration.", field, wifiDeprecationRemovalVersion),
+				})
+			}
+		}
+	}
+	return deprecations
+}
+
 func validateWifiSecurityMode(value types.String) error {
 	if value.IsNull() || value.IsUnknown() || value.ValueString() == "DEFAULT" || value.ValueString() == "HIGH_SECURITY_192_BIT" {
 		return nil
@@ -916,16 +993,6 @@ func rejectSecurityFields(security wifiSecurityConfigurationModel, securityType 
 	for _, field := range fields {
 		if set[field] {
 			return fmt.Errorf("security_configuration.%s is not valid for %s", field, securityType)
-		}
-	}
-	return nil
-}
-
-func rejectIoTSecurityFields(security wifiSecurityConfigurationModel) error {
-	set := securityFieldsSet(security)
-	for _, field := range []string{"pmf_mode", "fast_roaming_enabled", "group_rekey_interval_seconds"} {
-		if set[field] {
-			return fmt.Errorf("security_configuration.%s is not valid for IOT_OPTIMIZED broadcasts", field)
 		}
 	}
 	return nil

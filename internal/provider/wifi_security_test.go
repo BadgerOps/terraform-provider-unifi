@@ -173,42 +173,6 @@ func wifiNativeNetwork(t *testing.T) types.Object {
 	return network
 }
 
-func TestValidateWifiBroadcastModelIoTUnsupportedSecurityFields(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name  string
-		field string
-		value attr.Value
-	}{
-		{name: "pmf_mode", field: "pmf_mode", value: types.StringValue("OPTIONAL")},
-		{name: "fast_roaming_enabled", field: "fast_roaming_enabled", value: types.BoolValue(true)},
-		{name: "group_rekey_interval_seconds", field: "group_rekey_interval_seconds", value: types.Int64Value(3600)},
-	}
-
-	for _, testCase := range testCases {
-		testCase := testCase
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			plan := wifiBroadcastResourceModel{
-				Type:                  types.StringValue("IOT_OPTIMIZED"),
-				Network:               wifiNativeNetwork(t),
-				SecurityConfiguration: wifiSecurityWithField(t, testCase.field, testCase.value),
-			}
-
-			err := validateWifiBroadcastModel(context.Background(), plan)
-			if err == nil {
-				t.Fatalf("validateWifiBroadcastModel() error = nil, want error for %s", testCase.field)
-			}
-			expected := "security_configuration." + testCase.field + " is not valid for IOT_OPTIMIZED broadcasts"
-			if err.Error() != expected {
-				t.Fatalf("validateWifiBroadcastModel() error = %q, want %q", err.Error(), expected)
-			}
-		})
-	}
-}
-
 func TestValidateWifiBroadcastModelIoTAllowsSupportedSecurity(t *testing.T) {
 	t.Parallel()
 

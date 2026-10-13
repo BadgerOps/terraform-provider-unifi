@@ -11,11 +11,22 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 - Added official Integration API support for WPA2 Enterprise, mixed WPA2/WPA3 Enterprise, and WPA3 Enterprise WiFi security, including RADIUS profiles, NAS-ID, MAC authentication, Change of Authorization, roaming, PMF, rekeying, and WPA3 security mode.
 - Added WPA2 Personal PPSKs with per-key network assignment, sensitive state handling, and refresh preservation for passphrases omitted by UniFi responses. A PPSK broadcast omits the broadcast-level `network`, because each key carries its own.
 
+### Changed
+
+- `unifi_wifi_broadcast` now validates its configuration during `terraform plan` instead of partway through `apply`. Checks whose inputs are unknown until apply still run at apply time.
+
+### Deprecated
+
+- `unifi_wifi_broadcast`: these `security_configuration` combinations were accepted by 0.4.0 but are not supported by the UniFi Integration API. They now produce a plan-time warning, are still sent to the controller unchanged, and will be rejected from 0.6.0:
+  - `OPEN` security with `pmf_mode`, `fast_roaming_enabled`, `group_rekey_interval_seconds`, `wpa3_fast_roaming_enabled` or `sae_configuration`
+  - `WPA2_PERSONAL` security with `wpa3_fast_roaming_enabled` or `sae_configuration`
+  - `WPA3_PERSONAL` security with `wpa3_fast_roaming_enabled`
+  - `IOT_OPTIMIZED` broadcasts with `pmf_mode`, `fast_roaming_enabled` or `group_rekey_interval_seconds`
+
 ### Fixed
 
 - Made `network` optional on `unifi_wifi_broadcast`. The controller forbids a broadcast-level network alongside `security_configuration.preshared_keys`, because each preshared key carries its own, so PPSK broadcasts could not be created at all while the attribute was required. It is still required for every other configuration, and the integration schema never listed it as required.
 - Rejected `network` and `security_configuration.passphrase` alongside `security_configuration.preshared_keys` at plan time, matching the controller.
-- Rejected `security_configuration.pmf_mode`, `security_configuration.fast_roaming_enabled`, and `security_configuration.group_rekey_interval_seconds` at plan time for `IOT_OPTIMIZED` broadcasts. The integration API documents all three as unavailable for IoT configuration, for every security type, so the controller silently ignored them.
 
 ## [0.4.0] - 2026-10-06
 
