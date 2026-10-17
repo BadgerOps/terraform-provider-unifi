@@ -8,6 +8,7 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 ### Fixed
 
+- Fixed `scripts/sync-version.sh` and `scripts/read-changelog-release.sh` the same way as `scripts/generate-docs.sh`: both read the release version with the three-argument `match()` that only GNU awk provides, so `make check-version-drift` and release note extraction failed with a syntax error where `awk` is mawk (Debian/Ubuntu default) or BSD awk.
 - Fixed `scripts/generate-docs.sh` provider version extraction to use portable awk. It relied on the three-argument `match()` that only GNU awk provides, so the version came back empty and documentation generation failed on macOS and on any system where `awk` is BSD awk or mawk.
 
 ## [0.4.0] - 2026-10-06
