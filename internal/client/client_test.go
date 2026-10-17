@@ -47,6 +47,10 @@ func TestNormalizeLegacyBaseURL(t *testing.T) {
 		{name: "from proxy network integration path", in: "https://controller.example.com/proxy/network/integration", want: "https://controller.example.com/proxy/network/api"},
 		{name: "with reverse proxy prefix", in: "https://controller.example.com/unifi/proxy/network", want: "https://controller.example.com/unifi/proxy/network/api"},
 		{name: "with reverse proxy prefix from integration path", in: "https://controller.example.com/unifi/proxy/network/integration", want: "https://controller.example.com/unifi/proxy/network/api"},
+		{name: "site manager cloud connector", in: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network", want: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network/api"},
+		{name: "site manager cloud connector from integration path", in: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network/integration", want: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network/api"},
+		{name: "site manager cloud connector with trailing slash", in: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network/", want: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network/api"},
+		{name: "network path that is not a connector", in: "https://controller.example.com/network", want: "https://controller.example.com/network/proxy/network/api"},
 	}
 
 	for _, testCase := range testCases {
