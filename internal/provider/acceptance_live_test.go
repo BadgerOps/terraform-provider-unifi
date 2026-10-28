@@ -664,6 +664,7 @@ func TestAccLiveResourceWifiBroadcastEnterprise(t *testing.T) {
 
 	config := requireLiveAcceptanceConfig(t)
 	profile := requireRadiusProfile(t, config)
+	requireRadiusServerEnabled(t, config, profile)
 	resourceName := "unifi_wifi_broadcast.test"
 	broadcastName := liveAcceptanceName(config, "wifi-ent")
 
@@ -738,7 +739,9 @@ resource "unifi_wifi_broadcast" "test" {
   hide_name                               = false
   uapsd_enabled                           = true
   multicast_to_unicast_conversion_enabled = true
-  broadcasting_frequencies_ghz            = [5]
+  # Band steering requires multiple bands; a single-band fixture is rejected by
+  # the controller with "band steering setting requires broadcasting on multiple bands".
+  broadcasting_frequencies_ghz            = [2.4, 5]
   advertise_device_name                   = true
   arp_proxy_enabled                       = false
   band_steering_enabled                   = true
@@ -1238,9 +1241,12 @@ func requireWifiPassphrase(t *testing.T) string {
 func liveProviderConfig(config liveAcceptanceConfig) string {
 	return fmt.Sprintf(`
 provider "unifi" {
-  api_url        = %q
-  api_key        = %q
-  allow_insecure = %t
+  api_url                 = %q
+  api_key                 = %q
+  allow_insecure          = %t
+  # Controllers often stop serving the Network API for minutes while APs
+  # reprovision after WiFi changes; keep live acceptance above that window.
+  request_timeout_seconds = 300
 }
 `, config.APIURL, config.APIKey, config.AllowInsecure)
 }
@@ -1553,6 +1559,63 @@ func requireRadiusProfile(t *testing.T, config liveAcceptanceConfig) client.Radi
 	}
 
 	return profiles[0]
+}
+
+// requireRadiusServerEnabled probes an enterprise WiFi create. Profiles can exist
+// while the site-level RADIUS server is still disabled; the controller then
+// rejects enterprise broadcasts with api.wifi-broadcast.validation.radius-server-not-enabled.
+func requireRadiusServerEnabled(t *testing.T, config liveAcceptanceConfig, profile client.RadiusProfile) {
+	t.Helper()
+
+	apiClient, err := newLiveDestroyCheckClient(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	siteID := resolveLiveSiteID(t, config)
+	name := liveAcceptanceName(config, "radius-probe")
+	trueValue := true
+	optional := "OPTIONAL"
+	nasSource := "DEVICE_NAME"
+	created, err := apiClient.CreateWifiBroadcast(context.Background(), siteID, client.WifiBroadcast{
+		Type:                                "STANDARD",
+		Name:                                name,
+		Enabled:                             true,
+		ClientIsolationEnabled:              false,
+		HideName:                            false,
+		UAPSDEnabled:                        true,
+		MulticastToUnicastConversionEnabled: true,
+		BroadcastingFrequenciesGHz:          []float64{2.4, 5},
+		AdvertiseDeviceName:                 &trueValue,
+		ARPProxyEnabled:                     boolPtr(false),
+		BandSteeringEnabled:                 &trueValue,
+		BSSTransitionEnabled:                &trueValue,
+		Network:                             &client.WifiNetworkReference{Type: "NATIVE"},
+		SecurityConfiguration: &client.WifiSecurityConfiguration{
+			Type: "WPA2_ENTERPRISE",
+			RadiusConfiguration: &client.WifiRadiusConfiguration{
+				ProfileID: profile.ID,
+				NASID: client.WifiNASIDConfiguration{
+					Type:   "DERIVED",
+					Source: &nasSource,
+				},
+			},
+			CoAEnabled:         &trueValue,
+			PMFMode:            &optional,
+			FastRoamingEnabled: &trueValue,
+		},
+	})
+	if err != nil {
+		var clientErr *client.Error
+		if errors.As(err, &clientErr) && clientErr.Code == "api.wifi-broadcast.validation.radius-server-not-enabled" {
+			t.Skip("RADIUS server is not enabled on the target site")
+		}
+		t.Fatalf("probe enterprise WiFi create: %v", err)
+	}
+
+	if err := apiClient.DeleteWifiBroadcast(context.Background(), siteID, created.ID); err != nil && !client.IsNotFound(err) {
+		t.Fatalf("cleanup RADIUS probe broadcast %s: %v", created.ID, err)
+	}
 }
 
 func requireDeviceTag(t *testing.T, config liveAcceptanceConfig) client.DeviceTag {
