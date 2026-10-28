@@ -6,6 +6,10 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 ## [Unreleased]
 
+### Fixed
+
+- `unifi_wifi_broadcast`: suppress perpetual no-op plans when `broadcasting_frequencies_ghz` includes `2.4`. Config and controller float64 bit patterns for that band can differ while naming the same radio; values are canonicalized to the Integration API enum (`2.4`, `5`, `6`) and a plan modifier keeps state when the band sets match. `id` now uses `UseStateForUnknown` so import/plan noise no longer rewrites it to `(known after apply)` on those updates ([#45](https://github.com/BadgerOps/terraform-provider-unifi/issues/45)).
+
 ## [0.5.1] - 2026-10-28
 
 ### Changed
