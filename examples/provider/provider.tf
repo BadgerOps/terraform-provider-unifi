@@ -12,4 +12,8 @@ provider "unifi" {
   api_url        = "https://unifi.example.com"
   api_key        = "replace-me"
   allow_insecure = false
+
+  # Raise this when the controller reprovisions devices mid-apply and requests
+  # time out. Defaults to 30 seconds.
+  # request_timeout_seconds = 300
 }

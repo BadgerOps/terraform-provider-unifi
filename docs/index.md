@@ -87,6 +87,10 @@ provider "unifi" {
   api_url        = "https://unifi.example.com"
   api_key        = "replace-me"
   allow_insecure = false
+
+  # Raise this when the controller reprovisions devices mid-apply and requests
+  # time out. Defaults to 30 seconds.
+  # request_timeout_seconds = 300
 }
 ```
 
@@ -103,4 +107,5 @@ provider "unifi" {
 ### Optional
 
 - `allow_insecure` (Boolean) Disable TLS certificate verification. Only use this against trusted development systems.
+- `request_timeout_seconds` (Number) Timeout applied to each HTTP request to the controller, in seconds. Defaults to `30`. Raise it when the controller reprovisions devices mid-apply: a UniFi Network application can stop answering its API for minutes after a WiFi change, and the default leaves a plan or apply failing with `context deadline exceeded` partway through.
 

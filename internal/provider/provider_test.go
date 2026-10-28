@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -3125,4 +3126,51 @@ func portRangeTrafficMatch(start, stop int64) client.TrafficMatchingItem {
 		Start: start,
 		Stop:  stop,
 	}
+}
+
+func TestAccProviderRequestTimeoutSeconds(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	validConfig := fmt.Sprintf(`
+provider "unifi" {
+  api_url                 = %q
+  api_key                 = "test-key"
+  allow_insecure          = true
+  request_timeout_seconds = 300
+}
+
+data "unifi_site" "main" {
+  name = "Default"
+}
+`, api.URL())
+
+	invalidConfig := fmt.Sprintf(`
+provider "unifi" {
+  api_url                 = %q
+  api_key                 = "test-key"
+  allow_insecure          = true
+  request_timeout_seconds = 0
+}
+
+data "unifi_site" "main" {
+  name = "Default"
+}
+`, api.URL())
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      invalidConfig,
+				ExpectError: regexp.MustCompile(`request_timeout_seconds must be at least 1 second`),
+			},
+			{
+				Config: validConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.unifi_site.main", "name", "Default"),
+				),
+			},
+		},
+	})
 }
