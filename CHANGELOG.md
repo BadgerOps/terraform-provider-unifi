@@ -6,6 +6,8 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-27
+
 ### Fixed
 
 - Fixed `unifi_dhcp_reservation` and `unifi_port_forward` when `api_url` is a UniFi Site Manager cloud connector (`https://api.ui.com/v1/connector/consoles/<console-id>/network`). The legacy API base was derived as `<api_url>/proxy/network/api`, which the connector answers with HTTP 404; behind the connector the legacy API sits directly at `<api_url>/api`. Integration API paths are unchanged.
