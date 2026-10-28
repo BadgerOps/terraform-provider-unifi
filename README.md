@@ -1,6 +1,32 @@
 # terraform-provider-unifi
 
-Terraform provider for the current UniFi Network integration API.
+Terraform provider for UniFi Network site configuration via the official Integration API (API key auth).
+
+**Using the provider?** Start here:
+
+- [Terraform Registry docs](https://registry.terraform.io/providers/BadgerOps/unifi/latest/docs)
+- [Getting started](https://registry.terraform.io/providers/BadgerOps/unifi/latest/docs/guides/getting-started)
+- [Compared to legacy UniFi providers](https://registry.terraform.io/providers/BadgerOps/unifi/latest/docs/guides/vs-legacy-providers)
+- [Zone-based firewall](https://registry.terraform.io/providers/BadgerOps/unifi/latest/docs/guides/zone-based-firewall)
+- End-to-end example: [`examples/basic-site`](./examples/basic-site)
+
+**Pull requests are welcome.** Docs fixes, examples, bug reports with repros, and focused resource improvements all help — see [CONTRIBUTING.md](./CONTRIBUTING.md). If you are unsure whether an idea fits, open an issue first and we will help scope it.
+
+```hcl
+terraform {
+  required_providers {
+    unifi = {
+      source  = "badgerops/unifi"
+      version = "~> 0.5"
+    }
+  }
+}
+
+provider "unifi" {
+  api_url = var.api_url
+  api_key = var.api_key
+}
+```
 
 This repository tracks the committed UniFi Network OpenAPI snapshot and targets the OpenAPI-backed integration endpoints shipped by current UniFi Network releases. It intentionally focuses on durable configuration workflows instead of the older private controller API and operational actions.
 
@@ -93,6 +119,7 @@ Generation inputs come from:
 - provider/resource/data source examples under [`examples/provider`](./examples/provider), [`examples/resources`](./examples/resources), and [`examples/data-sources`](./examples/data-sources)
 - resource import examples under [`examples/resources`](./examples/resources)
 - provider landing-page template under [`templates/index.md.tmpl`](./templates/index.md.tmpl)
+- Registry guides under [`templates/guides`](./templates/guides)
 
 The checked-in example contract is documented in [`examples/README.md`](./examples/README.md). Each provider object should have a minimal public-facing example that shows the intended Terraform workflow, not an internal test fixture.
 

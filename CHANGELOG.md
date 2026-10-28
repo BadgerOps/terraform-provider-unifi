@@ -10,6 +10,15 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 - `unifi_firewall_policy`: default unset source and destination `port_filter.match_opposite` attributes to `false`, preventing an inconsistent result after apply and a tainted resource when the controller returns an explicit `false` ([#49](https://github.com/BadgerOps/terraform-provider-unifi/issues/49)).
 
+### Added
+
+- Registry guides for getting started, comparing against legacy UniFi providers, zone-based firewall quirks, and importing existing configuration.
+- Operator-focused provider overview with requirements, cloud-connector `api_url` examples, and links into the new guides.
+
+### Changed
+
+- README leads with Registry links, a minimal install snippet, and an explicit invitation for community pull requests before the contributor/development material.
+
 ## [0.5.2] - 2026-10-28
 
 ### Fixed
