@@ -11,7 +11,7 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 ### Changed
 
 - `unifi_wifi_broadcast` now validates its configuration during `terraform plan` instead of partway through `apply`. Checks whose inputs are unknown until apply still run at apply time.
-- `unifi_wifi_broadcast`: `security_configuration.pmf_mode` is not required for `WPA2_WPA3_PERSONAL` or `WPA2_WPA3_ENTERPRISE` security on `IOT_OPTIMIZED` broadcasts, because the UniFi Integration API documents PMF as unavailable for IoT configuration. It remains required for those types on `STANDARD` broadcasts.
+- `unifi_wifi_broadcast`: `IOT_OPTIMIZED` broadcasts only allow `OPEN`, `WPA2_PERSONAL`, and `WPA2_ENTERPRISE` security. Live controllers reject WPA3 and mixed WPA2/WPA3 modes on IoT (and forbid PMF, which those modes need), so the provider rejects them at plan time instead of failing mid-apply.
 
 ### Deprecated
 

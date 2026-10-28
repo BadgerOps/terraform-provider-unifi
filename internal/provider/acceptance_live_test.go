@@ -839,6 +839,64 @@ func alternateWifiPassphrase(value string) string {
 	return string(bytes)
 }
 
+// TestAccLiveResourceWifiBroadcastIoTPersonal verifies IOT_OPTIMIZED +
+// WPA2_PERSONAL without pmf_mode or fast_roaming_enabled. Live controllers
+// reject mixed/WPA3 modes on IoT (and forbid PMF); requireIoTRejectsMixedSecurity
+// records that probe before the Terraform create.
+func TestAccLiveResourceWifiBroadcastIoTPersonal(t *testing.T) {
+	t.Parallel()
+
+	config := requireLiveAcceptanceConfig(t)
+	passphrase := requireWifiPassphrase(t)
+	requireIoTRejectsMixedSecurity(t, config, passphrase)
+	resourceName := "unifi_wifi_broadcast.test"
+	broadcastName := liveAcceptanceName(config, "wifi-iot")
+
+	testConfig := liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+resource "unifi_wifi_broadcast" "test" {
+  site_id                                 = data.unifi_site.target.id
+  type                                    = "IOT_OPTIMIZED"
+  name                                    = %q
+  enabled                                 = true
+  client_isolation_enabled                = false
+  hide_name                               = false
+  uapsd_enabled                           = true
+  multicast_to_unicast_conversion_enabled = true
+  # STANDARD-only attributes (frequencies, advertise_device_name, arp_proxy,
+  # band_steering, bss_transition, dns_assistance) must be omitted for IoT.
+  network = { type = "NATIVE" }
+  security_configuration = {
+    type       = "WPA2_PERSONAL"
+    passphrase = %q
+  }
+}
+`, broadcastName, passphrase)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             liveCheckDestroyWifiBroadcast(config, resourceName),
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "type", "IOT_OPTIMIZED"),
+					resource.TestCheckResourceAttr(resourceName, "security_configuration.type", "WPA2_PERSONAL"),
+					resource.TestCheckNoResourceAttr(resourceName, "security_configuration.pmf_mode"),
+					resource.TestCheckNoResourceAttr(resourceName, "security_configuration.fast_roaming_enabled"),
+				),
+			},
+			{Config: testConfig, PlanOnly: true},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateIdFunc:       liveImportCompositeID(resourceName),
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"security_configuration"},
+			},
+		},
+	})
+}
+
 func TestAccLiveResourceDNSPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -1559,6 +1617,53 @@ func requireRadiusProfile(t *testing.T, config liveAcceptanceConfig) client.Radi
 	}
 
 	return profiles[0]
+}
+
+// requireIoTRejectsMixedSecurity probes an IOT_OPTIMIZED + WPA2_WPA3_PERSONAL
+// create without pmf_mode. Controllers that enforce IoT's open/WPA2-only rule
+// reject it; that matches the provider's plan-time reject. If a controller
+// accepts the probe, fail so we revisit the restriction.
+func requireIoTRejectsMixedSecurity(t *testing.T, config liveAcceptanceConfig, passphrase string) {
+	t.Helper()
+
+	apiClient, err := newLiveDestroyCheckClient(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	siteID := resolveLiveSiteID(t, config)
+	name := liveAcceptanceName(config, "iot-mixed-probe")
+	wpa3FastRoaming := true
+	created, err := apiClient.CreateWifiBroadcast(context.Background(), siteID, client.WifiBroadcast{
+		Type:                                "IOT_OPTIMIZED",
+		Name:                                name,
+		Enabled:                             true,
+		ClientIsolationEnabled:              false,
+		HideName:                            false,
+		UAPSDEnabled:                        true,
+		MulticastToUnicastConversionEnabled: true,
+		Network:                             &client.WifiNetworkReference{Type: "NATIVE"},
+		SecurityConfiguration: &client.WifiSecurityConfiguration{
+			Type:                   "WPA2_WPA3_PERSONAL",
+			Passphrase:             &passphrase,
+			WPA3FastRoamingEnabled: &wpa3FastRoaming,
+			SAEConfiguration: &client.SAEConfiguration{
+				AnticloggingThresholdSeconds: 5,
+				SyncTimeSeconds:               5,
+			},
+		},
+	})
+	if err == nil {
+		if delErr := apiClient.DeleteWifiBroadcast(context.Background(), siteID, created.ID); delErr != nil && !client.IsNotFound(delErr) {
+			t.Fatalf("cleanup unexpected IoT mixed probe broadcast %s: %v", created.ID, delErr)
+		}
+		t.Fatalf("controller accepted IOT_OPTIMIZED + WPA2_WPA3_PERSONAL without pmf_mode; revisit IoT security-type restriction")
+	}
+
+	message := err.Error()
+	if !strings.Contains(message, "IoT optimized WiFi") && !strings.Contains(message, "pmfMode") {
+		t.Fatalf("probe IoT mixed create: unexpected error: %v", err)
+	}
 }
 
 // requireRadiusServerEnabled probes an enterprise WiFi create. Profiles can exist

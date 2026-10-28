@@ -237,7 +237,7 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 					},
 					"pmf_mode": schema.StringAttribute{
 						Optional:            true,
-						MarkdownDescription: "Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Required for `WPA2_WPA3_PERSONAL` and `WPA2_WPA3_ENTERPRISE` on `STANDARD` broadcasts. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.",
+						MarkdownDescription: "Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Required for `WPA2_WPA3_PERSONAL` and `WPA2_WPA3_ENTERPRISE`. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0. `IOT_OPTIMIZED` broadcasts only support `OPEN`, `WPA2_PERSONAL`, and `WPA2_ENTERPRISE`, so mixed/WPA3 modes that need PMF are rejected at plan time.",
 					},
 					"fast_roaming_enabled": schema.BoolAttribute{
 						Optional:            true,
@@ -340,6 +340,11 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 			},
 			"band_steering_enabled": schema.BoolAttribute{
 				Optional: true,
+				Computed: true,
+				MarkdownDescription: "Band steering enabled flag. Controllers often default this to `false` when omitted; marked Computed so refresh and import keep that API value instead of drifting back to null.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"bss_transition_enabled": schema.BoolAttribute{
 				Optional: true,
@@ -422,7 +427,7 @@ func (r *wifiBroadcastResource) Create(ctx context.Context, request resource.Cre
 	}
 	preserveWifiSecuritySecrets(ctx, created.SecurityConfiguration, plan.SecurityConfiguration, &response.Diagnostics)
 
-	r.writeState(ctx, &response.State, &response.Diagnostics, plan.SiteID, created)
+	r.writeStateFromPlan(ctx, &response.State, &response.Diagnostics, plan, created)
 }
 
 func (r *wifiBroadcastResource) Read(ctx context.Context, request resource.ReadRequest, response *resource.ReadResponse) {
@@ -467,7 +472,7 @@ func (r *wifiBroadcastResource) Update(ctx context.Context, request resource.Upd
 	}
 	preserveWifiSecuritySecrets(ctx, updated.SecurityConfiguration, plan.SecurityConfiguration, &response.Diagnostics)
 
-	r.writeState(ctx, &response.State, &response.Diagnostics, plan.SiteID, updated)
+	r.writeStateFromPlan(ctx, &response.State, &response.Diagnostics, plan, updated)
 }
 
 func (r *wifiBroadcastResource) Delete(ctx context.Context, request resource.DeleteRequest, response *resource.DeleteResponse) {
@@ -776,6 +781,9 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 			return err
 		}
 	case "WPA3_PERSONAL":
+		if err := rejectIoTRestrictedSecurityType(broadcastType, security.Type.ValueString()); err != nil {
+			return err
+		}
 		if security.Passphrase.IsNull() || security.SAEConfiguration.IsNull() {
 			return fmt.Errorf("security_configuration.passphrase and security_configuration.sae_configuration are required for WPA3_PERSONAL")
 		}
@@ -783,13 +791,10 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 			return err
 		}
 	case "WPA2_WPA3_PERSONAL":
-		// pmf_mode is documented as unavailable for IoT configuration, so it is
-		// only required on STANDARD broadcasts.
-		if broadcastType == "IOT_OPTIMIZED" {
-			if security.Passphrase.IsNull() || security.SAEConfiguration.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
-				return fmt.Errorf("security_configuration.passphrase, sae_configuration, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_PERSONAL on IOT_OPTIMIZED broadcasts")
-			}
-		} else if security.Passphrase.IsNull() || security.PMFMode.IsNull() || security.SAEConfiguration.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
+		if err := rejectIoTRestrictedSecurityType(broadcastType, security.Type.ValueString()); err != nil {
+			return err
+		}
+		if security.Passphrase.IsNull() || security.PMFMode.IsNull() || security.SAEConfiguration.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
 			return fmt.Errorf("security_configuration.passphrase, pmf_mode, sae_configuration, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_PERSONAL")
 		}
 		if err := rejectSecurityFields(security, "WPA2_WPA3_PERSONAL", "encryption", "coa_enabled", "security_mode", "preshared_keys"); err != nil {
@@ -803,17 +808,19 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 			return err
 		}
 	case "WPA2_WPA3_ENTERPRISE":
-		if broadcastType == "IOT_OPTIMIZED" {
-			if security.RadiusConfiguration.IsNull() || security.CoAEnabled.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
-				return fmt.Errorf("security_configuration.radius_configuration, coa_enabled, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_ENTERPRISE on IOT_OPTIMIZED broadcasts")
-			}
-		} else if security.RadiusConfiguration.IsNull() || security.CoAEnabled.IsNull() || security.PMFMode.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
+		if err := rejectIoTRestrictedSecurityType(broadcastType, security.Type.ValueString()); err != nil {
+			return err
+		}
+		if security.RadiusConfiguration.IsNull() || security.CoAEnabled.IsNull() || security.PMFMode.IsNull() || security.WPA3FastRoamingEnabled.IsNull() {
 			return fmt.Errorf("security_configuration.radius_configuration, coa_enabled, pmf_mode, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_ENTERPRISE")
 		}
 		if err := rejectSecurityFields(security, "WPA2_WPA3_ENTERPRISE", "passphrase", "encryption", "sae_configuration", "security_mode", "preshared_keys"); err != nil {
 			return err
 		}
 	case "WPA3_ENTERPRISE":
+		if err := rejectIoTRestrictedSecurityType(broadcastType, security.Type.ValueString()); err != nil {
+			return err
+		}
 		if security.RadiusConfiguration.IsNull() || security.CoAEnabled.IsNull() || security.SecurityMode.IsNull() {
 			return fmt.Errorf("security_configuration.radius_configuration, coa_enabled, and security_mode are required for WPA3_ENTERPRISE")
 		}
@@ -911,6 +918,17 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 	}
 
 	return nil
+}
+
+// rejectIoTRestrictedSecurityType rejects WPA3 and mixed WPA2/WPA3 modes on
+// IOT_OPTIMIZED broadcasts. Live controllers reject those with
+// "IoT optimized WiFi requires any of [open security, WPA2 personal security,
+// WPA2 enterprise security]" and also forbid PMF, which mixed modes need.
+func rejectIoTRestrictedSecurityType(broadcastType, securityType string) error {
+	if broadcastType != "IOT_OPTIMIZED" {
+		return nil
+	}
+	return fmt.Errorf("security_configuration.type %s is not supported for IOT_OPTIMIZED broadcasts; use OPEN, WPA2_PERSONAL, or WPA2_ENTERPRISE", securityType)
 }
 
 // wifiDeprecationRemovalVersion is the release in which the deprecated
@@ -1133,6 +1151,33 @@ func (r *wifiBroadcastResource) writeState(ctx context.Context, state *tfsdk.Sta
 	}
 
 	diags.Append(state.Set(ctx, &model)...)
+}
+
+// writeStateFromPlan writes API state after create/update, keeping optional
+// attributes null in Terraform when the plan left them unset. Controllers often
+// echo defaults (for example band_steering_enabled=false) that would otherwise
+// produce "Provider produced inconsistent result after apply".
+func (r *wifiBroadcastResource) writeStateFromPlan(ctx context.Context, state *tfsdk.State, diags *diag.Diagnostics, plan wifiBroadcastResourceModel, broadcast *client.WifiBroadcast) {
+	model, diagnostics := buildWifiBroadcastStateModel(ctx, plan.SiteID, broadcast)
+	diags.Append(diagnostics...)
+	if diags.HasError() {
+		return
+	}
+
+	preserveNullOptionalWifiAttrs(&model, plan)
+	diags.Append(state.Set(ctx, &model)...)
+}
+
+func preserveNullOptionalWifiAttrs(model *wifiBroadcastResourceModel, plan wifiBroadcastResourceModel) {
+	// band_steering_enabled / channel_2g_locked_to_6 / dtim_period_2g_locked_to_3
+	// are Optional+Computed: omitted config is Unknown at create, so the API
+	// value is written into state and kept on refresh/import.
+	if plan.BroadcastingDeviceFilter.IsNull() {
+		model.BroadcastingDeviceFilter = types.ObjectNull(wifiBroadcastingDeviceFilterAttrTypes())
+	}
+	if plan.DNSAssistanceConfiguration.IsNull() {
+		model.DNSAssistanceConfiguration = types.ObjectNull(wifiDNSAssistanceConfigurationAttrTypes())
+	}
 }
 
 func buildWifiBroadcastStateModel(ctx context.Context, siteID types.String, broadcast *client.WifiBroadcast) (wifiBroadcastResourceModel, diag.Diagnostics) {

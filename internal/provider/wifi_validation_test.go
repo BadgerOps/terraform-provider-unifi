@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -565,23 +566,21 @@ func TestValidateWifiBroadcastModelMixedSecurityPMFMode(t *testing.T) {
 		return wifiBroadcastResourceModel{Type: types.StringValue("IOT_OPTIMIZED"), Network: wifiNativeNetwork(t), SecurityConfiguration: security}
 	}
 
+	iotRejected := "security_configuration.type %s is not supported for IOT_OPTIMIZED broadcasts; use OPEN, WPA2_PERSONAL, or WPA2_ENTERPRISE"
 	testCases := []struct {
 		name     string
 		plan     func(t *testing.T) wifiBroadcastResourceModel
 		expected string
 	}{
-		{name: "IoT personal without pmf_mode is valid", plan: func(t *testing.T) wifiBroadcastResourceModel {
+		{name: "IoT mixed personal is rejected", plan: func(t *testing.T) wifiBroadcastResourceModel {
 			return iotPlan(t, personal(t, nil))
-		}},
-		{name: "IoT personal without passphrase", plan: func(t *testing.T) wifiBroadcastResourceModel {
-			return iotPlan(t, personal(t, map[string]attr.Value{"passphrase": types.StringNull()}))
-		}, expected: "security_configuration.passphrase, sae_configuration, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_PERSONAL on IOT_OPTIMIZED broadcasts"},
+		}, expected: fmt.Sprintf(iotRejected, "WPA2_WPA3_PERSONAL")},
 		{name: "STANDARD personal without pmf_mode", plan: func(t *testing.T) wifiBroadcastResourceModel {
 			return wifiStandardPlan(wifiNativeNetwork(t), personal(t, nil))
 		}, expected: "security_configuration.passphrase, pmf_mode, sae_configuration, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_PERSONAL"},
-		{name: "IoT enterprise without pmf_mode is valid", plan: func(t *testing.T) wifiBroadcastResourceModel {
+		{name: "IoT mixed enterprise is rejected", plan: func(t *testing.T) wifiBroadcastResourceModel {
 			return iotPlan(t, enterprise(t))
-		}},
+		}, expected: fmt.Sprintf(iotRejected, "WPA2_WPA3_ENTERPRISE")},
 		{name: "STANDARD enterprise without pmf_mode", plan: func(t *testing.T) wifiBroadcastResourceModel {
 			return wifiStandardPlan(wifiNativeNetwork(t), enterprise(t))
 		}, expected: "security_configuration.radius_configuration, coa_enabled, pmf_mode, and wpa3_fast_roaming_enabled are required for WPA2_WPA3_ENTERPRISE"},

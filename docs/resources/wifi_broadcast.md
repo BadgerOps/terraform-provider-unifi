@@ -94,7 +94,7 @@ resource "unifi_wifi_broadcast" "staff" {
 
 - `advertise_device_name` (Boolean)
 - `arp_proxy_enabled` (Boolean)
-- `band_steering_enabled` (Boolean)
+- `band_steering_enabled` (Boolean) Band steering enabled flag. Controllers often default this to `false` when omitted; marked Computed so refresh and import keep that API value instead of drifting back to null.
 - `broadcasting_device_filter` (Attributes) (see [below for nested schema](#nestedatt--broadcasting_device_filter))
 - `broadcasting_frequencies_ghz` (Set of Number)
 - `bss_transition_enabled` (Boolean)
@@ -121,7 +121,7 @@ Optional:
 - `fast_roaming_enabled` (Boolean) Fast roaming enabled flag. Recent controllers reject a `STANDARD` broadcast that uses WPA security without this set, reporting `WPA security combined with standard WiFi requires fast roaming setting`. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.
 - `group_rekey_interval_seconds` (Number) Group rekey interval in seconds. Disabled when omitted. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.
 - `passphrase` (String, Sensitive)
-- `pmf_mode` (String) Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Required for `WPA2_WPA3_PERSONAL` and `WPA2_WPA3_ENTERPRISE` on `STANDARD` broadcasts. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.
+- `pmf_mode` (String) Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Required for `WPA2_WPA3_PERSONAL` and `WPA2_WPA3_ENTERPRISE`. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0. `IOT_OPTIMIZED` broadcasts only support `OPEN`, `WPA2_PERSONAL`, and `WPA2_ENTERPRISE`, so mixed/WPA3 modes that need PMF are rejected at plan time.
 - `preshared_keys` (Attributes List) (see [below for nested schema](#nestedatt--security_configuration--preshared_keys))
 - `radius_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration))
 - `sae_configuration` (Attributes) WPA3 SAE settings. Required for `WPA3_PERSONAL` and `WPA2_WPA3_PERSONAL`. Setting it for `OPEN` or `WPA2_PERSONAL` security is deprecated and will be rejected from v0.6.0. (see [below for nested schema](#nestedatt--security_configuration--sae_configuration))
