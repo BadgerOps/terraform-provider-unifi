@@ -6,16 +6,27 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-27
+
 ### Added
 
 - Added official Integration API support for WPA2 Enterprise, mixed WPA2/WPA3 Enterprise, and WPA3 Enterprise WiFi security, including RADIUS profiles, NAS-ID, MAC authentication, Change of Authorization, roaming, PMF, rekeying, and WPA3 security mode.
 - Added WPA2 Personal PPSKs with per-key network assignment, sensitive state handling, and refresh preservation for passphrases omitted by UniFi responses. A PPSK broadcast omits the broadcast-level `network`, because each key carries its own.
+- Added a `request_timeout_seconds` provider attribute for the per-request HTTP timeout, which was hardcoded to 30 seconds with no way to change it. A UniFi Network application can stop answering its API for minutes while it reprovisions devices after a WiFi change, which left a plan or apply failing partway through with `context deadline exceeded (Client.Timeout exceeded while awaiting headers)`. The default is unchanged at 30 seconds.
 
 ### Fixed
 
 - Made `network` optional on `unifi_wifi_broadcast`. The controller forbids a broadcast-level network alongside `security_configuration.preshared_keys`, because each preshared key carries its own, so PPSK broadcasts could not be created at all while the attribute was required. It is still required for every other configuration, and the integration schema never listed it as required.
 - Rejected `network` and `security_configuration.passphrase` alongside `security_configuration.preshared_keys` at plan time, matching the controller.
 - Rejected `security_configuration.pmf_mode`, `security_configuration.fast_roaming_enabled`, and `security_configuration.group_rekey_interval_seconds` at plan time for `IOT_OPTIMIZED` broadcasts. The integration API documents all three as unavailable for IoT configuration, for every security type, so the controller silently ignored them.
+
+## [0.4.1] - 2026-10-27
+
+### Fixed
+
+- Fixed `unifi_dhcp_reservation` and `unifi_port_forward` when `api_url` is a UniFi Site Manager cloud connector (`https://api.ui.com/v1/connector/consoles/<console-id>/network`). The legacy API base was derived as `<api_url>/proxy/network/api`, which the connector answers with HTTP 404; behind the connector the legacy API sits directly at `<api_url>/api`. Integration API paths are unchanged.
+- Fixed `scripts/sync-version.sh` and `scripts/read-changelog-release.sh` the same way as `scripts/generate-docs.sh`: both read the release version with the three-argument `match()` that only GNU awk provides, so `make check-version-drift` and release note extraction failed with a syntax error where `awk` is mawk (Debian/Ubuntu default) or BSD awk.
+- Fixed `scripts/generate-docs.sh` provider version extraction to use portable awk. It relied on the three-argument `match()` that only GNU awk provides, so the version came back empty and documentation generation failed on macOS and on any system where `awk` is BSD awk or mawk.
 
 ## [0.4.0] - 2026-10-06
 

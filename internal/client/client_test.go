@@ -1,6 +1,9 @@
 package client
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNormalizeBaseURL(t *testing.T) {
 	t.Parallel()
@@ -47,6 +50,10 @@ func TestNormalizeLegacyBaseURL(t *testing.T) {
 		{name: "from proxy network integration path", in: "https://controller.example.com/proxy/network/integration", want: "https://controller.example.com/proxy/network/api"},
 		{name: "with reverse proxy prefix", in: "https://controller.example.com/unifi/proxy/network", want: "https://controller.example.com/unifi/proxy/network/api"},
 		{name: "with reverse proxy prefix from integration path", in: "https://controller.example.com/unifi/proxy/network/integration", want: "https://controller.example.com/unifi/proxy/network/api"},
+		{name: "site manager cloud connector", in: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network", want: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network/api"},
+		{name: "site manager cloud connector from integration path", in: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network/integration", want: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network/api"},
+		{name: "site manager cloud connector with trailing slash", in: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network/", want: "https://api.ui.com/v1/connector/consoles/CONSOLE-ID/network/api"},
+		{name: "network path that is not a connector", in: "https://controller.example.com/network", want: "https://controller.example.com/network/proxy/network/api"},
 	}
 
 	for _, testCase := range testCases {
@@ -61,6 +68,46 @@ func TestNormalizeLegacyBaseURL(t *testing.T) {
 
 			if got.String() != testCase.want {
 				t.Fatalf("normalizeLegacyBaseURL() = %q, want %q", got.String(), testCase.want)
+			}
+		})
+	}
+}
+
+func TestNewRequestTimeout(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		timeout  time.Duration
+		expected time.Duration
+		wantErr  bool
+	}{
+		{name: "zero selects default", timeout: 0, expected: DefaultRequestTimeout},
+		{name: "explicit value is applied", timeout: 5 * time.Minute, expected: 5 * time.Minute},
+		{name: "negative is rejected", timeout: -1 * time.Second, wantErr: true},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			apiClient, err := New(Config{
+				BaseURL:        "https://unifi.example.com",
+				APIKey:         "key",
+				RequestTimeout: testCase.timeout,
+			})
+			if testCase.wantErr {
+				if err == nil {
+					t.Fatal("New() error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			if apiClient.httpClient.Timeout != testCase.expected {
+				t.Fatalf("httpClient.Timeout = %v, want %v", apiClient.httpClient.Timeout, testCase.expected)
 			}
 		})
 	}

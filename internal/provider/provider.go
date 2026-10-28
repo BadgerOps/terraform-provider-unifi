@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -20,9 +21,10 @@ type unifiProvider struct {
 }
 
 type providerModel struct {
-	APIURL        types.String `tfsdk:"api_url"`
-	APIKey        types.String `tfsdk:"api_key"`
-	AllowInsecure types.Bool   `tfsdk:"allow_insecure"`
+	APIURL                types.String `tfsdk:"api_url"`
+	APIKey                types.String `tfsdk:"api_key"`
+	AllowInsecure         types.Bool   `tfsdk:"allow_insecure"`
+	RequestTimeoutSeconds types.Int64  `tfsdk:"request_timeout_seconds"`
 }
 
 type providerData struct {
@@ -57,6 +59,10 @@ func (p *unifiProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 				Optional:            true,
 				MarkdownDescription: "Disable TLS certificate verification. Only use this against trusted development systems.",
 			},
+			"request_timeout_seconds": schema.Int64Attribute{
+				Optional:            true,
+				MarkdownDescription: "Timeout applied to each HTTP request to the controller, in seconds. Defaults to `30`. Raise it when the controller reprovisions devices mid-apply: a UniFi Network application can stop answering its API for minutes after a WiFi change, and the default leaves a plan or apply failing with `context deadline exceeded` partway through.",
+			},
 		},
 	}
 }
@@ -68,11 +74,25 @@ func (p *unifiProvider) Configure(ctx context.Context, request provider.Configur
 		return
 	}
 
+	var requestTimeout time.Duration
+	if !data.RequestTimeoutSeconds.IsNull() && !data.RequestTimeoutSeconds.IsUnknown() {
+		seconds := data.RequestTimeoutSeconds.ValueInt64()
+		if seconds < 1 {
+			response.Diagnostics.AddError(
+				"Invalid request_timeout_seconds",
+				fmt.Sprintf("request_timeout_seconds must be at least 1 second, got %d.", seconds),
+			)
+			return
+		}
+		requestTimeout = time.Duration(seconds) * time.Second
+	}
+
 	apiClient, err := client.New(client.Config{
-		BaseURL:       data.APIURL.ValueString(),
-		APIKey:        data.APIKey.ValueString(),
-		AllowInsecure: data.AllowInsecure.ValueBool(),
-		UserAgent:     fmt.Sprintf("terraform-provider-unifi/%s", p.version),
+		BaseURL:        data.APIURL.ValueString(),
+		APIKey:         data.APIKey.ValueString(),
+		AllowInsecure:  data.AllowInsecure.ValueBool(),
+		UserAgent:      fmt.Sprintf("terraform-provider-unifi/%s", p.version),
+		RequestTimeout: requestTimeout,
 	})
 	if err != nil {
 		response.Diagnostics.AddError("Unable to configure UniFi client", err.Error())

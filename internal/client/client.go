@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 
@@ -15,11 +16,16 @@ import (
 
 const defaultPageLimit = 100
 
+const DefaultRequestTimeout = 30 * time.Second
+
 type Config struct {
 	BaseURL       string
 	APIKey        string
 	AllowInsecure bool
 	UserAgent     string
+	// RequestTimeout bounds each HTTP request to the controller. Zero selects
+	// DefaultRequestTimeout.
+	RequestTimeout time.Duration
 }
 
 type Client struct {
@@ -58,6 +64,9 @@ func New(config Config) (*Client, error) {
 	if strings.TrimSpace(config.APIKey) == "" {
 		return nil, fmt.Errorf("api_key must not be empty")
 	}
+	if config.RequestTimeout < 0 {
+		return nil, fmt.Errorf("request_timeout_seconds must not be negative")
+	}
 
 	integrationBaseURL, err := normalizeBaseURL(config.BaseURL)
 	if err != nil {
@@ -74,8 +83,13 @@ func New(config Config) (*Client, error) {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 	}
 
+	requestTimeout := config.RequestTimeout
+	if requestTimeout == 0 {
+		requestTimeout = DefaultRequestTimeout
+	}
+
 	httpClient := &http.Client{
-		Timeout:   30 * time.Second,
+		Timeout:   requestTimeout,
 		Transport: transport,
 	}
 
@@ -133,6 +147,13 @@ func normalizeLegacyBaseURL(raw string) (*url.URL, error) {
 	}
 
 	trimmedPath := strings.TrimRight(baseURL.Path, "/")
+	if connectorPath, ok := siteManagerConnectorPath(trimmedPath); ok {
+		// The Site Manager cloud connector forwards to the console's Network application itself,
+		// so the legacy API sits directly below it; /proxy/network only exists on the console.
+		baseURL.Path = joinURLPath(connectorPath, "api")
+		return baseURL, nil
+	}
+
 	switch {
 	case strings.HasSuffix(trimmedPath, "/proxy/network/api"):
 		baseURL.Path = trimmedPath
@@ -150,6 +171,20 @@ func normalizeLegacyBaseURL(raw string) (*url.URL, error) {
 	}
 
 	return baseURL, nil
+}
+
+// siteManagerConnectorRE matches a UniFi Site Manager cloud connector path for the Network
+// application, e.g. /v1/connector/consoles/<console-id>/network, optionally followed by /integration
+// (the integration API's base below the connector).
+var siteManagerConnectorRE = regexp.MustCompile(`^(.*/v1/connector/consoles/[^/]+/network)(?:/integration)?$`)
+
+// siteManagerConnectorPath returns the connector's Network application path if path is one.
+func siteManagerConnectorPath(path string) (string, bool) {
+	match := siteManagerConnectorRE.FindStringSubmatch(path)
+	if match == nil {
+		return "", false
+	}
+	return match[1], true
 }
 
 func joinURLPath(basePath string, pathElements ...string) string {
