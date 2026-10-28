@@ -44,7 +44,7 @@ func (p *unifiProvider) Metadata(_ context.Context, _ provider.MetadataRequest, 
 
 func (p *unifiProvider) Schema(_ context.Context, _ provider.SchemaRequest, response *provider.SchemaResponse) {
 	response.Schema = schema.Schema{
-		MarkdownDescription: "Manage UniFi Network site configuration (networks, WiFi, firewall, DNS, ACLs) through the official Integration API.",
+		MarkdownDescription: "Manage UniFi Network site configuration (networks, WiFi, firewall, DNS, ACLs, DHCP reservations, port forwards) through the official Integration API with API-key auth.",
 		Attributes: map[string]schema.Attribute{
 			"api_url": schema.StringAttribute{
 				Required:            true,
