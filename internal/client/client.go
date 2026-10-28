@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 
@@ -146,6 +147,13 @@ func normalizeLegacyBaseURL(raw string) (*url.URL, error) {
 	}
 
 	trimmedPath := strings.TrimRight(baseURL.Path, "/")
+	if connectorPath, ok := siteManagerConnectorPath(trimmedPath); ok {
+		// The Site Manager cloud connector forwards to the console's Network application itself,
+		// so the legacy API sits directly below it; /proxy/network only exists on the console.
+		baseURL.Path = joinURLPath(connectorPath, "api")
+		return baseURL, nil
+	}
+
 	switch {
 	case strings.HasSuffix(trimmedPath, "/proxy/network/api"):
 		baseURL.Path = trimmedPath
@@ -163,6 +171,20 @@ func normalizeLegacyBaseURL(raw string) (*url.URL, error) {
 	}
 
 	return baseURL, nil
+}
+
+// siteManagerConnectorRE matches a UniFi Site Manager cloud connector path for the Network
+// application, e.g. /v1/connector/consoles/<console-id>/network, optionally followed by /integration
+// (the integration API's base below the connector).
+var siteManagerConnectorRE = regexp.MustCompile(`^(.*/v1/connector/consoles/[^/]+/network)(?:/integration)?$`)
+
+// siteManagerConnectorPath returns the connector's Network application path if path is one.
+func siteManagerConnectorPath(path string) (string, bool) {
+	match := siteManagerConnectorRE.FindStringSubmatch(path)
+	if match == nil {
+		return "", false
+	}
+	return match[1], true
 }
 
 func joinURLPath(basePath string, pathElements ...string) string {

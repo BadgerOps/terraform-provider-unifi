@@ -11,8 +11,11 @@ fi
 
 version="$(
   awk '
-    match($0, /^## \[([0-9]+\.[0-9]+\.[0-9]+)\]/, parts) {
-      print parts[1]
+    /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
+      version = $0
+      sub(/^## \[/, "", version)
+      sub(/\].*$/, "", version)
+      print version
       exit
     }
   ' "${changelog}"
