@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.5.5] - 2026-10-28
+
+### Fixed
+
+- Registry documentation cross-links from the provider overview. Relative targets like `./guides/...` resolved against `.../latest/docs` (no trailing slash) to `.../latest/guides/...` and 404'd; overview links now use `docs/guides/...`, `docs/resources/...`, and `docs/data-sources/...` paths that stay under `/docs`.
+
 ## [0.5.4] - 2026-10-28
 
 ### Added

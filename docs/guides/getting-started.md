@@ -103,6 +103,6 @@ That directory is a reference configuration inside the provider repo, not a publ
 
 ## 5. Next steps
 
-- [Zone-based firewall](./zone-based-firewall.md) before managing zones or policies
-- [Importing existing configuration](./importing-existing-configuration.md) for brownfield sites
-- [Compared to legacy UniFi providers](./vs-legacy-providers.md) if you are migrating from `paultyng/unifi` or `ubiquiti-community/unifi`
+- [Zone-based firewall](zone-based-firewall) before managing zones or policies
+- [Importing existing configuration](importing-existing-configuration) for brownfield sites
+- [Compared to legacy UniFi providers](vs-legacy-providers) if you are migrating from `paultyng/unifi` or `ubiquiti-community/unifi`

@@ -8,9 +8,9 @@ description: |-
 
 Zone-based firewall support must be enabled **manually in the UniFi Network UI** before Terraform can manage:
 
-- [`unifi_firewall_zone`](../resources/firewall_zone.md)
-- [`unifi_firewall_policy`](../resources/firewall_policy.md)
-- [`unifi_firewall_policy_ordering`](../resources/firewall_policy_ordering.md)
+- [`unifi_firewall_zone`](../resources/firewall_zone)
+- [`unifi_firewall_policy`](../resources/firewall_policy)
+- [`unifi_firewall_policy_ordering`](../resources/firewall_policy_ordering)
 
 If it is not enabled on the target site, the controller returns `api.firewall.zone-based-firewall-not-configured` and these resources and data sources will not work for that site.
 
@@ -28,12 +28,12 @@ Current UniFi controller builds have behaviors worth planning around:
 
 Firewall policy order and ACL rule order are separate controller endpoints. The per-object `index` field is read-only state, so this provider manages order through:
 
-- [`unifi_firewall_policy_ordering`](../resources/firewall_policy_ordering.md)
-- [`unifi_acl_rule_ordering`](../resources/acl_rule_ordering.md)
+- [`unifi_firewall_policy_ordering`](../resources/firewall_policy_ordering)
+- [`unifi_acl_rule_ordering`](../resources/acl_rule_ordering)
 
-Import IDs for those resources are documented in [Importing existing configuration](./importing-existing-configuration.md).
+Import IDs for those resources are documented in [Importing existing configuration](importing-existing-configuration).
 
 ## Related
 
-- [Getting started](./getting-started.md)
-- [Compared to legacy UniFi providers](./vs-legacy-providers.md)
+- [Getting started](getting-started)
+- [Compared to legacy UniFi providers](vs-legacy-providers)

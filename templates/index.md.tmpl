@@ -11,7 +11,7 @@ The `badgerops/unifi` provider manages **declarative UniFi Network site configur
 
 It is built for configuration state: networks, WiFi broadcasts, zone-based firewall, DNS policy, traffic matching lists, ACL rules, DHCP reservations, and port forwards. It is **not** a day-2 operations tool (no device adoption, client telemetry, firmware upgrades, or analytics).
 
--> **New here?** Read [Getting started](./guides/getting-started.md). Migrating from `paultyng/unifi` or `ubiquiti-community/unifi`? See [Compared to legacy UniFi providers](./guides/vs-legacy-providers.md).
+-> **New here?** Read [Getting started](docs/guides/getting-started). Migrating from `paultyng/unifi` or `ubiquiti-community/unifi`? See [Compared to legacy UniFi providers](docs/guides/vs-legacy-providers).
 
 -> **Pull requests are welcome.** Docs fixes, examples, repros, and focused resource improvements all help — [open a PR](https://github.com/BadgerOps/terraform-provider-unifi/pulls) or [start with an issue](https://github.com/BadgerOps/terraform-provider-unifi/issues).
 
@@ -71,10 +71,10 @@ There is no provider-level `site` argument (unlike many legacy UniFi providers).
 
 | Guide | Contents |
 | --- | --- |
-| [Getting started](./guides/getting-started.md) | API key, first apply, link to the end-to-end example |
-| [Compared to legacy UniFi providers](./guides/vs-legacy-providers.md) | `badgerops/unifi` vs `paultyng` / `ubiquiti-community` |
-| [Zone-based firewall](./guides/zone-based-firewall.md) | UI prerequisite and controller quirks |
-| [Importing existing configuration](./guides/importing-existing-configuration.md) | Composite import IDs and brownfield tips |
+| [Getting started](docs/guides/getting-started) | API key, first apply, link to the end-to-end example |
+| [Compared to legacy UniFi providers](docs/guides/vs-legacy-providers) | `badgerops/unifi` vs `paultyng` / `ubiquiti-community` |
+| [Zone-based firewall](docs/guides/zone-based-firewall) | UI prerequisite and controller quirks |
+| [Importing existing configuration](docs/guides/importing-existing-configuration) | Composite import IDs and brownfield tips |
 
 End-to-end operator example (networks, WiFi, firewall, DNS, ACLs):
 
@@ -86,17 +86,17 @@ That directory is a reference configuration inside the provider repository, not 
 
 | Resource | Role |
 | --- | --- |
-| [`unifi_network`](./resources/network.md) | LAN/VLAN (and related) networks on a site |
-| [`unifi_wifi_broadcast`](./resources/wifi_broadcast.md) | SSIDs / WiFi broadcasts (personal, enterprise, PPSK, IoT modes) |
-| [`unifi_firewall_zone`](./resources/firewall_zone.md) | Zone-based firewall zones |
-| [`unifi_firewall_policy`](./resources/firewall_policy.md) | Zone-pair firewall policies |
-| [`unifi_firewall_policy_ordering`](./resources/firewall_policy_ordering.md) | Policy order for a source/destination zone pair |
-| [`unifi_traffic_matching_list`](./resources/traffic_matching_list.md) | Reusable traffic matching lists |
-| [`unifi_dns_policy`](./resources/dns_policy.md) | DNS policies |
-| [`unifi_acl_rule`](./resources/acl_rule.md) | ACL rules |
-| [`unifi_acl_rule_ordering`](./resources/acl_rule_ordering.md) | ACL rule order for a site |
-| [`unifi_dhcp_reservation`](./resources/dhcp_reservation.md) | DHCP reservations (**legacy** local Network API) |
-| [`unifi_port_forward`](./resources/port_forward.md) | WAN port forwards (**legacy** local Network API) |
+| [`unifi_network`](docs/resources/network) | LAN/VLAN (and related) networks on a site |
+| [`unifi_wifi_broadcast`](docs/resources/wifi_broadcast) | SSIDs / WiFi broadcasts (personal, enterprise, PPSK, IoT modes) |
+| [`unifi_firewall_zone`](docs/resources/firewall_zone) | Zone-based firewall zones |
+| [`unifi_firewall_policy`](docs/resources/firewall_policy) | Zone-pair firewall policies |
+| [`unifi_firewall_policy_ordering`](docs/resources/firewall_policy_ordering) | Policy order for a source/destination zone pair |
+| [`unifi_traffic_matching_list`](docs/resources/traffic_matching_list) | Reusable traffic matching lists |
+| [`unifi_dns_policy`](docs/resources/dns_policy) | DNS policies |
+| [`unifi_acl_rule`](docs/resources/acl_rule) | ACL rules |
+| [`unifi_acl_rule_ordering`](docs/resources/acl_rule_ordering) | ACL rule order for a site |
+| [`unifi_dhcp_reservation`](docs/resources/dhcp_reservation) | DHCP reservations (**legacy** local Network API) |
+| [`unifi_port_forward`](docs/resources/port_forward) | WAN port forwards (**legacy** local Network API) |
 
 ### Legacy API exceptions
 
@@ -111,8 +111,8 @@ UniFi Network `10.6.106` does not expose DHCP reservation writes or port forward
 
 The controller exposes **separate ordering endpoints**. Per-object `index` fields are read-only state, so order is managed only through:
 
-- [`unifi_firewall_policy_ordering`](./resources/firewall_policy_ordering.md)
-- [`unifi_acl_rule_ordering`](./resources/acl_rule_ordering.md)
+- [`unifi_firewall_policy_ordering`](docs/resources/firewall_policy_ordering)
+- [`unifi_acl_rule_ordering`](docs/resources/acl_rule_ordering)
 
 Prefer creating/importing policies or ACL rules first, then aligning ordering (some controllers are unreliable if ordering is created from a blank slate first).
 
@@ -120,35 +120,35 @@ Prefer creating/importing policies or ACL rules first, then aligning ordering (s
 
 | Data source | Role |
 | --- | --- |
-| [`unifi_site`](./data-sources/site.md) | Look up a site by name (typical source of `site_id`) |
-| [`unifi_network`](./data-sources/network.md) | Existing network |
-| [`unifi_wifi_broadcast`](./data-sources/wifi_broadcast.md) | Existing WiFi broadcast |
-| [`unifi_device`](./data-sources/device.md) | Adopted device inventory |
-| [`unifi_firewall_zone`](./data-sources/firewall_zone.md) | Firewall zone |
-| [`unifi_firewall_policy`](./data-sources/firewall_policy.md) | Firewall policy |
-| [`unifi_traffic_matching_list`](./data-sources/traffic_matching_list.md) | Traffic matching list |
-| [`unifi_dns_policy`](./data-sources/dns_policy.md) | DNS policy |
-| [`unifi_acl_rule`](./data-sources/acl_rule.md) | ACL rule |
-| [`unifi_port_forward`](./data-sources/port_forward.md) | Port forward (legacy API) |
-| [`unifi_vpn_server`](./data-sources/vpn_server.md) | VPN server |
-| [`unifi_site_to_site_vpn_tunnel`](./data-sources/site_to_site_vpn_tunnel.md) | Site-to-site VPN tunnel |
-| [`unifi_dpi_application`](./data-sources/dpi_application.md) | DPI application |
-| [`unifi_dpi_application_category`](./data-sources/dpi_application_category.md) | DPI application category |
-| [`unifi_country`](./data-sources/country.md) | Country |
-| [`unifi_radius_profile`](./data-sources/radius_profile.md) | RADIUS profile (**read-only** in Integration API; used by enterprise WiFi) |
-| [`unifi_device_tag`](./data-sources/device_tag.md) | Device tag (**read-only**) |
-| [`unifi_wan`](./data-sources/wan.md) | WAN (**read-only**) |
-| [`unifi_switch_stack`](./data-sources/switch_stack.md) | Switch stack (**read-only**) |
-| [`unifi_mc_lag_domain`](./data-sources/mc_lag_domain.md) | MC-LAG domain (**read-only**) |
-| [`unifi_lag`](./data-sources/lag.md) | LAG (**read-only**) |
+| [`unifi_site`](docs/data-sources/site) | Look up a site by name (typical source of `site_id`) |
+| [`unifi_network`](docs/data-sources/network) | Existing network |
+| [`unifi_wifi_broadcast`](docs/data-sources/wifi_broadcast) | Existing WiFi broadcast |
+| [`unifi_device`](docs/data-sources/device) | Adopted device inventory |
+| [`unifi_firewall_zone`](docs/data-sources/firewall_zone) | Firewall zone |
+| [`unifi_firewall_policy`](docs/data-sources/firewall_policy) | Firewall policy |
+| [`unifi_traffic_matching_list`](docs/data-sources/traffic_matching_list) | Traffic matching list |
+| [`unifi_dns_policy`](docs/data-sources/dns_policy) | DNS policy |
+| [`unifi_acl_rule`](docs/data-sources/acl_rule) | ACL rule |
+| [`unifi_port_forward`](docs/data-sources/port_forward) | Port forward (legacy API) |
+| [`unifi_vpn_server`](docs/data-sources/vpn_server) | VPN server |
+| [`unifi_site_to_site_vpn_tunnel`](docs/data-sources/site_to_site_vpn_tunnel) | Site-to-site VPN tunnel |
+| [`unifi_dpi_application`](docs/data-sources/dpi_application) | DPI application |
+| [`unifi_dpi_application_category`](docs/data-sources/dpi_application_category) | DPI application category |
+| [`unifi_country`](docs/data-sources/country) | Country |
+| [`unifi_radius_profile`](docs/data-sources/radius_profile) | RADIUS profile (**read-only** in Integration API; used by enterprise WiFi) |
+| [`unifi_device_tag`](docs/data-sources/device_tag) | Device tag (**read-only**) |
+| [`unifi_wan`](docs/data-sources/wan) | WAN (**read-only**) |
+| [`unifi_switch_stack`](docs/data-sources/switch_stack) | Switch stack (**read-only**) |
+| [`unifi_mc_lag_domain`](docs/data-sources/mc_lag_domain) | MC-LAG domain (**read-only**) |
+| [`unifi_lag`](docs/data-sources/lag) | LAG (**read-only**) |
 
 ## Zone-based firewall
 
 Enable zone-based firewall **manually in the UniFi Network UI** before managing:
 
-- [`unifi_firewall_zone`](./resources/firewall_zone.md)
-- [`unifi_firewall_policy`](./resources/firewall_policy.md)
-- [`unifi_firewall_policy_ordering`](./resources/firewall_policy_ordering.md)
+- [`unifi_firewall_zone`](docs/resources/firewall_zone)
+- [`unifi_firewall_policy`](docs/resources/firewall_policy)
+- [`unifi_firewall_policy_ordering`](docs/resources/firewall_policy_ordering)
 
 Otherwise the controller returns `api.firewall.zone-based-firewall-not-configured`.
 
@@ -160,12 +160,12 @@ Otherwise the controller returns `api.firewall.zone-based-firewall-not-configure
 - Prefer importing or aligning `unifi_firewall_policy_ordering` **after** policies exist.
 - Legacy UI-created policies may be hard to import if list endpoints omit stable IDs.
 
-Full write-up: [Zone-based firewall](./guides/zone-based-firewall.md).
+Full write-up: [Zone-based firewall](docs/guides/zone-based-firewall).
 
 ## WiFi notes
 
 - After WiFi (and some other) changes, UniFi may stop answering the API for minutes while devices reprovision — raise `request_timeout_seconds` (for example `300`) if you see deadline errors mid-apply.
-- Enterprise security references an existing RADIUS profile via [`data.unifi_radius_profile`](./data-sources/radius_profile.md) (Integration API is read-only for profiles).
+- Enterprise security references an existing RADIUS profile via [`data.unifi_radius_profile`](docs/data-sources/radius_profile) (Integration API is read-only for profiles).
 - WPA2 PPSK and Enterprise are separate modes; do not assume they coexist on one broadcast.
 - UniFi responses may omit PPSK passphrases; known state secrets are preserved on refresh, but **imported** PPSK broadcasts need passphrases supplied in configuration.
 - `IOT_OPTIMIZED` broadcasts only allow a subset of security modes; unsupported combinations are rejected or warned at plan time (see changelog / resource docs).
@@ -192,7 +192,7 @@ Most objects use **composite** import IDs (not bare UniFi IDs):
 terraform import unifi_network.trusted <site_id>/<network_id>
 ```
 
-Details and brownfield tips: [Importing existing configuration](./guides/importing-existing-configuration.md).
+Details and brownfield tips: [Importing existing configuration](docs/guides/importing-existing-configuration).
 
 ## Example Usage
 

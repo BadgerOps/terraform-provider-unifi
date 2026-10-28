@@ -34,13 +34,13 @@ Each resource page also includes a generated import snippet under **Import**.
 
 ## Brownfield tips
 
-1. Resolve the site first with [`data.unifi_site`](../data-sources/site.md) (by name) and use that `id` in every import string and resource.
+1. Resolve the site first with [`data.unifi_site`](../data-sources/site) (by name) and use that `id` in every import string and resource.
 2. Import networks and zones before policies that reference them; import policies before ordering resources when possible.
-3. For WiFi PPSK broadcasts, UniFi responses may omit passphrases. After import, supply passphrases in configuration so state stays complete — see [`unifi_wifi_broadcast`](../resources/wifi_broadcast.md).
-4. Enable zone-based firewall in the UI before importing firewall zones or policies. See [Zone-based firewall](./zone-based-firewall.md).
+3. For WiFi PPSK broadcasts, UniFi responses may omit passphrases. After import, supply passphrases in configuration so state stays complete — see [`unifi_wifi_broadcast`](../resources/wifi_broadcast).
+4. Enable zone-based firewall in the UI before importing firewall zones or policies. See [Zone-based firewall](zone-based-firewall).
 5. Expect a first plan after import to show drift on fields the UI left unset or that the Integration API normalizes (booleans, enums, frequency lists). Prefer aligning config to the API over force-replacing production objects.
 
 ## Related
 
-- [Getting started](./getting-started.md)
-- [Zone-based firewall](./zone-based-firewall.md)
+- [Getting started](getting-started)
+- [Zone-based firewall](zone-based-firewall)
