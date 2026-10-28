@@ -35,8 +35,8 @@ There is no automated state migrator. Treat a move as a **rebuild or selective i
 
 1. Inventory what the legacy provider manages and what still matters.
 2. Map each object to a `badgerops/unifi` resource (or data source). Names and attributes will differ — for example gateway LAN/VLAN networks use the Integration `unifi_network` model, not `purpose = "corporate"`.
-3. Prefer importing existing Integration-API objects over destroy/recreate on production SSIDs and firewall policy. See [Importing existing configuration](./importing-existing-configuration.md).
-4. Enable zone-based firewall in the UI before importing or creating zone firewall resources. See [Zone-based firewall](./zone-based-firewall.md).
+3. Prefer importing existing Integration-API objects over destroy/recreate on production SSIDs and firewall policy. See [Importing existing configuration](importing-existing-configuration).
+4. Enable zone-based firewall in the UI before importing or creating zone firewall resources. See [Zone-based firewall](zone-based-firewall).
 5. Run plans against a lab site first. WiFi changes can interrupt the API for several minutes; set `request_timeout_seconds` appropriately.
 
 ## What this provider intentionally skips
@@ -45,5 +45,5 @@ Day-2 controller operations stay out of scope: adoption, client telemetry, analy
 
 ## Related
 
-- [Getting started](./getting-started.md)
-- [Provider overview](../index.md)
+- [Getting started](getting-started)
+- [Provider overview](https://registry.terraform.io/providers/BadgerOps/unifi/latest/docs)
