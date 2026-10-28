@@ -94,7 +94,7 @@ resource "unifi_wifi_broadcast" "staff" {
 
 - `advertise_device_name` (Boolean)
 - `arp_proxy_enabled` (Boolean)
-- `band_steering_enabled` (Boolean)
+- `band_steering_enabled` (Boolean) Band steering enabled flag. Controllers often default this to `false` when omitted; marked Computed so refresh and import keep that API value instead of drifting back to null.
 - `broadcasting_device_filter` (Attributes) (see [below for nested schema](#nestedatt--broadcasting_device_filter))
 - `broadcasting_frequencies_ghz` (Set of Number)
 - `bss_transition_enabled` (Boolean)
@@ -118,15 +118,15 @@ Optional:
 
 - `coa_enabled` (Boolean)
 - `encryption` (String) Open security encryption mode. Supported values for `OPEN` security: `ENHANCED_OPEN`, `ENHANCED_OPEN_WITH_TRANSITION`. Leave unset for plain open WiFi.
-- `fast_roaming_enabled` (Boolean) Fast roaming enabled flag. Not available for `IOT_OPTIMIZED` broadcasts. Recent controllers reject a `STANDARD` broadcast that uses WPA security without this set, reporting `WPA security combined with standard WiFi requires fast roaming setting`.
-- `group_rekey_interval_seconds` (Number) Group rekey interval in seconds. Disabled when omitted. Not available for `IOT_OPTIMIZED` broadcasts.
+- `fast_roaming_enabled` (Boolean) Fast roaming enabled flag. Recent controllers reject a `STANDARD` broadcast that uses WPA security without this set, reporting `WPA security combined with standard WiFi requires fast roaming setting`. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.
+- `group_rekey_interval_seconds` (Number) Group rekey interval in seconds. Disabled when omitted. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0.
 - `passphrase` (String, Sensitive)
-- `pmf_mode` (String) Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Not available for `IOT_OPTIMIZED` broadcasts.
+- `pmf_mode` (String) Protected Management Frames mode. Supported values: `OPTIONAL`, `REQUIRED`. Required for `WPA2_WPA3_PERSONAL` and `WPA2_WPA3_ENTERPRISE`. Setting it for `OPEN` security or for an `IOT_OPTIMIZED` broadcast is deprecated and will be rejected from v0.6.0. `IOT_OPTIMIZED` broadcasts only support `OPEN`, `WPA2_PERSONAL`, and `WPA2_ENTERPRISE`, so mixed/WPA3 modes that need PMF are rejected at plan time.
 - `preshared_keys` (Attributes List) (see [below for nested schema](#nestedatt--security_configuration--preshared_keys))
 - `radius_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--radius_configuration))
-- `sae_configuration` (Attributes) (see [below for nested schema](#nestedatt--security_configuration--sae_configuration))
+- `sae_configuration` (Attributes) WPA3 SAE settings. Required for `WPA3_PERSONAL` and `WPA2_WPA3_PERSONAL`. Setting it for `OPEN` or `WPA2_PERSONAL` security is deprecated and will be rejected from v0.6.0. (see [below for nested schema](#nestedatt--security_configuration--sae_configuration))
 - `security_mode` (String) WPA3 Enterprise security mode. Supported values: `DEFAULT`, `HIGH_SECURITY_192_BIT`.
-- `wpa3_fast_roaming_enabled` (Boolean)
+- `wpa3_fast_roaming_enabled` (Boolean) WPA3 fast roaming enabled flag. Used by `WPA2_WPA3_PERSONAL` and `WPA2_WPA3_ENTERPRISE`. Setting it for `OPEN`, `WPA2_PERSONAL` or `WPA3_PERSONAL` security is deprecated and will be rejected from v0.6.0.
 
 <a id="nestedatt--security_configuration--preshared_keys"></a>
 ### Nested Schema for `security_configuration.preshared_keys`

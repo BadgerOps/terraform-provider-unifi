@@ -6,6 +6,21 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-28
+
+### Changed
+
+- `unifi_wifi_broadcast` now validates its configuration during `terraform plan` instead of partway through `apply`. Checks whose inputs are unknown until apply still run at apply time.
+- `unifi_wifi_broadcast`: `IOT_OPTIMIZED` broadcasts only allow `OPEN`, `WPA2_PERSONAL`, and `WPA2_ENTERPRISE` security. Live controllers reject WPA3 and mixed WPA2/WPA3 modes on IoT (and forbid PMF, which those modes need), so the provider rejects them at plan time instead of failing mid-apply.
+
+### Deprecated
+
+- `unifi_wifi_broadcast`: these `security_configuration` combinations were accepted by 0.4.0 but are not supported by the UniFi Integration API. They now produce a plan-time warning, are still sent to the controller unchanged, and will be rejected from 0.6.0:
+  - `OPEN` security with `pmf_mode`, `fast_roaming_enabled`, `group_rekey_interval_seconds`, `wpa3_fast_roaming_enabled` or `sae_configuration`
+  - `WPA2_PERSONAL` security with `wpa3_fast_roaming_enabled` or `sae_configuration`
+  - `WPA3_PERSONAL` security with `wpa3_fast_roaming_enabled`
+  - `IOT_OPTIMIZED` broadcasts with `pmf_mode`, `fast_roaming_enabled` or `group_rekey_interval_seconds` (softens the hard reject introduced in 0.5.0 so existing configs keep applying)
+
 ## [0.5.0] - 2026-10-27
 
 ### Added
