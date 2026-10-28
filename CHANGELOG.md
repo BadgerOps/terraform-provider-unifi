@@ -6,6 +6,15 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 ## [Unreleased]
 
+### Added
+
+- Registry guides for getting started, comparing against legacy UniFi providers, zone-based firewall quirks, and importing existing configuration.
+- Operator-focused provider overview with requirements, cloud-connector `api_url` examples, and links into the new guides.
+
+### Changed
+
+- README leads with Registry links, a minimal install snippet, and an explicit invitation for community pull requests before the contributor/development material.
+
 ## [0.5.2] - 2026-10-28
 
 ### Fixed
