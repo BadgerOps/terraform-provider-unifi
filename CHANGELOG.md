@@ -6,6 +6,21 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-28
+
+### Changed
+
+- `unifi_wifi_broadcast` now validates its configuration during `terraform plan` instead of partway through `apply`. Checks whose inputs are unknown until apply still run at apply time.
+- `unifi_wifi_broadcast`: `security_configuration.pmf_mode` is not required for `WPA2_WPA3_PERSONAL` or `WPA2_WPA3_ENTERPRISE` security on `IOT_OPTIMIZED` broadcasts, because the UniFi Integration API documents PMF as unavailable for IoT configuration. It remains required for those types on `STANDARD` broadcasts.
+
+### Deprecated
+
+- `unifi_wifi_broadcast`: these `security_configuration` combinations were accepted by 0.4.0 but are not supported by the UniFi Integration API. They now produce a plan-time warning, are still sent to the controller unchanged, and will be rejected from 0.6.0:
+  - `OPEN` security with `pmf_mode`, `fast_roaming_enabled`, `group_rekey_interval_seconds`, `wpa3_fast_roaming_enabled` or `sae_configuration`
+  - `WPA2_PERSONAL` security with `wpa3_fast_roaming_enabled` or `sae_configuration`
+  - `WPA3_PERSONAL` security with `wpa3_fast_roaming_enabled`
+  - `IOT_OPTIMIZED` broadcasts with `pmf_mode`, `fast_roaming_enabled` or `group_rekey_interval_seconds` (softens the hard reject introduced in 0.5.0 so existing configs keep applying)
+
 ## [0.5.0] - 2026-10-27
 
 ### Added
@@ -14,23 +29,11 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 - Added WPA2 Personal PPSKs with per-key network assignment, sensitive state handling, and refresh preservation for passphrases omitted by UniFi responses. A PPSK broadcast omits the broadcast-level `network`, because each key carries its own.
 - Added a `request_timeout_seconds` provider attribute for the per-request HTTP timeout, which was hardcoded to 30 seconds with no way to change it. A UniFi Network application can stop answering its API for minutes while it reprovisions devices after a WiFi change, which left a plan or apply failing partway through with `context deadline exceeded (Client.Timeout exceeded while awaiting headers)`. The default is unchanged at 30 seconds.
 
-### Changed
-
-- `unifi_wifi_broadcast` now validates its configuration during `terraform plan` instead of partway through `apply`. Checks whose inputs are unknown until apply still run at apply time.
-- `unifi_wifi_broadcast`: `security_configuration.pmf_mode` is not required for `WPA2_WPA3_PERSONAL` (previously required) or `WPA2_WPA3_ENTERPRISE` security on `IOT_OPTIMIZED` broadcasts, because the UniFi Integration API documents PMF as unavailable for IoT configuration.
-
-### Deprecated
-
-- `unifi_wifi_broadcast`: these `security_configuration` combinations were accepted by 0.4.0 but are not supported by the UniFi Integration API. They now produce a plan-time warning, are still sent to the controller unchanged, and will be rejected from 0.6.0:
-  - `OPEN` security with `pmf_mode`, `fast_roaming_enabled`, `group_rekey_interval_seconds`, `wpa3_fast_roaming_enabled` or `sae_configuration`
-  - `WPA2_PERSONAL` security with `wpa3_fast_roaming_enabled` or `sae_configuration`
-  - `WPA3_PERSONAL` security with `wpa3_fast_roaming_enabled`
-  - `IOT_OPTIMIZED` broadcasts with `pmf_mode`, `fast_roaming_enabled` or `group_rekey_interval_seconds`
-
 ### Fixed
 
 - Made `network` optional on `unifi_wifi_broadcast`. The controller forbids a broadcast-level network alongside `security_configuration.preshared_keys`, because each preshared key carries its own, so PPSK broadcasts could not be created at all while the attribute was required. It is still required for every other configuration, and the integration schema never listed it as required.
 - Rejected `network` and `security_configuration.passphrase` alongside `security_configuration.preshared_keys` at plan time, matching the controller.
+- Rejected `security_configuration.pmf_mode`, `security_configuration.fast_roaming_enabled`, and `security_configuration.group_rekey_interval_seconds` at plan time for `IOT_OPTIMIZED` broadcasts. The integration API documents all three as unavailable for IoT configuration, for every security type, so the controller silently ignored them.
 
 ## [0.4.1] - 2026-10-27
 
