@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -193,6 +194,9 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"site_id": schema.StringAttribute{
 				Required: true,
@@ -318,6 +322,12 @@ func (r *wifiBroadcastResource) Schema(_ context.Context, _ resource.SchemaReque
 			"broadcasting_frequencies_ghz": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.Float64Type,
+				MarkdownDescription: "Radio bands to broadcast on, in GHz. Supported values: `2.4`, `5`, `6`. " +
+					"Values are matched to those bands with a small tolerance so float64 representations of `2.4` " +
+					"from the controller and from configuration do not cause perpetual no-op plans.",
+				PlanModifiers: []planmodifier.Set{
+					wifiFrequenciesSuppressDrift(),
+				},
 			},
 			"broadcasting_device_filter": schema.SingleNestedAttribute{
 				Optional: true,
@@ -501,7 +511,7 @@ func (r *wifiBroadcastResource) expandWifiBroadcast(ctx context.Context, plan wi
 		HideName:                            plan.HideName.ValueBool(),
 		UAPSDEnabled:                        plan.UAPSDEnabled.ValueBool(),
 		MulticastToUnicastConversionEnabled: plan.MulticastToUnicastConversionEnabled.ValueBool(),
-		BroadcastingFrequenciesGHz:          setToFloat64s(ctx, plan.BroadcastingFrequenciesGHz, "broadcasting_frequencies_ghz", diags),
+		BroadcastingFrequenciesGHz:          canonicalizeWifiFrequencies(setToFloat64s(ctx, plan.BroadcastingFrequenciesGHz, "broadcasting_frequencies_ghz", diags)),
 		AdvertiseDeviceName:                 boolPointerValue(plan.AdvertiseDeviceName),
 		ARPProxyEnabled:                     boolPointerValue(plan.ARPProxyEnabled),
 		BandSteeringEnabled:                 boolPointerValue(plan.BandSteeringEnabled),
@@ -865,6 +875,11 @@ func validateWifiBroadcastModel(ctx context.Context, plan wifiBroadcastResourceM
 		if plan.BroadcastingFrequenciesGHz.IsNull() || plan.AdvertiseDeviceName.IsNull() || plan.ARPProxyEnabled.IsNull() || plan.BSSTransitionEnabled.IsNull() {
 			return fmt.Errorf("broadcasting_frequencies_ghz, advertise_device_name, arp_proxy_enabled, and bss_transition_enabled are required for STANDARD broadcasts")
 		}
+		if isKnownValue(plan.BroadcastingFrequenciesGHz) {
+			if err := validateWifiFrequencies(ctx, plan.BroadcastingFrequenciesGHz); err != nil {
+				return err
+			}
+		}
 	} else {
 		if isKnownValue(plan.BroadcastingFrequenciesGHz) || isKnownValue(plan.AdvertiseDeviceName) || isKnownValue(plan.ARPProxyEnabled) || isKnownValue(plan.BSSTransitionEnabled) || isKnownValue(plan.BandSteeringEnabled) || isKnownValue(plan.DNSAssistanceConfiguration) {
 			return fmt.Errorf("standard-only attributes must not be set for IOT_OPTIMIZED broadcasts")
@@ -1186,7 +1201,7 @@ func buildWifiBroadcastStateModel(ctx context.Context, siteID types.String, broa
 	diagnostics.Append(networkDiagnostics...)
 	securityConfiguration, securityDiagnostics := flattenWifiSecurityConfiguration(ctx, broadcast.SecurityConfiguration)
 	diagnostics.Append(securityDiagnostics...)
-	broadcastingFrequencies, frequenciesDiagnostics := float64SetValue(ctx, broadcast.BroadcastingFrequenciesGHz)
+	broadcastingFrequencies, frequenciesDiagnostics := wifiFrequencySetValue(ctx, broadcast.BroadcastingFrequenciesGHz)
 	diagnostics.Append(frequenciesDiagnostics...)
 	broadcastingDeviceFilter, deviceFilterDiagnostics := flattenWifiBroadcastingDeviceFilter(ctx, broadcast.BroadcastingDeviceFilter)
 	diagnostics.Append(deviceFilterDiagnostics...)

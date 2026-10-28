@@ -96,7 +96,7 @@ resource "unifi_wifi_broadcast" "staff" {
 - `arp_proxy_enabled` (Boolean)
 - `band_steering_enabled` (Boolean) Band steering enabled flag. Controllers often default this to `false` when omitted; marked Computed so refresh and import keep that API value instead of drifting back to null.
 - `broadcasting_device_filter` (Attributes) (see [below for nested schema](#nestedatt--broadcasting_device_filter))
-- `broadcasting_frequencies_ghz` (Set of Number)
+- `broadcasting_frequencies_ghz` (Set of Number) Radio bands to broadcast on, in GHz. Supported values: `2.4`, `5`, `6`. Values are matched to those bands with a small tolerance so float64 representations of `2.4` from the controller and from configuration do not cause perpetual no-op plans.
 - `bss_transition_enabled` (Boolean)
 - `channel_2g_locked_to_6` (Boolean) Locks the 2.4 GHz radio channel to 6 on all broadcasting devices. Requires UniFi Network `10.6` or newer; older controllers do not report this field.
 - `dns_assistance_configuration` (Attributes) DNS assistance configuration for `STANDARD` WiFi broadcasts. Supported modes: `AUTO`, `MANUAL`. (see [below for nested schema](#nestedatt--dns_assistance_configuration))
