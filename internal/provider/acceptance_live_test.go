@@ -1649,7 +1649,7 @@ func requireIoTRejectsMixedSecurity(t *testing.T, config liveAcceptanceConfig, p
 			WPA3FastRoamingEnabled: &wpa3FastRoaming,
 			SAEConfiguration: &client.SAEConfiguration{
 				AnticloggingThresholdSeconds: 5,
-				SyncTimeSeconds:               5,
+				SyncTimeSeconds:              5,
 			},
 		},
 	})
