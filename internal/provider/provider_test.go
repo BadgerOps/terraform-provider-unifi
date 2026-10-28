@@ -2785,6 +2785,82 @@ resource "unifi_firewall_policy" "test" {
 	})
 }
 
+func TestAccResourceFirewallPolicyUnsetPortFilterMatchOpposite(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+
+	resourceName := "unifi_firewall_policy.test"
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteLookupConfig(api.URL()) + `
+resource "unifi_network" "lab" {
+  site_id    = data.unifi_site.main.id
+  management = "UNMANAGED"
+  name       = "lab"
+  enabled    = true
+  vlan_id    = 80
+}
+
+resource "unifi_network" "services" {
+  site_id    = data.unifi_site.main.id
+  management = "UNMANAGED"
+  name       = "services"
+  enabled    = true
+  vlan_id    = 81
+}
+
+resource "unifi_firewall_zone" "lab" {
+  site_id     = data.unifi_site.main.id
+  name        = "lab"
+  network_ids = [unifi_network.lab.id]
+}
+
+resource "unifi_firewall_zone" "services" {
+  site_id     = data.unifi_site.main.id
+  name        = "services"
+  network_ids = [unifi_network.services.id]
+}
+
+resource "unifi_firewall_policy" "test" {
+  name            = "Block lab to services 8080"
+  site_id         = data.unifi_site.main.id
+  enabled         = true
+  action          = "BLOCK"
+  ip_version      = "IPV4"
+  logging_enabled = false
+
+  source_zone_id      = unifi_firewall_zone.lab.id
+  destination_zone_id = unifi_firewall_zone.services.id
+
+  protocol_filter = {
+    type        = "PRESET"
+    preset_name = "TCP_UDP"
+  }
+
+  destination_filter = {
+    type = "PORT"
+    port_filter = {
+      type  = "PORTS"
+      ports = ["8080"]
+      # match_opposite left unset — issue #49
+    }
+  }
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", "Block lab to services 8080"),
+					resource.TestCheckResourceAttr(resourceName, "destination_filter.port_filter.match_opposite", "false"),
+					resource.TestCheckResourceAttr(resourceName, "destination_filter.port_filter.ports.#", "1"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "destination_filter.port_filter.ports.*", "8080"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccResourceFirewallPolicyAllowReturnTrafficNetworkDestination(t *testing.T) {
 	api := newMockUniFiAPI(t)
 	defer api.Close()

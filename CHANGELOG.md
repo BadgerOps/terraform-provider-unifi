@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
-## [Unreleased]
+## [0.5.3] - 2026-10-28
+
+### Fixed
+
+- `unifi_firewall_policy`: default unset source and destination `port_filter.match_opposite` attributes to `false`, preventing an inconsistent result after apply and a tainted resource when the controller returns an explicit `false` ([#49](https://github.com/BadgerOps/terraform-provider-unifi/issues/49)).
 
 ### Added
 
