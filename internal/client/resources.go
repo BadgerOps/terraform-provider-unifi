@@ -67,15 +67,40 @@ type SAEConfiguration struct {
 	SyncTimeSeconds              int64 `json:"syncTimeSeconds"`
 }
 
+type WifiNASIDConfiguration struct {
+	Type   string  `json:"type"`
+	Source *string `json:"source,omitempty"`
+	Value  *string `json:"value,omitempty"`
+}
+
+type WifiRadiusMACAuthenticationConfiguration struct {
+	MACAddressFormat string `json:"macAddressFormat"`
+}
+
+type WifiRadiusConfiguration struct {
+	ProfileID                      string                                    `json:"profileId"`
+	NASID                          WifiNASIDConfiguration                    `json:"nasId"`
+	MACAuthenticationConfiguration *WifiRadiusMACAuthenticationConfiguration `json:"macAuthenticationConfiguration,omitempty"`
+}
+
+type WifiPresharedKey struct {
+	Passphrase *string              `json:"passphrase,omitempty"`
+	Network    WifiNetworkReference `json:"network"`
+}
+
 type WifiSecurityConfiguration struct {
-	Type                      string            `json:"type"`
-	Passphrase                *string           `json:"passphrase,omitempty"`
-	Encryption                *string           `json:"encryption,omitempty"`
-	PMFMode                   *string           `json:"pmfMode,omitempty"`
-	FastRoamingEnabled        *bool             `json:"fastRoamingEnabled,omitempty"`
-	GroupRekeyIntervalSeconds *int64            `json:"groupRekeyIntervalSeconds,omitempty"`
-	SAEConfiguration          *SAEConfiguration `json:"saeConfiguration,omitempty"`
-	WPA3FastRoamingEnabled    *bool             `json:"wpa3FastRoamingEnabled,omitempty"`
+	Type                      string                   `json:"type"`
+	Passphrase                *string                  `json:"passphrase,omitempty"`
+	Encryption                *string                  `json:"encryption,omitempty"`
+	PMFMode                   *string                  `json:"pmfMode,omitempty"`
+	FastRoamingEnabled        *bool                    `json:"fastRoamingEnabled,omitempty"`
+	GroupRekeyIntervalSeconds *int64                   `json:"groupRekeyIntervalSeconds,omitempty"`
+	SAEConfiguration          *SAEConfiguration        `json:"saeConfiguration,omitempty"`
+	WPA3FastRoamingEnabled    *bool                    `json:"wpa3FastRoamingEnabled,omitempty"`
+	RadiusConfiguration       *WifiRadiusConfiguration `json:"radiusConfiguration,omitempty"`
+	CoAEnabled                *bool                    `json:"coaEnabled,omitempty"`
+	SecurityMode              *string                  `json:"securityMode,omitempty"`
+	PresharedKeys             []WifiPresharedKey       `json:"presharedKeys,omitempty"`
 }
 
 type WifiDNSAssistanceConfiguration struct {
