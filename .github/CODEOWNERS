@@ -1,0 +1,10 @@
+# Default ownership and review routing.
+* @BadgerOps
+
+# Release, CI, dependency, and generated API surfaces are security-sensitive.
+/.github/ @BadgerOps
+/scripts/ @BadgerOps
+/go.mod @BadgerOps
+/go.sum @BadgerOps
+/internal/openapi/ @BadgerOps
+/terraform-registry-manifest.json @BadgerOps

@@ -1,0 +1,79 @@
+name: Bug report
+description: Report reproducible provider behavior that appears incorrect
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Search existing issues first and remove API keys, credentials, controller addresses, Terraform state, and other sensitive data. Security vulnerabilities must be reported privately through the Security tab.
+  - type: input
+    id: provider-version
+    attributes:
+      label: Provider version
+      placeholder: 0.5.1
+    validations:
+      required: true
+  - type: input
+    id: terraform-version
+    attributes:
+      label: Terraform or OpenTofu version
+      placeholder: Terraform 1.14.8 or OpenTofu 1.x
+    validations:
+      required: true
+  - type: input
+    id: unifi-version
+    attributes:
+      label: UniFi Network version
+      description: Include whether this is a local console or Site Manager connection.
+      placeholder: 10.6.106, local console
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Relevant Terraform configuration
+      description: Provide the smallest redacted configuration that reproduces the issue.
+      render: hcl
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Run terraform plan...
+        2. Run terraform apply...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs or diagnostics
+      description: Do not include TF_LOG output unless it has been carefully checked for credentials and sensitive state.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I removed credentials, API keys, controller addresses, Terraform state, and other sensitive data.
+          required: true
+        - label: This is not a security vulnerability requiring private disclosure.
+          required: true

@@ -1,0 +1,52 @@
+name: Feature request
+description: Propose a provider capability or workflow improvement
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for suggesting an improvement. Describe the user workflow rather than only the desired schema shape.
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What are you trying to manage, and why is the current provider insufficient?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed provider behavior
+      description: Include example Terraform configuration if possible.
+      render: hcl
+    validations:
+      required: true
+  - type: dropdown
+    id: api
+    attributes:
+      label: Known UniFi API support
+      options:
+        - Documented Integration API endpoint
+        - Legacy local Network API endpoint
+        - API support is unknown
+    validations:
+      required: true
+  - type: input
+    id: unifi-version
+    attributes:
+      label: UniFi Network version tested
+      placeholder: 10.6.106
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I have not included credentials, API keys, Terraform state, or other sensitive data.
+          required: true
