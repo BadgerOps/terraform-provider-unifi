@@ -4,20 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [0.5.4] - 2026-10-28
+
+### Added
+
+- Expanded Registry provider overview into a dense operator reference: auth and `api_url` shapes (local + cloud connector), site model, resource/data-source catalogs, legacy API exceptions, ordering resources, firewall quirks, WiFi notes, and import ID table.
+- Registry guides for getting started, comparing against legacy UniFi providers, zone-based firewall quirks, and importing existing configuration (published with this release).
+
+### Changed
+
+- README leads with Registry links, a minimal install snippet, and an explicit invitation for community pull requests before the contributor/development material.
+
 ## [0.5.3] - 2026-10-28
 
 ### Fixed
 
 - `unifi_firewall_policy`: default unset source and destination `port_filter.match_opposite` attributes to `false`, preventing an inconsistent result after apply and a tainted resource when the controller returns an explicit `false` ([#49](https://github.com/BadgerOps/terraform-provider-unifi/issues/49)).
-
-### Added
-
-- Registry guides for getting started, comparing against legacy UniFi providers, zone-based firewall quirks, and importing existing configuration.
-- Operator-focused provider overview with requirements, cloud-connector `api_url` examples, and links into the new guides.
-
-### Changed
-
-- README leads with Registry links, a minimal install snippet, and an explicit invitation for community pull requests before the contributor/development material.
 
 ## [0.5.2] - 2026-10-28
 
