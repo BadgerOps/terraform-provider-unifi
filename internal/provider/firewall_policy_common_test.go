@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/defaults"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/badgerops/terraform-provider-unifi/internal/client"
@@ -71,6 +73,105 @@ func TestFirewallPolicyPortFilterRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(ports, []string{"443", "8443-8444"}) {
 		t.Fatalf("decoded ports = %#v, want %#v", ports, []string{"443", "8443-8444"})
+	}
+}
+
+func TestFirewallPolicyPortFilterUnsetMatchOppositeRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ports, diags := types.SetValueFrom(ctx, types.StringType, []string{"443"})
+	if diags.HasError() {
+		t.Fatalf("types.SetValueFrom() diagnostics = %v", diags)
+	}
+
+	value, diags := types.ObjectValueFrom(ctx, firewallPolicyPortFilterAttrTypes(), firewallPolicyPortFilterModel{
+		Type:          types.StringValue("PORTS"),
+		MatchOpposite: types.BoolNull(),
+		Ports:         ports,
+	})
+	if diags.HasError() {
+		t.Fatalf("types.ObjectValueFrom() diagnostics = %v", diags)
+	}
+
+	var expandDiags diag.Diagnostics
+	filter := expandFirewallPolicyPortFilter(ctx, value, "destination_filter.port_filter", &expandDiags)
+	if expandDiags.HasError() {
+		t.Fatalf("expandFirewallPolicyPortFilter() diagnostics = %v", expandDiags)
+	}
+	if filter == nil {
+		t.Fatal("expandFirewallPolicyPortFilter() returned nil")
+	}
+	if filter.MatchOpposite {
+		t.Fatal("MatchOpposite = true, want false for unset match_opposite")
+	}
+
+	got, diags := flattenFirewallPolicyPortFilter(ctx, filter)
+	if diags.HasError() {
+		t.Fatalf("flattenFirewallPolicyPortFilter() diagnostics = %v", diags)
+	}
+	model, err := decodeFirewallPolicyPortFilter(ctx, got, "destination_filter.port_filter")
+	if err != nil {
+		t.Fatalf("decodeFirewallPolicyPortFilter() error = %v", err)
+	}
+	if model.MatchOpposite.IsNull() || model.MatchOpposite.ValueBool() {
+		t.Fatalf("flattened match_opposite = %s, want false", model.MatchOpposite.String())
+	}
+}
+
+func TestFirewallPolicyPortFilterMatchOppositeDefaultsToFalse(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	filterSchema := schema.Schema{Attributes: map[string]schema.Attribute{
+		"source_filter":      firewallPolicyEndpointFilterSchema("source"),
+		"destination_filter": firewallPolicyEndpointFilterSchema("destination"),
+	}}
+	if diags := filterSchema.ValidateImplementation(ctx); diags.HasError() {
+		t.Fatalf("firewall policy filter schema diagnostics = %v", diags)
+	}
+
+	for _, side := range []string{"source", "destination"} {
+		t.Run(side, func(t *testing.T) {
+			endpoint, ok := firewallPolicyEndpointFilterSchema(side).(schema.SingleNestedAttribute)
+			if !ok {
+				t.Fatalf("firewallPolicyEndpointFilterSchema(%q) type is not schema.SingleNestedAttribute", side)
+			}
+
+			for _, name := range []string{"network_match_opposite", "ip_address_match_opposite", "ipv6_iid_match_opposite", "vpn_server_match_opposite"} {
+				boolAttribute, ok := endpoint.Attributes[name].(schema.BoolAttribute)
+				if !ok {
+					t.Fatalf("%s type is not schema.BoolAttribute", name)
+				}
+				if !boolAttribute.Optional || boolAttribute.Computed || boolAttribute.Default != nil {
+					t.Fatalf("%s Optional/Computed/Default = %t/%t/%v, want true/false/nil", name, boolAttribute.Optional, boolAttribute.Computed, boolAttribute.Default)
+				}
+			}
+
+			portFilter, ok := endpoint.Attributes["port_filter"].(schema.SingleNestedAttribute)
+			if !ok {
+				t.Fatal("port_filter type is not schema.SingleNestedAttribute")
+			}
+			boolAttribute, ok := portFilter.Attributes["match_opposite"].(schema.BoolAttribute)
+			if !ok {
+				t.Fatal("port_filter.match_opposite type is not schema.BoolAttribute")
+			}
+			if !boolAttribute.Optional || !boolAttribute.Computed {
+				t.Fatalf("port_filter.match_opposite Optional/Computed = %t/%t, want true/true", boolAttribute.Optional, boolAttribute.Computed)
+			}
+			if boolAttribute.Default == nil {
+				t.Fatal("port_filter.match_opposite Default = nil")
+			}
+
+			var response defaults.BoolResponse
+			boolAttribute.Default.DefaultBool(ctx, defaults.BoolRequest{}, &response)
+			if response.Diagnostics.HasError() {
+				t.Fatalf("port_filter.match_opposite default diagnostics = %v", response.Diagnostics)
+			}
+			if response.PlanValue.IsNull() || response.PlanValue.ValueBool() {
+				t.Fatalf("port_filter.match_opposite default = %s, want false", response.PlanValue.String())
+			}
+		})
 	}
 }
 
@@ -171,6 +272,15 @@ func TestBuildFirewallPolicyStateModelComplex(t *testing.T) {
 	if sourceFilter.MACAddress.ValueString() != "AA:BB:CC:DD:EE:FF" {
 		t.Fatalf("source MACAddress = %q, want AA:BB:CC:DD:EE:FF", sourceFilter.MACAddress.ValueString())
 	}
+	for name, value := range map[string]types.Bool{
+		"ip_address_match_opposite": sourceFilter.IPAddressMatchOpposite,
+		"ipv6_iid_match_opposite":   sourceFilter.IPv6IIDMatchOpposite,
+		"vpn_server_match_opposite": sourceFilter.VPNServerMatchOpposite,
+	} {
+		if !value.IsNull() {
+			t.Fatalf("unused source %s = %s, want null", name, value.String())
+		}
+	}
 
 	destinationFilter, err := decodeFirewallPolicyEndpointFilter(ctx, model.DestinationFilter, "destination_filter")
 	if err != nil {
@@ -187,6 +297,16 @@ func TestBuildFirewallPolicyStateModelComplex(t *testing.T) {
 	slices.Sort(categoryIDs)
 	if !reflect.DeepEqual(categoryIDs, []int64{5, 7}) {
 		t.Fatalf("destination category IDs = %#v, want %#v", categoryIDs, []int64{5, 7})
+	}
+	for name, value := range map[string]types.Bool{
+		"network_match_opposite":    destinationFilter.NetworkMatchOpposite,
+		"ip_address_match_opposite": destinationFilter.IPAddressMatchOpposite,
+		"ipv6_iid_match_opposite":   destinationFilter.IPv6IIDMatchOpposite,
+		"vpn_server_match_opposite": destinationFilter.VPNServerMatchOpposite,
+	} {
+		if !value.IsNull() {
+			t.Fatalf("unused destination %s = %s, want null", name, value.String())
+		}
 	}
 
 	protocolFilter, err := decodeFirewallPolicyProtocolFilter(ctx, model.ProtocolFilter, "protocol_filter")
