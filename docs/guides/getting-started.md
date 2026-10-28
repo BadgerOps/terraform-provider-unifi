@@ -97,7 +97,7 @@ Use a disposable lab VLAN/SSID while you learn the provider. Live acceptance tes
 
 The repository includes an end-to-end operator example that stands up networks, WiFi, firewall, DNS, and ACL objects:
 
-[examples/basic-site](https://github.com/BadgerOps/terraform-provider-unifi/tree/main/examples/basic-site)
+[examples/basic-site](https://github.com/BadgerOps/terraform-provider-unifi/tree/master/examples/basic-site)
 
 That directory is a reference configuration inside the provider repo, not a published Terraform module.
 
