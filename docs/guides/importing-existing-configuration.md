@@ -23,6 +23,7 @@ Most managed objects are site-scoped. Import IDs are **composite** strings, not 
 | `unifi_acl_rule_ordering` | `<site_id>` |
 | `unifi_dhcp_reservation` | `<site_id>/<mac_address>` (legacy API) |
 | `unifi_port_forward` | `<site_id>/<id>` (legacy API) |
+| `unifi_setting_ips_suppression` | `<site_id>` (legacy API) |
 
 Example:
 

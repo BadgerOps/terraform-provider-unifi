@@ -3,36 +3,46 @@
 page_title: "unifi_setting_ips_suppression Resource - unifi"
 subcategory: ""
 description: |-
-  Manage the IPS (intrusion prevention) alert suppressions of a site, the list shown under CyberSecure > Suppressions, using the legacy local Network API setting ips_suppression. The resource is authoritative for the alert list: suppressions not in the configuration are removed on apply. The suppression whitelist and other setting fields are left as they are. There is one setting per site; import with <site_id>. Destroying the resource only removes it from Terraform state and leaves the suppressions on the controller.
+  Manage the UniFi IPS (intrusion prevention) alert suppressions of a site, the list shown under CyberSecure > Suppressions, using the legacy local Network API setting ips_suppression. The resource is authoritative for the alert list: suppressions not in the configuration are removed on apply. The suppression whitelist and other setting fields are left as they are. There is one setting per site; import with <site_id>. Destroying the resource only removes it from Terraform state and leaves the suppressions on the controller.
 ---
 
 # unifi_setting_ips_suppression (Resource)
 
-Manage the IPS (intrusion prevention) alert suppressions of a site, the list shown under CyberSecure > Suppressions, using the legacy local Network API setting `ips_suppression`. The resource is authoritative for the alert list: suppressions not in the configuration are removed on apply. The suppression whitelist and other setting fields are left as they are. There is one setting per site; import with `<site_id>`. Destroying the resource only removes it from Terraform state and leaves the suppressions on the controller.
+Manage the UniFi IPS (intrusion prevention) alert suppressions of a site, the list shown under CyberSecure > Suppressions, using the legacy local Network API setting `ips_suppression`. The resource is authoritative for the alert list: suppressions not in the configuration are removed on apply. The suppression whitelist and other setting fields are left as they are. There is one setting per site; import with `<site_id>`. Destroying the resource only removes it from Terraform state and leaves the suppressions on the controller.
 
 ## Example Usage
 
 ```terraform
-data "unifi_site" "default" {
+# Manage the IPS alert suppressions of a site.
+data "unifi_site" "main" {
   name = "Default"
 }
 
-resource "unifi_setting_ips_suppression" "default" {
-  site_id = data.unifi_site.default.id
+resource "unifi_setting_ips_suppression" "site" {
+  site_id = data.unifi_site.main.id
 
   alerts = [
     {
-      # Only for traffic to one internal server.
+      # Suppress only for traffic to one internal server.
       signature_id = 2016642
       category     = "emerging-webserver"
       type         = "track"
       tracking = [
-        { mode = "ip", value = "192.0.2.20", direction = "dest" },
+        { mode = "ip", value = "10.20.0.50", direction = "dest" },
       ]
     },
     {
-      # Everywhere.
+      # Suppress for traffic from the whole IoT network.
       signature_id = 2100498
+      category     = "emerging-scan"
+      type         = "track"
+      tracking = [
+        { mode = "subnet", value = "10.30.0.0/24", direction = "src" },
+      ]
+    },
+    {
+      # Suppress everywhere.
+      signature_id = 2013504
       category     = "emerging-attackresponse"
       type         = "all"
     },
@@ -50,14 +60,14 @@ resource "unifi_setting_ips_suppression" "default" {
 
 ### Read-Only
 
-- `id` (String) The site ID; the setting exists once per site.
+- `id` (String) Synthetic resource ID equal to `site_id`.
 
 <a id="nestedatt--alerts"></a>
 ### Nested Schema for `alerts`
 
 Required:
 
-- `category` (String) Category of the signature as the controller names it, for example `emerging-scan` or `emerging-webserver`: one of the names in the site's IPS `enabled_categories`, not the ruleset file name (`emerging-web_server`). An unknown name is rejected on apply with `api.err.UnsupportedIpsCategories`.
+- `category` (String) Category of the signature as the controller names it, for example `emerging-scan` or `emerging-webserver`, not the ruleset file name (`emerging-web_server`). The controller rejects a name it does not know on apply with `api.err.UnsupportedIpsCategories`; the category does not have to be enabled on the site, and suppressions can be written while IPS is disabled.
 - `signature_id` (Number) Signature ID (SID) of the suppressed rule, for example `2016642`.
 - `type` (String) `all` suppresses the signature for every address; `track` only for the `tracking` entries.
 
@@ -83,6 +93,6 @@ Import is supported using the following syntax:
 The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
-# The setting exists once per site: import with the integration site UUID.
-terraform import unifi_setting_ips_suppression.default <site_id>
+# Import IPS alert suppressions by site identifier.
+terraform import unifi_setting_ips_suppression.site <site_id>
 ```

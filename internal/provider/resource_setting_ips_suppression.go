@@ -57,9 +57,9 @@ func (r *ipsSuppressionResource) Metadata(_ context.Context, req resource.Metada
 
 func (r *ipsSuppressionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage the IPS (intrusion prevention) alert suppressions of a site, the list shown under CyberSecure > Suppressions, using the legacy local Network API setting `ips_suppression`. The resource is authoritative for the alert list: suppressions not in the configuration are removed on apply. The suppression whitelist and other setting fields are left as they are. There is one setting per site; import with `<site_id>`. Destroying the resource only removes it from Terraform state and leaves the suppressions on the controller.",
+		MarkdownDescription: "Manage the UniFi IPS (intrusion prevention) alert suppressions of a site, the list shown under CyberSecure > Suppressions, using the legacy local Network API setting `ips_suppression`. The resource is authoritative for the alert list: suppressions not in the configuration are removed on apply. The suppression whitelist and other setting fields are left as they are. There is one setting per site; import with `<site_id>`. Destroying the resource only removes it from Terraform state and leaves the suppressions on the controller.",
 		Attributes: map[string]schema.Attribute{
-			"id":      schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, MarkdownDescription: "The site ID; the setting exists once per site."},
+			"id":      schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, MarkdownDescription: "Synthetic resource ID equal to `site_id`."},
 			"site_id": schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}, MarkdownDescription: "Integration site UUID."},
 			"alerts": schema.ListNestedAttribute{
 				Required:            true,
@@ -67,7 +67,7 @@ func (r *ipsSuppressionResource) Schema(_ context.Context, _ resource.SchemaRequ
 				NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
 					"signature_id": schema.Int64Attribute{Required: true, MarkdownDescription: "Signature ID (SID) of the suppressed rule, for example `2016642`."},
 					"gid":          schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(1), MarkdownDescription: "Generator ID of the rule. Defaults to `1`, the ID of standard rule signatures."},
-					"category":     schema.StringAttribute{Required: true, MarkdownDescription: "Category of the signature as the controller names it, for example `emerging-scan` or `emerging-webserver`: one of the names in the site's IPS `enabled_categories`, not the ruleset file name (`emerging-web_server`). An unknown name is rejected on apply with `api.err.UnsupportedIpsCategories`."},
+					"category":     schema.StringAttribute{Required: true, MarkdownDescription: "Category of the signature as the controller names it, for example `emerging-scan` or `emerging-webserver`, not the ruleset file name (`emerging-web_server`). The controller rejects a name it does not know on apply with `api.err.UnsupportedIpsCategories`; the category does not have to be enabled on the site, and suppressions can be written while IPS is disabled."},
 					"signature":    schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, MarkdownDescription: "Signature description shown in the UI, for example `ET SCAN Potential SSH Scan OUTBOUND`. Kept from the controller when not set."},
 					"type":         schema.StringAttribute{Required: true, Validators: []validator.String{stringOneOf{"all", "track"}}, MarkdownDescription: "`all` suppresses the signature for every address; `track` only for the `tracking` entries."},
 					"tracking": schema.ListNestedAttribute{

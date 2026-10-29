@@ -1,2 +1,2 @@
-# The setting exists once per site: import with the integration site UUID.
-terraform import unifi_setting_ips_suppression.default <site_id>
+# Import IPS alert suppressions by site identifier.
+terraform import unifi_setting_ips_suppression.site <site_id>
