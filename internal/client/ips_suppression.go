@@ -86,11 +86,14 @@ func (c *Client) SetIPSSuppression(ctx context.Context, siteID string, alerts []
 		return nil, fmt.Errorf("update IPS suppression site: %w", err)
 	}
 	existing, err := c.getIPSSuppression(ctx, site)
+	creating := false
 	switch {
 	case IsNotFound(err):
-		// set/setting creates a missing document; the controller assigns its
-		// identity fields, so send only what we model.
-		existing = &IPSSuppression{rawFields: map[string]json.RawMessage{}}
+		// A fresh site has no document. set/setting creates it; the controller
+		// assigns the identity fields, so send the document's own shape (both
+		// lists) and nothing else.
+		creating = true
+		existing = &IPSSuppression{rawFields: map[string]json.RawMessage{"whitelist": json.RawMessage("[]")}}
 	case err != nil:
 		return nil, err
 	}
@@ -117,6 +120,11 @@ func (c *Client) SetIPSSuppression(ctx context.Context, siteID string, alerts []
 	payload["key"] = json.RawMessage(`"` + ipsSuppressionKey + `"`)
 	var response legacyResponse[[]IPSSuppression]
 	if err := c.doLegacyRequest(ctx, http.MethodPut, []string{"s", site, "set", "setting", ipsSuppressionKey}, payload, &response); err != nil {
+		if creating {
+			// Seen on a self-hosted Network 10.0 site with no gateway: every
+			// create is answered with api.err.Invalid.
+			return nil, fmt.Errorf("site %s has no %s setting and the controller rejected creating it; a site without an IPS-capable gateway cannot hold IPS suppressions: %w", site, ipsSuppressionKey, err)
+		}
 		return nil, fmt.Errorf("update IPS suppression: %w", err)
 	}
 	// Some controllers acknowledge without returning the document; read it back

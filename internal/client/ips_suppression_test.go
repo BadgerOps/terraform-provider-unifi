@@ -54,6 +54,14 @@ func TestGetIPSSuppressionMissingAndNullAlerts(t *testing.T) {
 	if _, err := missing.GetIPSSuppression(context.Background(), ipsSuppressionTestSite); !IsNotFound(err) {
 		t.Fatalf("a site without the setting must be not found, got %v", err)
 	}
+	// A fresh Network 10.0 site answers with a single empty object rather than
+	// an empty list; that is not-found too, so the write path creates the document.
+	fresh := ipsSuppressionTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{}]}`)
+	})
+	if _, err := fresh.GetIPSSuppression(context.Background(), ipsSuppressionTestSite); !IsNotFound(err) {
+		t.Fatalf("a fresh site's empty object must be not found, got %v", err)
+	}
 	null := ipsSuppressionTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"key":"ips_suppression","alerts":null}]}`)
 	})
@@ -157,8 +165,10 @@ func TestSetIPSSuppressionCreatesMissingSetting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating the missing setting must succeed, got %v", err)
 	}
-	if len(put) != 2 || string(put["key"]) != `"ips_suppression"` || put["alerts"] == nil {
-		t.Fatalf("a missing setting is created from key and alerts only, got %s", put)
+	// The controller's own document always carries both lists, so a create
+	// sends the same shape and nothing else.
+	if len(put) != 3 || string(put["key"]) != `"ips_suppression"` || put["alerts"] == nil || string(put["whitelist"]) != "[]" {
+		t.Fatalf("a missing setting is created from key, alerts and an empty whitelist only, got %s", put)
 	}
 	if len(setting.Alerts) != 1 || setting.Alerts[0].ID != 2016642 {
 		t.Fatalf("state must be read back after the create: %#v", setting)
@@ -194,5 +204,27 @@ func TestSetIPSSuppressionKeepsDescriptions(t *testing.T) {
 	got := []string{put.Alerts[0].Signature, put.Alerts[1].Signature, put.Alerts[2].Signature}
 	if got[0] != "ET known" || got[1] != "mine" || got[2] != "" {
 		t.Fatalf("descriptions: got %q, want [ET known mine \"\"]", got)
+	}
+}
+
+// A fresh self-hosted Network 10.0 site without an IPS-capable gateway answers
+// a create with api.err.Invalid; the error must say what was attempted.
+func TestSetIPSSuppressionCreateRejected(t *testing.T) {
+	c := ipsSuppressionTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{}]}`)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprint(w, `{"meta":{"rc":"error","msg":"api.err.Invalid"},"data":[]}`)
+	})
+	_, err := c.SetIPSSuppression(context.Background(), ipsSuppressionTestSite, []IPSSuppressionAlert{{GID: 1, ID: 1, Category: "c", Type: "all"}})
+	if err == nil || !strings.Contains(err.Error(), "api.err.Invalid") {
+		t.Fatalf("the controller error must be kept, got %v", err)
+	}
+	for _, want := range []string{"has no ips_suppression setting", "gateway"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error must explain the failed create (%q), got %v", want, err)
+		}
 	}
 }
