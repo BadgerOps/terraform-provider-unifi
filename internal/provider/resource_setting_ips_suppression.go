@@ -191,7 +191,7 @@ func validateIPSSuppressionAlerts(ctx context.Context, list basetypes.ListValue)
 				diags.AddAttributeError(alertPath.AtName("tracking"), "Missing tracking", "type = \"track\" needs at least one tracking entry.")
 			}
 		case "all":
-			if len(alert.Tracking.Elements()) > 0 {
+			if !alert.Tracking.IsNull() {
 				diags.AddAttributeError(alertPath.AtName("tracking"), "Unexpected tracking", "type = \"all\" suppresses the signature everywhere; remove tracking or use type = \"track\".")
 			}
 		}

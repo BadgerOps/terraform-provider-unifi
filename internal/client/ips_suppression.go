@@ -7,8 +7,9 @@ import (
 	"net/http"
 )
 
-// IPSSuppressionTracking limits a suppressed alert to an address: mode `ip`
-// (one IPv4 address) or `subnet` (a CIDR prefix), matched on the source, the
+// IPSSuppressionTracking limits a suppressed alert to an address or network:
+// mode `ip` (one IPv4 or IPv6 address), `subnet` (an IPv4 or IPv6 CIDR
+// prefix), or `network` (a legacy network ID), matched on the source, the
 // destination, or both (`src`, `dest`, `both`).
 type IPSSuppressionTracking struct {
 	Mode      string `json:"mode"`
