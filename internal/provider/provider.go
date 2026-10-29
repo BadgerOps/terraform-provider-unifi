@@ -139,6 +139,7 @@ func (p *unifiProvider) Resources(_ context.Context) []func() resource.Resource 
 		NewFirewallPolicyOrderingResource,
 		NewDHCPReservationResource,
 		NewPortForwardResource,
+		NewIPSSuppressionResource,
 		NewTrafficMatchingListResource,
 		NewDNSPolicyResource,
 		NewACLRuleResource,
