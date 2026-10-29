@@ -126,13 +126,73 @@ func TestSetIPSSuppressionErrors(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "api.err.InvalidPayload") {
 		t.Fatalf("a rejected PUT reported with HTTP 200 must fail, got %v", err)
 	}
-	missing := ipsSuppressionTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[]}`)
-	})
-	if _, err := missing.SetIPSSuppression(context.Background(), ipsSuppressionTestSite, nil); !IsNotFound(err) {
-		t.Fatalf("no setting to update must be not found, got %v", err)
-	}
-	if _, err := missing.SetIPSSuppression(context.Background(), "22222222-2222-2222-2222-222222222222", nil); err == nil || !strings.Contains(err.Error(), "site") {
+	if _, err := rejecting.SetIPSSuppression(context.Background(), "22222222-2222-2222-2222-222222222222", nil); err == nil || !strings.Contains(err.Error(), "site") {
 		t.Fatalf("expected a site error, got %v", err)
+	}
+}
+
+// The legacy set/setting endpoint creates a missing document, so a site that
+// has never had the setting is written from key and alerts alone.
+func TestSetIPSSuppressionCreatesMissingSetting(t *testing.T) {
+	stored := ""
+	var put map[string]json.RawMessage
+	c := ipsSuppressionTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			if stored == "" {
+				_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[]}`)
+				return
+			}
+			_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[`+stored+`]}`)
+		case http.MethodPut:
+			body, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(body, &put); err != nil {
+				t.Fatal(err)
+			}
+			stored = string(body)
+			_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[]}`)
+		}
+	})
+	setting, err := c.SetIPSSuppression(context.Background(), ipsSuppressionTestSite, []IPSSuppressionAlert{{GID: 1, ID: 2016642, Category: "c", Signature: "s", Type: "all"}})
+	if err != nil {
+		t.Fatalf("creating the missing setting must succeed, got %v", err)
+	}
+	if len(put) != 2 || string(put["key"]) != `"ips_suppression"` || put["alerts"] == nil {
+		t.Fatalf("a missing setting is created from key and alerts only, got %s", put)
+	}
+	if len(setting.Alerts) != 1 || setting.Alerts[0].ID != 2016642 {
+		t.Fatalf("state must be read back after the create: %#v", setting)
+	}
+}
+
+// An alert without a description inherits the one the controller already
+// holds for the same gid and signature.
+func TestSetIPSSuppressionKeepsDescriptions(t *testing.T) {
+	var put struct {
+		Alerts []IPSSuppressionAlert `json:"alerts"`
+	}
+	c := ipsSuppressionTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"key":"ips_suppression","alerts":[{"gid":1,"id":2016642,"category":"c","signature":"ET known","type":"all"},{"gid":1,"id":9,"category":"c","signature":"ET replaced","type":"all"}]}]}`)
+		case http.MethodPut:
+			body, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(body, &put); err != nil {
+				t.Fatal(err)
+			}
+			_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[]}`)
+		}
+	})
+	_, err := c.SetIPSSuppression(context.Background(), ipsSuppressionTestSite, []IPSSuppressionAlert{
+		{GID: 1, ID: 2016642, Category: "c", Type: "all"},
+		{GID: 1, ID: 9, Category: "c", Signature: "mine", Type: "all"},
+		{GID: 1, ID: 7, Category: "c", Type: "all"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []string{put.Alerts[0].Signature, put.Alerts[1].Signature, put.Alerts[2].Signature}
+	if got[0] != "ET known" || got[1] != "mine" || got[2] != "" {
+		t.Fatalf("descriptions: got %q, want [ET known mine \"\"]", got)
 	}
 }

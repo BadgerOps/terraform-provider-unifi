@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/netip"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -15,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/badgerops/terraform-provider-unifi/internal/client"
 )
@@ -68,7 +68,7 @@ func (r *ipsSuppressionResource) Schema(_ context.Context, _ resource.SchemaRequ
 					"signature_id": schema.Int64Attribute{Required: true, MarkdownDescription: "Signature ID (SID) of the suppressed rule, for example `2016642`."},
 					"gid":          schema.Int64Attribute{Optional: true, Computed: true, Default: int64default.StaticInt64(1), MarkdownDescription: "Generator ID of the rule. Defaults to `1`, the ID of standard rule signatures."},
 					"category":     schema.StringAttribute{Required: true, MarkdownDescription: "Category of the signature as the controller names it, for example `emerging-scan` or `emerging-webserver`, not the ruleset file name (`emerging-web_server`). The controller rejects a name it does not know on apply with `api.err.UnsupportedIpsCategories`; the category does not have to be enabled on the site, and suppressions can be written while IPS is disabled."},
-					"signature":    schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, MarkdownDescription: "Signature description shown in the UI, for example `ET SCAN Potential SSH Scan OUTBOUND`. Kept from the controller when not set."},
+					"signature":    schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{ipsSuppressionSignatureFromState{}}, MarkdownDescription: "Signature description shown in the UI, for example `ET SCAN Potential SSH Scan OUTBOUND`. Kept from the controller when not set."},
 					"type":         schema.StringAttribute{Required: true, Validators: []validator.String{stringOneOf{"all", "track"}}, MarkdownDescription: "`all` suppresses the signature for every address; `track` only for the `tracking` entries."},
 					"tracking": schema.ListNestedAttribute{
 						Optional:            true,
@@ -85,17 +85,88 @@ func (r *ipsSuppressionResource) Schema(_ context.Context, _ resource.SchemaRequ
 	}
 }
 
-func (r *ipsSuppressionResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var config ipsSuppressionModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+// ipsSuppressionSignatureFromState fills an unset description from the prior
+// state of the same gid and signature_id, wherever in the list that alert was.
+// Terraform proposes computed values by list position (and UseStateForUnknown
+// copies them the same way), which would send one signature's description for
+// another whenever an alert is inserted, removed, or re-pointed.
+type ipsSuppressionSignatureFromState struct{}
+
+func (ipsSuppressionSignatureFromState) Description(context.Context) string {
+	return "Keeps the description of the same signature from the prior state."
+}
+
+func (m ipsSuppressionSignatureFromState) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (ipsSuppressionSignatureFromState) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if !req.ConfigValue.IsNull() {
+		return
+	}
+	// Known after apply unless the prior state has this very signature.
+	resp.PlanValue = types.StringUnknown()
+	if req.State.Raw.IsNull() {
+		return
+	}
+	alertPath := req.Path.ParentPath()
+	var signatureID, gid types.Int64
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, alertPath.AtName("signature_id"), &signatureID)...)
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, alertPath.AtName("gid"), &gid)...)
+	if resp.Diagnostics.HasError() || signatureID.IsNull() || signatureID.IsUnknown() || gid.IsUnknown() {
+		return
+	}
+	wantGID := int64(1)
+	if !gid.IsNull() {
+		wantGID = gid.ValueInt64()
+	}
+	var state ipsSuppressionModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	resp.Diagnostics.Append(validateIPSSuppressionAlerts(config.Alerts)...)
+	for _, alert := range state.Alerts {
+		if alert.GID.ValueInt64() == wantGID && alert.SignatureID.ValueInt64() == signatureID.ValueInt64() {
+			resp.PlanValue = alert.Signature
+			return
+		}
+	}
 }
 
-func validateIPSSuppressionAlerts(alerts []ipsSuppressionAlertModel) diag.Diagnostics {
+// The config models use framework lists so that alerts or tracking entries
+// not yet known at plan time are skipped instead of failing conversion.
+type ipsSuppressionConfigModel struct {
+	ID     types.String `tfsdk:"id"`
+	SiteID types.String `tfsdk:"site_id"`
+	Alerts types.List   `tfsdk:"alerts"`
+}
+
+type ipsSuppressionConfigAlert struct {
+	SignatureID types.Int64  `tfsdk:"signature_id"`
+	GID         types.Int64  `tfsdk:"gid"`
+	Category    types.String `tfsdk:"category"`
+	Signature   types.String `tfsdk:"signature"`
+	Type        types.String `tfsdk:"type"`
+	Tracking    types.List   `tfsdk:"tracking"`
+}
+
+func (r *ipsSuppressionResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config ipsSuppressionConfigModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() || config.Alerts.IsNull() || config.Alerts.IsUnknown() {
+		return
+	}
+	resp.Diagnostics.Append(validateIPSSuppressionAlerts(ctx, config.Alerts)...)
+}
+
+func validateIPSSuppressionAlerts(ctx context.Context, list basetypes.ListValue) diag.Diagnostics {
 	var diags diag.Diagnostics
+	// Unknown elements decode as zero values, whose null fields every check skips.
+	var alerts []ipsSuppressionConfigAlert
+	diags.Append(list.ElementsAs(ctx, &alerts, true)...)
+	if diags.HasError() {
+		return diags
+	}
 	seen := map[[2]int64]int{}
 	for i, alert := range alerts {
 		alertPath := path.Root("alerts").AtListIndex(i)
@@ -110,21 +181,23 @@ func validateIPSSuppressionAlerts(alerts []ipsSuppressionAlertModel) diag.Diagno
 			}
 			seen[key] = i
 		}
-		if alert.Type.IsUnknown() {
+		if alert.Type.IsNull() || alert.Type.IsUnknown() || alert.Tracking.IsUnknown() {
 			continue
 		}
 		switch alert.Type.ValueString() {
 		case "track":
-			if len(alert.Tracking) == 0 {
+			if len(alert.Tracking.Elements()) == 0 {
 				diags.AddAttributeError(alertPath.AtName("tracking"), "Missing tracking", "type = \"track\" needs at least one tracking entry.")
 			}
 		case "all":
-			if len(alert.Tracking) > 0 {
+			if len(alert.Tracking.Elements()) > 0 {
 				diags.AddAttributeError(alertPath.AtName("tracking"), "Unexpected tracking", "type = \"all\" suppresses the signature everywhere; remove tracking or use type = \"track\".")
 			}
 		}
-		for j, entry := range alert.Tracking {
-			if entry.Mode.IsUnknown() || entry.Value.IsUnknown() {
+		var tracking []ipsSuppressionTrackingModel
+		diags.Append(alert.Tracking.ElementsAs(ctx, &tracking, true)...)
+		for j, entry := range tracking {
+			if entry.Mode.IsNull() || entry.Mode.IsUnknown() || entry.Value.IsNull() || entry.Value.IsUnknown() {
 				continue
 			}
 			if !validIPSSuppressionTrackingValue(entry.Mode.ValueString(), entry.Value.ValueString()) {
@@ -138,11 +211,9 @@ func validateIPSSuppressionAlerts(alerts []ipsSuppressionAlertModel) diag.Diagno
 func validIPSSuppressionTrackingValue(mode, value string) bool {
 	switch mode {
 	case "ip":
-		address, err := netip.ParseAddr(value)
-		return err == nil && address.Is4()
+		return isIPv4Address(value)
 	case "subnet":
-		prefix, err := netip.ParsePrefix(value)
-		return err == nil && prefix.Addr().Is4() && prefix == prefix.Masked()
+		return isIPv4Prefix(value)
 	}
 	return true // the mode validator reports unknown modes
 }
@@ -165,13 +236,7 @@ func (r *ipsSuppressionResource) apply(ctx context.Context, planned tfsdk.Plan, 
 	if diags.HasError() {
 		return
 	}
-	siteID := plan.SiteID.ValueString()
-	current, err := r.providerData.client.GetIPSSuppression(ctx, siteID)
-	if err != nil {
-		diags.AddError("Unable to read IPS suppression", err.Error())
-		return
-	}
-	setting, err := r.providerData.client.SetIPSSuppression(ctx, siteID, expandIPSSuppressionAlerts(plan.Alerts, current.Alerts))
+	setting, err := r.providerData.client.SetIPSSuppression(ctx, plan.SiteID.ValueString(), expandIPSSuppressionAlerts(plan.Alerts))
 	if err != nil {
 		diags.AddError("Unable to update IPS suppression", err.Error())
 		return
@@ -199,9 +264,9 @@ func (r *ipsSuppressionResource) Read(ctx context.Context, req resource.ReadRequ
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 }
 
-// Delete leaves the controller's suppressions in place: the setting always
-// exists, and silently removing every suppression on destroy would re-enable
-// blocking for signatures someone deliberately silenced.
+// Delete leaves the controller's suppressions in place: the setting is a
+// per-site document, and silently removing every suppression on destroy would
+// re-enable blocking for signatures someone deliberately silenced.
 func (r *ipsSuppressionResource) Delete(context.Context, resource.DeleteRequest, *resource.DeleteResponse) {
 }
 
@@ -214,28 +279,20 @@ func (r *ipsSuppressionResource) ImportState(ctx context.Context, req resource.I
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }
 
-// expandIPSSuppressionAlerts keeps the controller's signature description for
-// alerts whose configuration leaves it unset.
-func expandIPSSuppressionAlerts(alerts []ipsSuppressionAlertModel, current []client.IPSSuppressionAlert) []client.IPSSuppressionAlert {
-	descriptions := map[[2]int64]string{}
-	for _, alert := range current {
-		descriptions[[2]int64{alert.GID, alert.ID}] = alert.Signature
-	}
+// expandIPSSuppressionAlerts sends an empty description for alerts whose
+// configuration leaves it unset; the client then keeps the controller's.
+func expandIPSSuppressionAlerts(alerts []ipsSuppressionAlertModel) []client.IPSSuppressionAlert {
 	out := make([]client.IPSSuppressionAlert, 0, len(alerts))
 	for _, alert := range alerts {
 		gid := alert.GID.ValueInt64()
 		if alert.GID.IsNull() || alert.GID.IsUnknown() {
 			gid = 1
 		}
-		signature := alert.Signature.ValueString()
-		if alert.Signature.IsNull() || alert.Signature.IsUnknown() {
-			signature = descriptions[[2]int64{gid, alert.SignatureID.ValueInt64()}]
-		}
 		tracking := make([]client.IPSSuppressionTracking, 0, len(alert.Tracking))
 		for _, entry := range alert.Tracking {
 			tracking = append(tracking, client.IPSSuppressionTracking{Mode: entry.Mode.ValueString(), Value: entry.Value.ValueString(), Direction: entry.Direction.ValueString()})
 		}
-		out = append(out, client.IPSSuppressionAlert{GID: gid, ID: alert.SignatureID.ValueInt64(), Category: alert.Category.ValueString(), Signature: signature, Type: alert.Type.ValueString(), Tracking: tracking})
+		out = append(out, client.IPSSuppressionAlert{GID: gid, ID: alert.SignatureID.ValueInt64(), Category: alert.Category.ValueString(), Signature: alert.Signature.ValueString(), Type: alert.Type.ValueString(), Tracking: tracking})
 	}
 	return out
 }

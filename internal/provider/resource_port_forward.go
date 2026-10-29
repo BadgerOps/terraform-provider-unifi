@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/netip"
 	"strconv"
 	"strings"
 
@@ -84,12 +83,8 @@ func (v portForwardSourceValidator) ValidateString(ctx context.Context, req vali
 	if value == "any" {
 		return
 	}
-	// The legacy port-forward src field is IPv4 only, and the controller
-	// normalises unmasked prefixes, which would surface as a perpetual diff.
-	if address, err := netip.ParseAddr(value); err == nil && address.Is4() {
-		return
-	}
-	if prefix, err := netip.ParsePrefix(value); err == nil && prefix.Addr().Is4() && prefix == prefix.Masked() {
+	// The legacy port-forward src field is IPv4 only.
+	if isIPv4Address(value) || isIPv4Prefix(value) {
 		return
 	}
 	resp.Diagnostics.AddAttributeError(req.Path, "Invalid source", v.Description(ctx))
@@ -151,7 +146,7 @@ func (v ipv4AddressValidator) ValidateString(ctx context.Context, req validator.
 	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
 		return
 	}
-	if address, err := netip.ParseAddr(req.ConfigValue.ValueString()); err != nil || !address.Is4() {
+	if !isIPv4Address(req.ConfigValue.ValueString()) {
 		resp.Diagnostics.AddAttributeError(req.Path, "Invalid "+req.Path.String(), fmt.Sprintf("%s; got %q.", v.Description(ctx), req.ConfigValue.ValueString()))
 	}
 }

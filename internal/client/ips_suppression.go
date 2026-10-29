@@ -39,12 +39,11 @@ type IPSSuppression struct {
 func (s *IPSSuppression) UnmarshalJSON(data []byte) error {
 	type wireIPSSuppression IPSSuppression
 	var decoded wireIPSSuppression
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	raw, err := unmarshalWithRawFields(data, &decoded)
+	if err != nil {
 		return err
 	}
-	if err := json.Unmarshal(data, &decoded.rawFields); err != nil {
-		return err
-	}
+	decoded.rawFields = raw
 	*s = IPSSuppression(decoded)
 	return nil
 }
@@ -77,20 +76,36 @@ func (c *Client) getIPSSuppression(ctx context.Context, site string) (*IPSSuppre
 
 // SetIPSSuppression replaces the site's suppressed alerts. The legacy setting
 // endpoint replaces the whole document, so the current one is read first and
-// only `alerts` is overlaid: the whitelist and unmodelled fields survive.
+// only `alerts` is overlaid: the whitelist and unmodelled fields survive. A
+// site that has never had the setting gets the document created. An alert
+// with an empty Signature keeps the description the controller already holds
+// for the same gid and id.
 func (c *Client) SetIPSSuppression(ctx context.Context, siteID string, alerts []IPSSuppressionAlert) (*IPSSuppression, error) {
 	site, err := c.resolveLegacySiteReference(ctx, siteID)
 	if err != nil {
 		return nil, fmt.Errorf("update IPS suppression site: %w", err)
 	}
 	existing, err := c.getIPSSuppression(ctx, site)
-	if err != nil {
+	switch {
+	case IsNotFound(err):
+		// set/setting creates a missing document; the controller assigns its
+		// identity fields, so send only what we model.
+		existing = &IPSSuppression{rawFields: map[string]json.RawMessage{}}
+	case err != nil:
 		return nil, err
 	}
-	if alerts == nil {
-		alerts = []IPSSuppressionAlert{}
+	descriptions := make(map[[2]int64]string, len(existing.Alerts))
+	for _, alert := range existing.Alerts {
+		descriptions[[2]int64{alert.GID, alert.ID}] = alert.Signature
 	}
-	encoded, err := json.Marshal(alerts)
+	merged := make([]IPSSuppressionAlert, 0, len(alerts))
+	for _, alert := range alerts {
+		if alert.Signature == "" {
+			alert.Signature = descriptions[[2]int64{alert.GID, alert.ID}]
+		}
+		merged = append(merged, alert)
+	}
+	encoded, err := json.Marshal(merged)
 	if err != nil {
 		return nil, fmt.Errorf("encode IPS suppression: %w", err)
 	}

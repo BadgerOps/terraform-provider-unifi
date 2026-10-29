@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -255,4 +256,18 @@ func (v stringOneOf) ValidateString(ctx context.Context, req validator.StringReq
 		}
 	}
 	resp.Diagnostics.AddAttributeError(req.Path, "Invalid string value", fmt.Sprintf("%s; got %q.", v.Description(ctx), req.ConfigValue.ValueString()))
+}
+
+// isIPv4Address reports whether value is a single IPv4 address.
+func isIPv4Address(value string) bool {
+	address, err := netip.ParseAddr(value)
+	return err == nil && address.Is4()
+}
+
+// isIPv4Prefix reports whether value is an IPv4 CIDR prefix with no host bits
+// set, the form the controller stores; an unmasked prefix would come back
+// normalised and show as a perpetual diff.
+func isIPv4Prefix(value string) bool {
+	prefix, err := netip.ParsePrefix(value)
+	return err == nil && prefix.Addr().Is4() && prefix == prefix.Masked()
 }

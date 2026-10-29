@@ -22,12 +22,31 @@ func (api *mockUniFiAPI) handleIPSSuppression(w http.ResponseWriter, r *http.Req
 	}
 	switch {
 	case segments[2] == "get" && r.Method == http.MethodGet:
+		if api.ipsSuppression == nil {
+			api.writeLegacyJSON(w, http.StatusOK, []map[string]any{})
+			return
+		}
 		api.writeLegacyJSON(w, http.StatusOK, []map[string]any{api.ipsSuppression})
 	case segments[2] == "set" && r.Method == http.MethodPut:
 		var setting map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&setting); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+		if api.ipsSuppression == nil {
+			// Creating the document: the controller assigns the identity fields,
+			// so a client must not invent them.
+			for _, key := range []string{"_id", "site_id"} {
+				if _, ok := setting[key]; ok {
+					http.Error(w, "unexpected field on create: "+key, http.StatusBadRequest)
+					return
+				}
+			}
+			if setting["key"] != "ips_suppression" {
+				http.Error(w, "missing field: key", http.StatusBadRequest)
+				return
+			}
+			setting["_id"], setting["site_id"], setting["whitelist"] = "setting-ips-suppression", "legacy-site", []any{}
 		}
 		for _, key := range []string{"_id", "key", "site_id", "whitelist"} {
 			if _, ok := setting[key]; !ok {
@@ -205,4 +224,89 @@ func TestResourceIPSSuppressionValidation(t *testing.T) {
 	if api.ipsSuppressionPuts != 0 {
 		t.Fatalf("validation errors must stop before any write, got %d PUTs", api.ipsSuppressionPuts)
 	}
+}
+
+// A description kept from the controller belongs to a signature, not to a
+// position in the list: inserting an alert must not shift descriptions.
+func TestAccResourceIPSSuppressionDescriptionFollowsSignature(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+	resourceName := "unifi_setting_ips_suppression.test"
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: ipsSuppressionTestConfig(api, `[{ signature_id = 2016642, category = "emerging-webserver", signature = "ET WEB_SERVER Possible Perl Shell in HTTP POST", type = "all" }]`),
+			},
+			{
+				// A new alert takes slot 0 without a description; the old one moves to slot 1 and drops its configured description.
+				Config: ipsSuppressionTestConfig(api, `[{ signature_id = 2100498, category = "emerging-scan", type = "all" }, { signature_id = 2016642, category = "emerging-webserver", type = "all" }]`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "alerts.0.signature", ""),
+					resource.TestCheckResourceAttr(resourceName, "alerts.1.signature", "ET WEB_SERVER Possible Perl Shell in HTTP POST"),
+				),
+			},
+		},
+	})
+}
+
+// A list built from attributes only known after apply must defer validation
+// instead of failing the plan.
+func TestAccResourceIPSSuppressionUnknownAlertsAtPlan(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+	config := siteLookupConfig(api.URL()) + `
+resource "unifi_port_forward" "test" {
+  site_id          = data.unifi_site.main.id
+  name             = "test-forward"
+  destination_port = "3074"
+  forward_ip       = "192.0.2.90"
+  forward_port     = "3074"
+}
+
+resource "unifi_setting_ips_suppression" "test" {
+  site_id = data.unifi_site.main.id
+  alerts = [for _ in range(signum(length(unifi_port_forward.test.id))) : {
+    signature_id = 2016642
+    category     = "emerging-webserver"
+    type         = "track"
+    tracking     = [{ mode = "ip", value = unifi_port_forward.test.forward_ip, direction = "dest" }]
+  }]
+}
+`
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: config,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("unifi_setting_ips_suppression.test", "alerts.#", "1"),
+				resource.TestCheckResourceAttr("unifi_setting_ips_suppression.test", "alerts.0.tracking.0.value", "192.0.2.90"),
+			),
+		}},
+	})
+}
+
+// A site that has never had the setting gets it created on the first apply.
+func TestAccResourceIPSSuppressionCreatesMissingSetting(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+	api.ipsSuppression = nil
+	resourceName := "unifi_setting_ips_suppression.test"
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: ipsSuppressionTestConfig(api, `[{ signature_id = 2016642, category = "emerging-webserver", type = "all" }]`),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr(resourceName, "alerts.#", "1"),
+				func(_ *tfstate.State) error {
+					api.mu.Lock()
+					defer api.mu.Unlock()
+					if api.ipsSuppression == nil || api.ipsSuppression["key"] != "ips_suppression" {
+						return fmt.Errorf("setting not created: %#v", api.ipsSuppression)
+					}
+					return nil
+				},
+			),
+		}},
+	})
 }

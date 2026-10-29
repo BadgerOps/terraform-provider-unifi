@@ -123,3 +123,17 @@ func (c *Client) doLegacyRequestWithExpectedStatus(
 
 	return nil
 }
+
+// unmarshalWithRawFields decodes data into typed and also returns every field
+// as raw JSON, so a read-modify-write can send back the fields the provider
+// does not model. RawMessage keeps numbers exactly as the controller sent them.
+func unmarshalWithRawFields(data []byte, typed any) (map[string]json.RawMessage, error) {
+	if err := json.Unmarshal(data, typed); err != nil {
+		return nil, err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
