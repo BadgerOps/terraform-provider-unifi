@@ -203,9 +203,16 @@ func TestResourceIPSSuppressionValidation(t *testing.T) {
 		"track without tracking": {`[{ signature_id = 1, category = "c", type = "track" }]`, "needs at least one tracking entry"},
 		"all with tracking":      {`[{ signature_id = 1, category = "c", type = "all", tracking = [{ mode = "ip", value = "192.0.2.1", direction = "src" }] }]`, "remove tracking"},
 		"bad type":               {`[{ signature_id = 1, category = "c", type = "never" }]`, "Must be one of: all, track"},
-		"ip mode with prefix":    {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "ip", value = "192.0.2.0/24", direction = "src" }] }]`, "an IPv4 address"},
+		"ip mode with prefix":    {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "ip", value = "192.0.2.0/24", direction = "src" }] }]`, "an IPv4 or IPv6 address"},
+		"ip mode with hostname":  {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "ip", value = "example.com", direction = "src" }] }]`, "an IPv4 or IPv6 address"},
+		"ipv4-mapped ipv6":       {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "ip", value = "::ffff:192.0.2.1", direction = "src" }] }]`, "an IPv4 or IPv6 address"},
 		"subnet with host bits":  {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "subnet", value = "192.0.2.1/24", direction = "src" }] }]`, "no host bits set"},
-		"ipv6 address":           {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "ip", value = "2001:db8::1", direction = "src" }] }]`, "an IPv4 address"},
+		"ipv6 subnet host bits":  {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "subnet", value = "2001:db8::1/64", direction = "src" }] }]`, "no host bits set"},
+		"subnet without prefix":  {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "subnet", value = "192.0.2.0", direction = "src" }] }]`, "CIDR prefix"},
+		"network uppercase id":   {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "network", value = "650C65F6136F0118C6C1E645", direction = "src" }] }]`, "legacy network ID"},
+		"network short id":       {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "network", value = "650c65f6136f0118c6c1e64", direction = "src" }] }]`, "legacy network ID"},
+		"network uuid":           {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "network", value = "25793270-353f-4b1d-91f0-592c08534b07", direction = "src" }] }]`, "legacy network ID"},
+		"bad mode":               {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "host", value = "192.0.2.1", direction = "src" }] }]`, "Must be one of: ip, subnet, network"},
 		"bad direction":          {`[{ signature_id = 1, category = "c", type = "track", tracking = [{ mode = "ip", value = "192.0.2.1", direction = "in" }] }]`, "Must be one of: src, dest, both"},
 		"duplicate signature":    {`[{ signature_id = 7, category = "c", type = "all" }, { signature_id = 7, gid = 1, category = "c", type = "all" }]`, "already suppressed by alerts\\[0\\]"},
 	}
@@ -224,6 +231,37 @@ func TestResourceIPSSuppressionValidation(t *testing.T) {
 	if api.ipsSuppressionPuts != 0 {
 		t.Fatalf("validation errors must stop before any write, got %d PUTs", api.ipsSuppressionPuts)
 	}
+}
+
+// The controller accepts IPv6 addresses and prefixes and a third mode,
+// `network`, that takes a legacy network ID; all three round-trip unchanged.
+func TestAccResourceIPSSuppressionTrackingModes(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+	resourceName := "unifi_setting_ips_suppression.test"
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: ipsSuppressionTestConfig(api, `[{ signature_id = 2016642, category = "emerging-webserver", type = "track", tracking = [
+      { mode = "ip", value = "2001:db8::1", direction = "dest" },
+      { mode = "subnet", value = "2001:db8:1::/48", direction = "src" },
+      { mode = "network", value = "650c65f6136f0118c6c1e645", direction = "both" },
+      { mode = "ip", value = "192.0.2.1", direction = "both" },
+    ] }]`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "alerts.0.tracking.#", "4"),
+					resource.TestCheckResourceAttr(resourceName, "alerts.0.tracking.0.mode", "ip"),
+					resource.TestCheckResourceAttr(resourceName, "alerts.0.tracking.0.value", "2001:db8::1"),
+					resource.TestCheckResourceAttr(resourceName, "alerts.0.tracking.1.mode", "subnet"),
+					resource.TestCheckResourceAttr(resourceName, "alerts.0.tracking.1.value", "2001:db8:1::/48"),
+					resource.TestCheckResourceAttr(resourceName, "alerts.0.tracking.2.mode", "network"),
+					resource.TestCheckResourceAttr(resourceName, "alerts.0.tracking.2.value", "650c65f6136f0118c6c1e645"),
+					resource.TestCheckResourceAttr(resourceName, "alerts.0.tracking.3.value", "192.0.2.1"),
+				),
+			},
+		},
+	})
 }
 
 // A description kept from the controller belongs to a signature, not to a

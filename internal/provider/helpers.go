@@ -258,6 +258,21 @@ func (v stringOneOf) ValidateString(ctx context.Context, req validator.StringReq
 	resp.Diagnostics.AddAttributeError(req.Path, "Invalid string value", fmt.Sprintf("%s; got %q.", v.Description(ctx), req.ConfigValue.ValueString()))
 }
 
+// isIPAddress reports whether value is a single IPv4 or IPv6 address. An
+// IPv4-mapped IPv6 address is refused, as the controller refuses it.
+func isIPAddress(value string) bool {
+	address, err := netip.ParseAddr(value)
+	return err == nil && !address.Is4In6()
+}
+
+// isIPPrefix reports whether value is an IPv4 or IPv6 CIDR prefix with no host
+// bits set. The controller rejects IPv4 host bits and stores IPv6 prefixes as
+// sent, so one spelling per subnet keeps configuration and state identical.
+func isIPPrefix(value string) bool {
+	prefix, err := netip.ParsePrefix(value)
+	return err == nil && !prefix.Addr().Is4In6() && prefix == prefix.Masked()
+}
+
 // isIPv4Address reports whether value is a single IPv4 address.
 func isIPv4Address(value string) bool {
 	address, err := netip.ParseAddr(value)

@@ -23,21 +23,24 @@ resource "unifi_setting_ips_suppression" "site" {
 
   alerts = [
     {
-      # Suppress only for traffic to one internal server.
+      # Suppress only for traffic to one internal server, by IPv4 and IPv6.
       signature_id = 2016642
       category     = "emerging-webserver"
       type         = "track"
       tracking = [
         { mode = "ip", value = "10.20.0.50", direction = "dest" },
+        { mode = "ip", value = "2001:db8:20::50", direction = "dest" },
       ]
     },
     {
-      # Suppress for traffic from the whole IoT network.
+      # Suppress for traffic from the whole IoT network: by prefix, or by the
+      # network's legacy ID (its `_id` in the legacy API, not `unifi_network.id`).
       signature_id = 2100498
       category     = "emerging-scan"
       type         = "track"
       tracking = [
         { mode = "subnet", value = "10.30.0.0/24", direction = "src" },
+        { mode = "network", value = "650c65f6136f0118c6c1e645", direction = "src" },
       ]
     },
     {
@@ -83,8 +86,8 @@ Optional:
 Required:
 
 - `direction` (String) Match the address as the source (`src`), the destination (`dest`), or either (`both`).
-- `mode` (String) `ip` for one IPv4 address, `subnet` for an IPv4 CIDR prefix.
-- `value` (String) The IPv4 address or CIDR prefix.
+- `mode` (String) `ip` for one IPv4 or IPv6 address, `subnet` for an IPv4 or IPv6 CIDR prefix, `network` for a whole UniFi network.
+- `value` (String) The address, the CIDR prefix with no host bits set, or for `network` the legacy network ID: the 24-character `_id` the controller's legacy API gives the network, not the integration UUID that `unifi_network.id` holds.
 
 ## Import
 

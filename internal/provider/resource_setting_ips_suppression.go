@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -74,8 +75,8 @@ func (r *ipsSuppressionResource) Schema(_ context.Context, _ resource.SchemaRequ
 						Optional:            true,
 						MarkdownDescription: "Addresses the suppression applies to. Required for `type = \"track\"`, not allowed for `type = \"all\"`.",
 						NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
-							"mode":      schema.StringAttribute{Required: true, Validators: []validator.String{stringOneOf{"ip", "subnet"}}, MarkdownDescription: "`ip` for one IPv4 address, `subnet` for an IPv4 CIDR prefix."},
-							"value":     schema.StringAttribute{Required: true, MarkdownDescription: "The IPv4 address or CIDR prefix."},
+							"mode":      schema.StringAttribute{Required: true, Validators: []validator.String{stringOneOf{"ip", "subnet", "network"}}, MarkdownDescription: "`ip` for one IPv4 or IPv6 address, `subnet` for an IPv4 or IPv6 CIDR prefix, `network` for a whole UniFi network."},
+							"value":     schema.StringAttribute{Required: true, MarkdownDescription: "The address, the CIDR prefix with no host bits set, or for `network` the legacy network ID: the 24-character `_id` the controller's legacy API gives the network, not the integration UUID that `unifi_network.id` holds."},
 							"direction": schema.StringAttribute{Required: true, Validators: []validator.String{stringOneOf{"src", "dest", "both"}}, MarkdownDescription: "Match the address as the source (`src`), the destination (`dest`), or either (`both`)."},
 						}},
 					},
@@ -201,19 +202,32 @@ func validateIPSSuppressionAlerts(ctx context.Context, list basetypes.ListValue)
 				continue
 			}
 			if !validIPSSuppressionTrackingValue(entry.Mode.ValueString(), entry.Value.ValueString()) {
-				diags.AddAttributeError(alertPath.AtName("tracking").AtListIndex(j).AtName("value"), "Invalid tracking value", fmt.Sprintf("mode %q needs %s; got %q.", entry.Mode.ValueString(), map[string]string{"ip": "an IPv4 address", "subnet": "an IPv4 CIDR prefix with no host bits set"}[entry.Mode.ValueString()], entry.Value.ValueString()))
+				diags.AddAttributeError(alertPath.AtName("tracking").AtListIndex(j).AtName("value"), "Invalid tracking value", fmt.Sprintf("mode %q needs %s; got %q.", entry.Mode.ValueString(), ipsSuppressionTrackingValueForms[entry.Mode.ValueString()], entry.Value.ValueString()))
 			}
 		}
 	}
 	return diags
 }
 
+// ipsSuppressionTrackingValueForms names, per mode, the value shape the
+// controller accepts (Network 10.6: any IPv4 or IPv6 address except an
+// IPv4-mapped one, a prefix, or an existing network's legacy `_id`).
+var ipsSuppressionTrackingValueForms = map[string]string{
+	"ip":      "an IPv4 or IPv6 address",
+	"subnet":  "an IPv4 or IPv6 CIDR prefix with no host bits set",
+	"network": "a legacy network ID of 24 lowercase hexadecimal characters",
+}
+
+var legacyNetworkIDPattern = regexp.MustCompile(`^[0-9a-f]{24}$`)
+
 func validIPSSuppressionTrackingValue(mode, value string) bool {
 	switch mode {
 	case "ip":
-		return isIPv4Address(value)
+		return isIPAddress(value)
 	case "subnet":
-		return isIPv4Prefix(value)
+		return isIPPrefix(value)
+	case "network":
+		return legacyNetworkIDPattern.MatchString(value)
 	}
 	return true // the mode validator reports unknown modes
 }
