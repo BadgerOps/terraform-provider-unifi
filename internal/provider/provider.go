@@ -66,7 +66,7 @@ func (p *unifiProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp
 			},
 			"tls_certificate_sha256": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Pin the console's TLS certificate: the SHA-256 fingerprint of its DER encoding, 64 hex digits, colons optional (`openssl x509 -noout -fingerprint -sha256`). Only that exact certificate is accepted; CA and host name verification are not used. Meant for a console's self-signed certificate (issued for `unifi.local`) reached by its LAN address. Can't be combined with `allow_insecure`; renewing the certificate means updating the pin.",
+				MarkdownDescription: "Pin the console's TLS certificate: the SHA-256 fingerprint of its DER encoding, 64 hex digits, colons optional (`openssl x509 -noout -fingerprint -sha256`). Only that exact certificate is accepted; CA and host name verification are not used. Meant for a console's self-signed certificate (issued for `unifi.local`) reached by its LAN address. Requires an HTTPS API URL and rejects redirects to HTTP. Can't be combined with `allow_insecure`; renewing the certificate means updating the pin.",
 			},
 		},
 	}

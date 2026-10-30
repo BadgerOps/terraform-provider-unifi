@@ -93,6 +93,9 @@ func New(config Config) (*Client, error) {
 	case pin != "" && config.AllowInsecure:
 		return nil, fmt.Errorf("tls_certificate_sha256 and allow_insecure exclude each other")
 	case pin != "":
+		if integrationBaseURL.Scheme != "https" {
+			return nil, fmt.Errorf("tls_certificate_sha256 requires an https api_url")
+		}
 		tlsConfig, err := pinnedTLSConfig(pin)
 		if err != nil {
 			return nil, err
@@ -110,6 +113,18 @@ func New(config Config) (*Client, error) {
 	httpClient := &http.Client{
 		Timeout:   requestTimeout,
 		Transport: transport,
+	}
+	if pin != "" {
+		httpClient.CheckRedirect = func(request *http.Request, via []*http.Request) error {
+			if request.URL.Scheme != "https" {
+				return fmt.Errorf("tls_certificate_sha256 requires HTTPS redirects")
+			}
+			// Preserve net/http's default limit when installing a redirect policy.
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			return nil
+		}
 	}
 
 	apiClient, err := generated.NewClientWithResponses(

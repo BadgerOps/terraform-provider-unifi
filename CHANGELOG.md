@@ -8,7 +8,7 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 ### Added
 
-- Added the provider option `tls_certificate_sha256`, which pins the console's TLS certificate by the SHA-256 fingerprint of its DER encoding (hex, colons optional). With it, only that exact certificate is accepted and CA and host name verification are not used, for a console's self-signed certificate (issued for `unifi.local`) reached by its LAN address. It fails closed on any other certificate and can't be combined with `allow_insecure`.
+- Added the provider option `tls_certificate_sha256`, which pins the console's TLS certificate by the SHA-256 fingerprint of its DER encoding (hex, colons optional). With it, only that exact certificate is accepted and CA and host name verification are not used, for a console's self-signed certificate (issued for `unifi.local`) reached by its LAN address. It fails closed on any other certificate, requires HTTPS (including redirects), and can't be combined with `allow_insecure`.
 
 ## [0.5.5] - 2026-10-28
 

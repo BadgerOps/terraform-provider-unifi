@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -14,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -126,4 +128,92 @@ func newServerWithOwnCertificate(t *testing.T) *httptest.Server {
 	server.StartTLS()
 	t.Cleanup(server.Close)
 	return server
+}
+
+func TestTLSCertificatePinRequiresHTTPS(t *testing.T) {
+	for _, scheme := range []string{"http", "ftp"} {
+		t.Run(scheme, func(t *testing.T) {
+			_, err := New(Config{BaseURL: scheme + "://192.0.2.1", APIKey: "fake-api-key", TLSCertificateSHA256: strings.Repeat("ab", 32)})
+			if err == nil || !strings.Contains(err.Error(), "tls_certificate_sha256 requires an https api_url") {
+				t.Fatalf("want HTTPS configuration error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestTLSCertificatePinRedirects(t *testing.T) {
+	for _, api := range []string{"integration", "legacy"} {
+		for _, scenario := range []string{"http downgrade", "https same certificate", "https different certificate", "https loop"} {
+			t.Run(api+"/"+scenario, func(t *testing.T) {
+				var plaintextRequests, finalRequests, redirects atomic.Int32
+				plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					plaintextRequests.Add(1)
+					w.WriteHeader(http.StatusNoContent)
+				}))
+				defer plain.Close()
+				other := newServerWithOwnCertificate(t)
+				var server *httptest.Server
+				server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Header.Get("X-API-KEY") != "fake-api-key" {
+						t.Error("missing API key")
+					}
+					if r.URL.Path == "/final" {
+						finalRequests.Add(1)
+						w.Header().Set("Content-Type", "application/json")
+						_, _ = w.Write([]byte(`{"data":[],"totalCount":0}`))
+						return
+					}
+					redirects.Add(1)
+					target := server.URL + "/final"
+					switch scenario {
+					case "http downgrade":
+						target = plain.URL
+					case "https different certificate":
+						target = other.URL
+					case "https loop":
+						target = server.URL + "/loop"
+					}
+					http.Redirect(w, r, target, http.StatusFound)
+				}))
+				defer server.Close()
+				sum := sha256.Sum256(server.Certificate().Raw)
+				c, err := New(Config{BaseURL: server.URL, APIKey: "fake-api-key", TLSCertificateSHA256: hex.EncodeToString(sum[:])})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if api == "integration" {
+					_, err = c.ListSites(context.Background())
+				} else {
+					err = c.doLegacyRequest(context.Background(), http.MethodGet, []string{"s", "default", "rest", "user"}, nil, nil)
+				}
+				switch scenario {
+				case "http downgrade":
+					if err == nil || !strings.Contains(err.Error(), "tls_certificate_sha256 requires HTTPS redirects") {
+						t.Fatalf("want downgrade rejection, got %v", err)
+					}
+					if got := plaintextRequests.Load(); got != 0 {
+						t.Fatalf("sent %d plaintext requests, exposing the API key", got)
+					}
+				case "https same certificate":
+					if err != nil {
+						t.Fatalf("pinned HTTPS redirect failed: %v", err)
+					}
+					if got := finalRequests.Load(); got != 1 {
+						t.Fatalf("want one final request, got %d", got)
+					}
+				case "https different certificate":
+					if err == nil || !strings.Contains(err.Error(), "does not match tls_certificate_sha256") {
+						t.Fatalf("want pin mismatch, got %v", err)
+					}
+				case "https loop":
+					if err == nil || !strings.Contains(err.Error(), "stopped after 10 redirects") {
+						t.Fatalf("want redirect limit, got %v", err)
+					}
+					if got := redirects.Load(); got != 10 {
+						t.Fatalf("want 10 requests, got %d", got)
+					}
+				}
+			})
+		}
+	}
 }
