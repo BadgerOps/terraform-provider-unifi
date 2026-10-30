@@ -16,3 +16,6 @@ terraform.rc
 terraform-provider-unifi
 TODO.md
 .clawpatch/
+
+# Release workflow Python tests
+__pycache__/
