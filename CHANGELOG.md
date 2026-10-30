@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows Keep a Changelog and the release numbers follow Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Added `unifi_setting_ips_suppression` for the site's IPS alert suppressions (CyberSecure > Suppressions), using the legacy Network setting `ips_suppression` because the integration API does not expose it. The resource is authoritative for the alert list: each alert suppresses one signature either everywhere (`type = "all"`) or only for tracked IPv4 or IPv6 addresses, prefixes, or UniFi networks (`type = "track"`). Writes read the current setting and replace only `alerts`, so the suppression whitelist and fields the provider does not model survive the endpoint's full-document replace. The signature description is kept from the controller when it is not configured, and follows its signature when the list is reordered. A site that has never had the setting gets it created on the first apply. Import with the site ID; destroy only removes the resource from state and leaves the suppressions on the controller. Tracking values, duplicate signatures, and `tracking` with `type = "all"` are validated at plan time.
+
 ## [0.5.5] - 2026-10-28
 
 ### Fixed

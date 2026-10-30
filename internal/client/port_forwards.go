@@ -30,12 +30,11 @@ type PortForward struct {
 func (p *PortForward) UnmarshalJSON(data []byte) error {
 	type wirePortForward PortForward
 	var decoded wirePortForward
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	raw, err := unmarshalWithRawFields(data, &decoded)
+	if err != nil {
 		return err
 	}
-	if err := json.Unmarshal(data, &decoded.rawFields); err != nil {
-		return err
-	}
+	decoded.rawFields = raw
 	*p = PortForward(decoded)
 	return nil
 }
