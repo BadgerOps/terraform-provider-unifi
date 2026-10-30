@@ -15,6 +15,8 @@ It is built for configuration state: networks, WiFi broadcasts, zone-based firew
 
 -> **Pull requests are welcome.** Docs fixes, examples, repros, and focused resource improvements all help — [open a PR](https://github.com/BadgerOps/terraform-provider-unifi/pulls) or [start with an issue](https://github.com/BadgerOps/terraform-provider-unifi/issues).
 
+For opt-in prerelease testing, see [Testing release candidates](docs/guides/release-candidates).
+
 ## Who this is for
 
 - Operators who want Terraform to own site configuration on current UniFi Network releases

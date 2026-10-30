@@ -168,6 +168,12 @@ provider "unifi" {
 }
 ```
 
+## Test Release Candidates
+
+Release candidates are opt-in versions such as `0.6.0-rc.1`. Install them with an exact constraint (`version = "= 0.6.0-rc.1"`); normal stable version ranges do not select RCs. See the [RC testing guide](./docs/guides/release-candidates.md) for installation, validation, reporting results, and moving back to stable. These version numbers are examples.
+
+Maintainers: see [publishing and promoting releases](./.github/RELEASING.md).
+
 ## Local Development Overrides
 
 For local development, use a Terraform CLI development override that points at a directory containing a locally built provider binary:
@@ -197,7 +203,7 @@ Each GitHub release includes:
 - `terraform-provider-unifi_<version>_SHA256SUMS` plus the detached signature file `terraform-provider-unifi_<version>_SHA256SUMS.sig`
 - a `terraform-provider-unifi_<version>_terraform-mirror.tar.gz` bundle for air-gapped or mirrored Terraform installs
 
-The release workflow reads the version and notes from `CHANGELOG.md`, builds the cross-platform archives, packages the filesystem mirror bundle, and signs the checksum file for Terraform Registry ingestion.
+The manually dispatched release workflow accepts an RC version or promotes a published RC to stable. It runs the shared CI checks, reads notes from `[Unreleased]` at the selected source commit, builds the cross-platform archives, packages the filesystem mirror bundle, and signs the checksum file for Terraform Registry ingestion. Merging to `master` does not publish a release.
 
 Before the first Registry publish under the `badgerops` namespace:
 
@@ -227,7 +233,7 @@ terraform init
 terraform plan
 ```
 
-The filesystem mirror bundle already contains the directory layout Terraform expects under `registry.terraform.io/badgerops/unifi/<version>/<os>_<arch>/`.
+The filesystem mirror bundle uses Terraform's packed layout: `registry.terraform.io/badgerops/unifi/terraform-provider-unifi_<version>_<os>_<arch>.zip`. Set the mirror path to the extracted `terraform-mirror` directory.
 
 ## Imports
 
@@ -306,7 +312,8 @@ The [`examples/basic-site`](./examples/basic-site) configuration exercises the p
 
 Every pull request must update [`CHANGELOG.md`](./CHANGELOG.md).
 
-- Bump the version for the next release entry on the branch.
+- Add changes under `[Unreleased]`; maintainers choose versions when publishing candidates.
+- Update the stable version heading and references in a housekeeping PR after stable promotion.
 - Add a concise summary of the user-visible changes shipped by the PR.
 
 ## Live Acceptance Tests

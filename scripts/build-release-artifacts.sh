@@ -35,7 +35,7 @@ platforms=(
 rm -rf "${dist_dir}"
 mkdir -p "${dist_dir}"
 
-mirror_root="${work_dir}/terraform-mirror/${provider_host}/${provider_namespace}/${provider_type}/${version}"
+mirror_root="${work_dir}/terraform-mirror/${provider_host}/${provider_namespace}/${provider_type}"
 
 for platform in "${platforms[@]}"; do
   goos="${platform%/*}"
@@ -50,7 +50,7 @@ for platform in "${platforms[@]}"; do
   archive_name="${provider_name}_${version}_${target}.zip"
   binary_name="${provider_name}_v${version}${ext}"
 
-  mkdir -p "${build_dir}" "${mirror_root}/${target}"
+  mkdir -p "${build_dir}" "${mirror_root}"
 
   GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 \
     go build \
@@ -64,7 +64,7 @@ for platform in "${platforms[@]}"; do
     zip -q -9 "${repo_root}/${dist_dir}/${archive_name}" "${binary_name}"
   )
 
-  cp "${dist_dir}/${archive_name}" "${mirror_root}/${target}/${archive_name}"
+  cp "${dist_dir}/${archive_name}" "${mirror_root}/${archive_name}"
 done
 
 manifest_asset="${provider_name}_${version}_manifest.json"
