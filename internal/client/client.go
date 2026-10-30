@@ -2,7 +2,11 @@ package client
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -22,7 +26,12 @@ type Config struct {
 	BaseURL       string
 	APIKey        string
 	AllowInsecure bool
-	UserAgent     string
+	// TLSCertificateSHA256 pins the server certificate by the SHA-256 of its
+	// DER encoding (hex, colons optional). Set, it replaces CA and host name
+	// verification: only that exact certificate is accepted. For a console's
+	// self-signed certificate, which names unifi.local, not the address used.
+	TLSCertificateSHA256 string
+	UserAgent            string
 	// RequestTimeout bounds each HTTP request to the controller. Zero selects
 	// DefaultRequestTimeout.
 	RequestTimeout time.Duration
@@ -79,7 +88,20 @@ func New(config Config) (*Client, error) {
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if config.AllowInsecure {
+	pin := strings.TrimSpace(config.TLSCertificateSHA256)
+	switch {
+	case pin != "" && config.AllowInsecure:
+		return nil, fmt.Errorf("tls_certificate_sha256 and allow_insecure exclude each other")
+	case pin != "":
+		if integrationBaseURL.Scheme != "https" {
+			return nil, fmt.Errorf("tls_certificate_sha256 requires an https api_url")
+		}
+		tlsConfig, err := pinnedTLSConfig(pin)
+		if err != nil {
+			return nil, err
+		}
+		transport.TLSClientConfig = tlsConfig
+	case config.AllowInsecure:
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 	}
 
@@ -91,6 +113,18 @@ func New(config Config) (*Client, error) {
 	httpClient := &http.Client{
 		Timeout:   requestTimeout,
 		Transport: transport,
+	}
+	if pin != "" {
+		httpClient.CheckRedirect = func(request *http.Request, via []*http.Request) error {
+			if request.URL.Scheme != "https" {
+				return fmt.Errorf("tls_certificate_sha256 requires HTTPS redirects")
+			}
+			// Preserve net/http's default limit when installing a redirect policy.
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			return nil
+		}
 	}
 
 	apiClient, err := generated.NewClientWithResponses(
@@ -117,6 +151,30 @@ func New(config Config) (*Client, error) {
 		legacyBaseURL:      legacyBaseURL,
 		apiKey:             config.APIKey,
 		userAgent:          config.UserAgent,
+	}, nil
+}
+
+// pinnedTLSConfig accepts exactly one server certificate. The standard
+// verification is switched off only to be replaced by VerifyPeerCertificate,
+// which runs on every handshake and fails closed on any other certificate.
+func pinnedTLSConfig(pin string) (*tls.Config, error) {
+	want, err := hex.DecodeString(strings.ToLower(strings.ReplaceAll(pin, ":", "")))
+	if err != nil || len(want) != sha256.Size {
+		return nil, fmt.Errorf("tls_certificate_sha256 must be the 64 hex digits of a SHA-256 fingerprint")
+	}
+	return &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec // replaced by the pin check in VerifyPeerCertificate
+		MinVersion:         tls.VersionTLS12,
+		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			if len(rawCerts) == 0 {
+				return fmt.Errorf("server sent no certificate")
+			}
+			got := sha256.Sum256(rawCerts[0])
+			if subtle.ConstantTimeCompare(got[:], want) != 1 {
+				return fmt.Errorf("server certificate sha256 %s does not match tls_certificate_sha256", hex.EncodeToString(got[:]))
+			}
+			return nil
+		},
 	}, nil
 }
 
