@@ -232,4 +232,5 @@ provider "unifi" {
 
 - `allow_insecure` (Boolean) Disable TLS certificate verification. Only use this against trusted development systems.
 - `request_timeout_seconds` (Number) Timeout applied to each HTTP request to the controller, in seconds. Defaults to `30`. Raise it when the controller reprovisions devices mid-apply: a UniFi Network application can stop answering its API for minutes after a WiFi change, and the default leaves a plan or apply failing with `context deadline exceeded` partway through.
+- `tls_certificate_sha256` (String) Pin the console's TLS certificate: the SHA-256 fingerprint of its DER encoding, 64 hex digits, colons optional (`openssl x509 -noout -fingerprint -sha256`). Only that exact certificate is accepted; CA and host name verification are not used. Meant for a console's self-signed certificate (issued for `unifi.local`) reached by its LAN address. Can't be combined with `allow_insecure`; renewing the certificate means updating the pin.
 
