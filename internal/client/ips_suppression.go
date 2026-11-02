@@ -75,8 +75,8 @@ func (c *Client) getIPSSuppression(ctx context.Context, site string) (*IPSSuppre
 	return nil, &Error{StatusCode: http.StatusNotFound, Message: fmt.Sprintf("setting %s not found in site %s", ipsSuppressionKey, site)}
 }
 
-// SetIPSSuppression replaces the site's suppressed alerts. The legacy setting
-// endpoint replaces the whole document, so the current one is read first and
+// SetIPSSuppression replaces the site's suppressed alerts. The current document
+// is read first and sent back whole, to preserve unmodelled fields, and
 // only `alerts` is overlaid: the whitelist and unmodelled fields survive. A
 // site that has never had the setting gets the document created. An alert
 // with an empty Signature keeps the description the controller already holds

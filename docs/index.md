@@ -100,16 +100,21 @@ That directory is a reference configuration inside the provider repository, not 
 | [`unifi_dhcp_reservation`](docs/resources/dhcp_reservation) | DHCP reservations (**legacy** local Network API) |
 | [`unifi_port_forward`](docs/resources/port_forward) | WAN port forwards (**legacy** local Network API) |
 | [`unifi_setting_ips_suppression`](docs/resources/setting_ips_suppression) | IPS alert suppressions for a site (**legacy** local Network API) |
+| [`unifi_setting_remote_syslog`](docs/resources/setting_remote_syslog) | Remote syslog server for a site (**legacy** local Network API) |
+| [`unifi_setting_ntp`](docs/resources/setting_ntp) | NTP servers for a site's devices (**legacy** local Network API) |
+| [`unifi_setting_snmp`](docs/resources/setting_snmp) | SNMP toggles for a site's devices (**legacy** local Network API) |
+| [`unifi_setting_device_management`](docs/resources/setting_device_management) | Device SSH and auto-upgrade toggles for a site (**legacy** local Network API) |
 
 ### Legacy API exceptions
 
-UniFi Network `10.6.106` does not expose DHCP reservation writes, port forwarding, or IPS alert suppressions in the committed Integration OpenAPI snapshot, so:
+UniFi Network `10.6.106` does not expose DHCP reservation writes, port forwarding, IPS alert suppressions, or the site settings for remote syslog, NTP, SNMP and device management in the committed Integration OpenAPI snapshot, so:
 
-- `unifi_dhcp_reservation`, `unifi_port_forward`, and `unifi_setting_ips_suppression` call the **legacy local Network API**
+- `unifi_dhcp_reservation`, `unifi_port_forward`, `unifi_setting_ips_suppression`, and the `unifi_setting_*` resources for remote syslog, NTP, SNMP and device management call the **legacy local Network API**
 - Cloud connector `api_url` values are supported; the provider derives the correct legacy base (`…/api` behind the connector, `…/proxy/network/api` for local consoles)
 - For DHCP reservations on adopted UniFi devices, the provider can bootstrap a missing configured-client record before applying the reservation
 - `data.unifi_port_forward` looks up rules by legacy ID or unique name
 - `unifi_setting_ips_suppression` is one setting per site; destroying it only removes it from state and leaves the suppressions on the controller
+- `unifi_setting_remote_syslog`, `unifi_setting_ntp`, `unifi_setting_snmp`, and `unifi_setting_device_management` are also one setting per site; destroying one only removes it from state and leaves the controller's values as they are
 
 ### Ordering resources
 
@@ -192,6 +197,10 @@ Most objects use **composite** import IDs (not bare UniFi IDs):
 | `unifi_dhcp_reservation` | `<site_id>/<mac_address>` |
 | `unifi_port_forward` | `<site_id>/<id>` |
 | `unifi_setting_ips_suppression` | `<site_id>` |
+| `unifi_setting_remote_syslog` | `<site_id>` |
+| `unifi_setting_ntp` | `<site_id>` |
+| `unifi_setting_snmp` | `<site_id>` |
+| `unifi_setting_device_management` | `<site_id>` |
 
 ```bash
 terraform import unifi_network.trusted <site_id>/<network_id>
