@@ -255,6 +255,40 @@ func TestAccResourceRemoteSyslogNeedsServer(t *testing.T) {
 	}
 }
 
+// A fresh Network 10.6 site logs to the console itself: enabled, this_controller
+// and no ip. Changing it must not demand a remote server.
+func TestAccResourceRemoteSyslogConsoleOnly(t *testing.T) {
+	api := newMockUniFiAPI(t)
+	defer api.Close()
+	api.siteSettings["rsyslogd"] = map[string]any{
+		"_id": "setting-rsyslogd", "key": "rsyslogd", "site_id": "legacy-site",
+		"enabled": true, "this_controller": true, "this_controller_encrypted_only": true, "log_all_contents": true,
+	}
+	resourceName := "unifi_setting_remote_syslog.test"
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: siteSettingConfig(api, "unifi_setting_remote_syslog", "  enabled = true\n  log_all_contents = false"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "this_controller", "true"),
+					resource.TestCheckResourceAttr(resourceName, "log_all_contents", "false"),
+					checkSiteSettingField(api, "rsyslogd", "log_all_contents", false),
+					checkSiteSettingField(api, "rsyslogd", "ip", nil),
+				),
+			},
+			{
+				// Turning console logging off leaves only a remote server, which it has none of.
+				Config:      siteSettingConfig(api, "unifi_setting_remote_syslog", "  enabled = true\n  this_controller = false"),
+				ExpectError: regexp.MustCompile("the controller has no syslog server yet"),
+			},
+		},
+	})
+	if api.siteSettingPuts != 1 {
+		t.Fatalf("one write expected, got %d PUTs", api.siteSettingPuts)
+	}
+}
+
 func TestAccResourceNTP(t *testing.T) {
 	api := newMockUniFiAPI(t)
 	defer api.Close()

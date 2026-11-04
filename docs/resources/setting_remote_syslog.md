@@ -38,7 +38,7 @@ resource "unifi_setting_remote_syslog" "default" {
 ### Optional
 
 - `contents` (Set of String) Log categories to send, as the controller names them, for example `device`, `client`, `firewall_default_policy`, `security_detections`, `admin_activity`, `critical`, `triggers`, `updates` and `vpn`. Keeps the controller's value when not set.
-- `ip` (String) IPv4 address of the syslog server. Required when `enabled` is true, unless the controller already has one. Keeps the controller's value when not set.
+- `ip` (String) IPv4 address of the syslog server. Required when `enabled` is true and `this_controller` is false, unless the controller already has one. Keeps the controller's value when not set.
 - `log_all_contents` (Boolean) Send every category (the UI's "all" option) instead of only `contents`. Keeps the controller's value when not set.
 - `netconsole_enabled` (Boolean) Send the devices' kernel netconsole output too. Keeps the controller's value when not set.
 - `port` (Number) UDP port of the syslog server, 1 to 65535. Keeps the controller's value when not set.

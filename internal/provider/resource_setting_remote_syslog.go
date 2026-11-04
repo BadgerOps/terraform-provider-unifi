@@ -54,7 +54,7 @@ func (r *remoteSyslogResource) Metadata(_ context.Context, req resource.Metadata
 func (r *remoteSyslogResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	attributes := siteSettingIDAttributes()
 	attributes["enabled"] = schema.BoolAttribute{Required: true, MarkdownDescription: "Send the site's syslog (gateway, switches, access points) to a remote server."}
-	attributes["ip"] = schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, MarkdownDescription: "IPv4 address of the syslog server. Required when `enabled` is true, unless the controller already has one. Keeps the controller's value when not set."}
+	attributes["ip"] = schema.StringAttribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, MarkdownDescription: "IPv4 address of the syslog server. Required when `enabled` is true and `this_controller` is false, unless the controller already has one. Keeps the controller's value when not set."}
 	attributes["port"] = schema.Int64Attribute{Optional: true, Computed: true, PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}, MarkdownDescription: "UDP port of the syslog server, 1 to 65535. Keeps the controller's value when not set."}
 	attributes["contents"] = schema.SetAttribute{Optional: true, Computed: true, ElementType: types.StringType, PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()}, MarkdownDescription: "Log categories to send, as the controller names them, for example `device`, `client`, `firewall_default_policy`, `security_detections`, `admin_activity`, `critical`, `triggers`, `updates` and `vpn`. Keeps the controller's value when not set."}
 	attributes["log_all_contents"] = optionalComputedBool("Send every category (the UI's \"all\" option) instead of only `contents`.")
@@ -126,13 +126,16 @@ func (r *remoteSyslogResource) apply(ctx context.Context, planned tfsdk.Plan, st
 	if diags.HasError() {
 		return
 	}
-	if plan.Enabled.ValueBool() {
+	// A site that logs to the console itself needs no remote server: that is the
+	// controller's default on a fresh Network 10.6 site (enabled, this_controller,
+	// no ip).
+	if plan.Enabled.ValueBool() && !remoteSyslogToConsole(current, plan.ThisController, diags) {
 		ip, _ := fields["ip"].(string)
 		if ip == "" {
 			ip = decodeSettingString(current, "ip", diags)
 		}
 		if ip == "" {
-			diags.AddAttributeError(path.Root("ip"), "Missing syslog server", "enabled = true needs ip: the controller has no syslog server yet.")
+			diags.AddAttributeError(path.Root("ip"), "Missing syslog server", "the controller has no syslog server yet: with enabled = true, set ip or this_controller = true.")
 			return
 		}
 	}
@@ -142,6 +145,15 @@ func (r *remoteSyslogResource) apply(ctx context.Context, planned tfsdk.Plan, st
 	}
 	model := flattenRemoteSyslog(ctx, plan.SiteID, setting, diags)
 	diags.Append(state.Set(ctx, &model)...)
+}
+
+// remoteSyslogToConsole reports whether the logs go to the console itself after
+// the write: the planned this_controller when known, else the controller's.
+func remoteSyslogToConsole(current client.SiteSetting, planned types.Bool, diags *diag.Diagnostics) bool {
+	if !planned.IsNull() && !planned.IsUnknown() {
+		return planned.ValueBool()
+	}
+	return decodeSettingBool(current, "this_controller", diags).ValueBool()
 }
 
 // remoteSyslogPortValue sends the port in the controller's own JSON type:
