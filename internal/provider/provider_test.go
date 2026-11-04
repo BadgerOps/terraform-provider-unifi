@@ -97,6 +97,9 @@ type mockUniFiAPI struct {
 	siteSettings             map[string]map[string]any
 	siteSettingPuts          int
 	siteSettingsBroken       bool
+	legacyDevices            []map[string]any
+	legacyNetworkconfs       []map[string]any
+	devicePuts               int
 }
 
 func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
@@ -851,6 +854,10 @@ func (api *mockUniFiAPI) handleLegacyHTTP(writer http.ResponseWriter, request *h
 	}
 	if len(segments) == 5 && segments[0] == "s" && (segments[2] == "get" || segments[2] == "set") && segments[3] == "setting" {
 		api.handleSiteSetting(writer, request, segments)
+		return
+	}
+	if len(segments) >= 4 && segments[0] == "s" && ((segments[2] == "stat" || segments[2] == "rest") && segments[3] == "device" || segments[2] == "rest" && segments[3] == "networkconf") {
+		api.handleLegacyDevices(writer, request, segments)
 		return
 	}
 	if len(segments) >= 4 && segments[0] == "s" && segments[2] == "rest" && segments[3] == "portforward" {
