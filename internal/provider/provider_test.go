@@ -94,6 +94,9 @@ type mockUniFiAPI struct {
 	portForwards             map[string]map[string]any
 	ipsSuppression           map[string]any
 	ipsSuppressionPuts       int
+	siteSettings             map[string]map[string]any
+	siteSettingPuts          int
+	siteSettingsBroken       bool
 }
 
 func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
@@ -129,6 +132,7 @@ func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
 			"_id": "setting-ips-suppression", "key": "ips_suppression", "site_id": "legacy-site",
 			"alerts": []any{}, "whitelist": []any{map[string]any{"mode": "ip", "value": "192.0.2.200", "direction": "both"}},
 		},
+		siteSettings: newMockSiteSettings(),
 	}
 
 	api.siteID = api.newID()
@@ -843,6 +847,10 @@ func (api *mockUniFiAPI) handleLegacyHTTP(writer http.ResponseWriter, request *h
 	segments := strings.Split(strings.Trim(strings.TrimPrefix(request.URL.Path, "/proxy/network/api"), "/"), "/")
 	if len(segments) == 5 && segments[0] == "s" && (segments[2] == "get" || segments[2] == "set") && segments[3] == "setting" && segments[4] == "ips_suppression" {
 		api.handleIPSSuppression(writer, request, segments)
+		return
+	}
+	if len(segments) == 5 && segments[0] == "s" && (segments[2] == "get" || segments[2] == "set") && segments[3] == "setting" {
+		api.handleSiteSetting(writer, request, segments)
 		return
 	}
 	if len(segments) >= 4 && segments[0] == "s" && segments[2] == "rest" && segments[3] == "portforward" {
