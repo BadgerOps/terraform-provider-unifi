@@ -24,6 +24,8 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 ### Fixed
 
+- Preserve omitted switch port exclusion lists in custom mode, and allow explicit empty port names and exclusion lists to clear their existing values.
+
 - Corrected release mirror bundles to use Terraform's packed filesystem-mirror layout, and added a packaged-provider installation/schema check before publishing.
 
 ## [0.5.5] - 2026-10-28

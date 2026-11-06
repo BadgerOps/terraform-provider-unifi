@@ -99,7 +99,7 @@ func (r *devicePortOverrideResource) apply(ctx context.Context, planned tfsdk.Pl
 	}
 	override := client.PortOverride{PortIdx: plan.PortIdx.ValueInt64()}
 	if known(plan.Name) {
-		override.Name = plan.Name.ValueString()
+		override.Name = plan.Name.ValueStringPointer()
 	}
 	if known(plan.NativeNetworkID) {
 		legacyID, ok := legacyIDs[plan.NativeNetworkID.ValueString()]
@@ -112,13 +112,14 @@ func (r *devicePortOverrideResource) apply(ctx context.Context, planned tfsdk.Pl
 	if known(plan.TaggedVLANMgmt) {
 		override.TaggedVLANMgmt = plan.TaggedVLANMgmt.ValueString()
 	}
-	var excluded []string
 	if !plan.ExcludedNetworkIDs.IsNull() && !plan.ExcludedNetworkIDs.IsUnknown() {
+		var excluded []string
 		diags.Append(plan.ExcludedNetworkIDs.ElementsAs(ctx, &excluded, false)...)
-	}
-	// Written only when it means something, so a port whose entry has no
-	// exclusion list doesn't get an empty one added.
-	if len(excluded) > 0 || override.TaggedVLANMgmt == "custom" {
+		if diags.HasError() {
+			return
+		}
+		// Preserve omitted lists, even in custom mode. A known empty set
+		// explicitly clears the list, independently of the tagged mode.
 		override.ExcludedNetworkconfIDs = []string{}
 		for _, id := range excluded {
 			legacyID, ok := legacyIDs[id]
@@ -217,8 +218,11 @@ func flattenDevicePortOverride(siteID, mac string, override *client.PortOverride
 		SiteID:         types.StringValue(siteID),
 		DeviceMAC:      types.StringValue(mac),
 		PortIdx:        types.Int64Value(override.PortIdx),
-		Name:           types.StringValue(override.Name),
+		Name:           types.StringValue(""),
 		TaggedVLANMgmt: types.StringValue(override.TaggedVLANMgmt),
+	}
+	if override.Name != nil {
+		model.Name = types.StringValue(*override.Name)
 	}
 	model.NativeNetworkID = types.StringNull()
 	if override.NativeNetworkconfID != "" {

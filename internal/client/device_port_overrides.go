@@ -18,7 +18,7 @@ import (
 // network UUIDs; see LegacyNetworkIDs.
 type PortOverride struct {
 	PortIdx                int64    `json:"port_idx"`
-	Name                   string   `json:"name,omitempty"`
+	Name                   *string  `json:"name,omitempty"`
 	NativeNetworkconfID    string   `json:"native_networkconf_id,omitempty"`
 	TaggedVLANMgmt         string   `json:"tagged_vlan_mgmt,omitempty"`
 	ExcludedNetworkconfIDs []string `json:"excluded_networkconf_ids,omitempty"`
@@ -39,15 +39,17 @@ func (o *PortOverride) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalJSON writes the unmodelled fields from the last read, overlaid with
-// the modelled ones. An empty modelled field is left as the controller had it.
+// the modelled ones. A nil name or exclusion list preserves the controller's
+// value; a non-nil empty value explicitly clears it. Other empty fields are
+// left as the controller had them.
 func (o PortOverride) MarshalJSON() ([]byte, error) {
 	out := make(map[string]any, len(o.rawFields)+5)
 	for key, value := range o.rawFields {
 		out[key] = value
 	}
 	out["port_idx"] = o.PortIdx
-	if o.Name != "" {
-		out["name"] = o.Name
+	if o.Name != nil {
+		out["name"] = *o.Name
 	}
 	if o.NativeNetworkconfID != "" {
 		out["native_networkconf_id"] = o.NativeNetworkconfID

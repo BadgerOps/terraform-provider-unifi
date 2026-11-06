@@ -341,3 +341,58 @@ func TestResourceDevicePortOverrideImportID(t *testing.T) {
 		})
 	}
 }
+
+func TestResourceDevicePortOverrideOptionalValues(t *testing.T) {
+	for _, taggedMode := range []string{"custom", "block_all"} {
+		t.Run(taggedMode, func(t *testing.T) {
+			api := newMockUniFiAPI(t)
+			defer api.Close()
+			seedPortOverrides(api)
+			entry := portEntry(api, 2)
+			entry["tagged_vlan_mgmt"] = taggedMode
+			entry["excluded_networkconf_ids"] = []any{"legacy-lab"}
+			config := func(attributes string) string {
+				return portOverrideTestConfig(api, fmt.Sprintf(`
+resource "unifi_device_port_override" "test" {
+ site_id = data.unifi_site.main.id
+ device_mac = %q
+ port_idx = 2
+ tagged_vlan_mgmt = %q
+ %s
+}
+`, portOverrideSwitchMAC, taggedMode, attributes))
+			}
+			check := func(name string, excluded []any) resource.TestCheckFunc {
+				return resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_device_port_override.test", "name", name),
+					resource.TestCheckResourceAttr("unifi_device_port_override.test", "excluded_network_ids.#", fmt.Sprint(len(excluded))),
+					func(_ *tfstate.State) error {
+						entry := portEntry(api, 2)
+						if entry["name"] != name || !reflect.DeepEqual(entry["excluded_networkconf_ids"], excluded) {
+							return fmt.Errorf("unexpected port settings: %#v", entry)
+						}
+						return nil
+					},
+				)
+			}
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					{ // Taking over an existing port preserves omitted values.
+						Config: config(""),
+						Check:  check("Port 2", []any{"legacy-lab"}),
+					},
+					{ // An explicit empty name must clear the controller's name.
+						Config: config(`name = ""`),
+						Check:  check("", []any{"legacy-lab"}),
+					},
+					{ // An explicit empty set clears exclusions in either tagged mode.
+						Config: config(`name = ""
+excluded_network_ids = []`),
+						Check: check("", []any{}),
+					},
+				},
+			})
+		})
+	}
+}
