@@ -12,9 +12,6 @@
         pkgs = import nixpkgs {
           inherit system;
         };
-        terraformCompat = pkgs.writeShellScriptBin "terraform" ''
-          exec ${pkgs.opentofu}/bin/tofu "$@"
-        '';
       in {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
@@ -22,14 +19,14 @@
             curl
             direnv
             git
-            go_1_25
+            go_1_26
             golangci-lint
             gopls
             gnumake
             jq
             opentofu
             pre-commit
-            terraformCompat
+            shellcheck
             terraform-ls
             tfsec
             tflint
