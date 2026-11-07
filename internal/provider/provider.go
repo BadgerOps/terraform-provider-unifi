@@ -150,6 +150,8 @@ func (p *unifiProvider) Resources(_ context.Context) []func() resource.Resource 
 		NewNTPResource,
 		NewSNMPResource,
 		NewDeviceManagementResource,
+		NewDevicePortOverrideResource,
+		NewDeviceManagementNetworkResource,
 		NewTrafficMatchingListResource,
 		NewDNSPolicyResource,
 		NewACLRuleResource,

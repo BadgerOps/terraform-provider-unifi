@@ -62,6 +62,8 @@ This repository is the source for the `badgerops/unifi` Terraform provider. It i
   - `unifi_firewall_policy`
   - `unifi_firewall_policy_ordering`
   - `unifi_dhcp_reservation`
+  - `unifi_device_management_network`
+  - `unifi_device_port_override`
   - `unifi_port_forward`
   - `unifi_setting_ips_suppression`
   - `unifi_setting_remote_syslog`

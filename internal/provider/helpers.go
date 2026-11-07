@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"regexp"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -285,4 +286,24 @@ func isIPv4Address(value string) bool {
 func isIPv4Prefix(value string) bool {
 	prefix, err := netip.ParsePrefix(value)
 	return err == nil && prefix.Addr().Is4() && prefix == prefix.Masked()
+}
+
+var lowerCaseMAC = regexp.MustCompile(`^[0-9a-f]{2}(:[0-9a-f]{2}){5}$`)
+
+// lowerCaseMACValidator accepts a MAC address in lower case with colons, the
+// form the controller and an import use, so a configuration can't differ from
+// imported state only by case (which would force a replacement).
+type lowerCaseMACValidator struct{}
+
+func (lowerCaseMACValidator) Description(context.Context) string {
+	return "Must be a MAC address in lower case with colons, for example 0c:ea:14:00:00:01"
+}
+func (v lowerCaseMACValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+func (v lowerCaseMACValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() || lowerCaseMAC.MatchString(req.ConfigValue.ValueString()) {
+		return
+	}
+	resp.Diagnostics.AddAttributeError(req.Path, "Invalid MAC address", fmt.Sprintf("%s; got %q.", v.Description(ctx), req.ConfigValue.ValueString()))
 }
