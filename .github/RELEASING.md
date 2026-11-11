@@ -1,11 +1,13 @@
 # Publishing candidates and stable releases
 
-The **Release** workflow is manual. Merging a PR or updating the changelog does not publish a release. Both candidates and stable promotions run the reusable Go (including lint), generated documentation, and Terraform example checks against the exact source commit before building and signing packages. The publishing job also installs the packaged provider from its filesystem mirror and loads its schema before signing.
+The **Release** workflow is manual. Merging a PR or updating the changelog does not publish a release. Both candidates and stable promotions run the reusable Go (including lint), generated documentation, and Terraform example checks against the exact source commit before building packages. A read-only build job installs the packaged provider from its filesystem mirror and loads its schema, then passes the unsigned files through GitHub's artifact service. Only the protected `release` environment job can download, sign, and publish those files.
 
 ## Prerequisites
 
 - Merge the release workflow into `master` before the first dispatch.
-- Configure the existing `GPG_PRIVATE_KEY` and `PASSPHRASE` Actions secrets, and register the public signing key with the Terraform Registry.
+- Create a GitHub Actions environment named `release`.
+- Restrict the environment to the protected release branch, require a maintainer approval, and prevent administrators from bypassing the protection rules.
+- Configure `GPG_PRIVATE_KEY` and `PASSPHRASE` as **environment secrets**, remove the repository-level copies, and register the public signing key with the Terraform Registry and OpenTofu Registry.
 - Keep the Registry's GitHub release integration configured for this repository.
 - Dispatch from `master`. Publishing needs repository write access; contributors can propose changes through normal PRs.
 - Add changes to `[Unreleased]` in `CHANGELOG.md`. Keep README/example version references on the latest stable version during candidate testing.
@@ -49,6 +51,8 @@ After publication, submit a housekeeping PR on `master` to move **only the promo
 - Existing tags or releases, including drafts, cause preparation to fail. There is no overwrite or force-push path.
 - If publishing fails after draft creation, inspect the draft and uploaded signed artifacts. A maintainer can finish publishing a complete draft after checking its source and assets. For an incomplete unpublished draft, remove it and any unpublished tag before retrying. Never delete or reuse a published version; publish a new candidate instead.
 - GitHub Actions serializes release runs. Avoid queueing many requests: GitHub concurrency can replace an older pending run with a newer pending run. A running release is not canceled by this workflow.
+- The checksum signature is the provider registry trust root. GitHub creates the release tag at the already validated source SHA; tags are protected from update/deletion and releases are immutable. The workflow therefore does not separately create an annotated signed Git tag.
+- Terraform and OpenTofu consume the same platform archives, manifest, SHA256SUMS file, and detached GPG signature. Register the same public key in both registries; registry-specific namespace approval remains tracked in #46.
 - A successful GitHub release is not proof of Registry ingestion. If installation cannot find the version, inspect Registry publishing errors and signing configuration before announcing it.
 
 Live controller credentials are not required by release CI. Controller-backed validation is performed separately on test infrastructure. Never upload state, saved plans, or credentials as test reports.
