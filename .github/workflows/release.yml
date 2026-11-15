@@ -25,6 +25,7 @@ concurrency:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       version: ${{ steps.metadata.outputs.version }}
       source_sha: ${{ steps.metadata.outputs.source_sha }}
@@ -35,6 +36,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Validate release and resolve source
         id: metadata
         env:
@@ -61,20 +63,21 @@ jobs:
     with:
       ref: ${{ needs.prepare.outputs.source_sha }}
 
-  publish:
+  build:
     needs: [prepare, go, docs, terraform]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
-      contents: write
+      contents: read
     env:
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
       SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
-      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
     steps:
       - name: Checkout validated source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ needs.prepare.outputs.source_sha }}
+          persist-credentials: false
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
@@ -91,11 +94,60 @@ jobs:
         run: make release-artifacts VERSION="${RELEASE_VERSION}"
       - name: Smoke test packaged provider
         run: bash scripts/smoke-test-release.sh "${RELEASE_VERSION}"
-      - name: Sign release artifacts
+      - name: Upload unsigned release artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: unsigned-release-${{ needs.prepare.outputs.version }}
+          path: dist/release
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+    steps:
+      - name: Download validated release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: unsigned-release-${{ needs.prepare.outputs.version }}
+          path: dist/release
+      - name: Install signing tooling
+        run: sudo apt-get update && sudo apt-get install -y gnupg
+      - name: Sign release checksums
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           PASSPHRASE: ${{ secrets.PASSPHRASE }}
-        run: make sign-release-artifacts VERSION="${RELEASE_VERSION}"
+        run: |
+          set -euo pipefail
+          checksum_file="dist/release/terraform-provider-unifi_${RELEASE_VERSION}_SHA256SUMS"
+          signature_file="${checksum_file}.sig"
+          test -f "${checksum_file}"
+
+          gnupg_home="$(mktemp -d)"
+          trap 'rm -rf "${gnupg_home}"' EXIT
+          chmod 700 "${gnupg_home}"
+          export GNUPGHOME="${gnupg_home}"
+
+          printf '%s\n' "${GPG_PRIVATE_KEY}" | gpg --batch --import
+          fingerprint="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
+          test -n "${fingerprint}"
+          gpg \
+            --batch \
+            --yes \
+            --pinentry-mode loopback \
+            --passphrase "${PASSPHRASE}" \
+            --local-user "${fingerprint}" \
+            --detach-sign \
+            --output "${signature_file}" \
+            "${checksum_file}"
       - name: Publish complete release
         env:
           GH_TOKEN: ${{ github.token }}
