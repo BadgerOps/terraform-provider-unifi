@@ -2,14 +2,29 @@ SHELL := /usr/bin/env bash
 
 DOCS_TRACKED_PATHS := docs templates examples/README.md examples/provider examples/resources examples/data-sources
 
-.PHONY: fmt gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate openapi-check-upstream docs-generate docs-check testacc release-artifacts sign-release-artifacts sync-version check-version-drift
+.PHONY: fmt check actionlint shellcheck govulncheck go-mod-tidy-check gofmt-check terraform-fmt terraform-fmt-check vet test build lint tflint openapi-generate openapi-generated-check openapi-check-upstream docs-generate docs-check testacc release-artifacts sign-release-artifacts sync-version check-version-drift
 
 fmt:
 	go fmt ./...
 	terraform fmt -recursive examples
 
+check: actionlint shellcheck go-mod-tidy-check govulncheck gofmt-check vet test build openapi-generated-check docs-check terraform-fmt-check check-version-drift
+
+actionlint:
+	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+shellcheck:
+	shellcheck scripts/*.sh
+
+govulncheck:
+	go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+go-mod-tidy-check:
+	go mod tidy
+	git diff --exit-code -- go.mod go.sum
+
 gofmt-check:
-	@test -z "$$(gofmt -l $$(find . -name '*.go' -not -path './.git/*' -not -path './vendor/*'))"
+	@test -z "$$(gofmt -l $$(find . -name '*.go' -not -path './.git/*' -not -path './.cache/*' -not -path './vendor/*'))"
 
 terraform-fmt:
 	terraform fmt -recursive examples
@@ -34,6 +49,10 @@ tflint:
 
 openapi-generate:
 	./scripts/generate-openapi.sh
+
+openapi-generated-check:
+	./scripts/generate-openapi.sh
+	git diff --exit-code -- internal/openapi/generated
 
 openapi-check-upstream:
 	./scripts/check-openapi-upstream.sh
