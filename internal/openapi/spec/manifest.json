@@ -1,19 +1,19 @@
 {
   "upstream": {
     "application": "UniFi Network",
-    "api_version": "10.6.106",
+    "api_version": "10.6.109",
     "openapi_version": "3.1.0",
     "source_package": {
       "name": "unifi-native",
-      "version": "10.6.106-36011-1",
+      "version": "10.6.109-36013-1",
       "architecture": "arm64",
-      "sha256": "e43c4576c40189c21cdc2cd57a9a7dcc93089e5b410286b6a676295c79e64a00"
+      "sha256": "393fe68dc2fa25c67770ee0f18b6b3d8f2a11f9d5c634bba95a1052e4f550d2c"
     },
     "source_document": "api-docs/integration.json"
   },
   "snapshot": {
     "path": "internal/openapi/spec/integration.json",
-    "sha256": "d382dbe82fb3bac56ecb7c716d13c03530f86e55e124f551fcedb20300414933"
+    "sha256": "5937845c9b3ad1fd24ed23bd090541c6b392a2478d7ebfa1b90c2dc6bae931af"
   },
   "generator": {
     "name": "oapi-codegen",

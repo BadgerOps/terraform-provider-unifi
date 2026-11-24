@@ -65,7 +65,7 @@ There is no provider-level `site` argument (unlike many legacy UniFi providers).
 
 ## Compatibility
 
-- Tracks the committed UniFi Network Integration OpenAPI snapshot **10.6.106**
+- Tracks the committed UniFi Network Integration OpenAPI snapshot **10.6.109**
 - Newer Network application builds usually work against that surface; snapshot refreshes are noted in the changelog
 - Implementation translates Integration DTOs explicitly — no raw JSON passthrough on managed resources
 
@@ -107,7 +107,7 @@ That directory is a reference configuration inside the provider repository, not 
 
 ### Legacy API exceptions
 
-UniFi Network `10.6.106` does not expose DHCP reservation writes, port forwarding, IPS alert suppressions, or the site settings for remote syslog, NTP, SNMP and device management in the committed Integration OpenAPI snapshot, so:
+UniFi Network `10.6.109` does not expose DHCP reservation writes, port forwarding, IPS alert suppressions, or the site settings for remote syslog, NTP, SNMP and device management in the committed Integration OpenAPI snapshot, so:
 
 - `unifi_dhcp_reservation`, `unifi_port_forward`, `unifi_setting_ips_suppression`, and the `unifi_setting_*` resources for remote syslog, NTP, SNMP and device management call the **legacy local Network API**
 - Cloud connector `api_url` values are supported; the provider derives the correct legacy base (`…/api` behind the connector, `…/proxy/network/api` for local consoles)
