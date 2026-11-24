@@ -28,6 +28,8 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 - Refreshed the committed UniFi Network integration OpenAPI snapshot from `10.6.106` to `10.6.109`. Only the document's `info.version` changed. Endpoints and schemas are identical, so the generated client and the provider schema are unchanged.
 
+- Bumped `github.com/oapi-codegen/runtime` from `1.4.0` to `1.9.1` and `github.com/hashicorp/terraform-plugin-testing` from `1.15.0` to `1.16.0`, with the transitive modules they pull in.
+
 ### Fixed
 
 - Preserve omitted switch port exclusion lists in custom mode, and allow explicit empty port names and exclusion lists to clear their existing values.
