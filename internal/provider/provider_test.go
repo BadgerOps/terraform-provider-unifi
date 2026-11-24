@@ -100,6 +100,10 @@ type mockUniFiAPI struct {
 	legacyDevices            []map[string]any
 	legacyNetworkconfs       []map[string]any
 	devicePuts               int
+	wanSLAs                  []map[string]any
+	wanSLAWrites             int
+	wanSLACreateOmitsID      bool
+	wanSLAFailMethod         string
 }
 
 func newMockUniFiAPI(t *testing.T) *mockUniFiAPI {
@@ -727,6 +731,10 @@ func (api *mockUniFiAPI) serveHTTP(writer http.ResponseWriter, request *http.Req
 
 	if strings.HasPrefix(request.URL.Path, "/proxy/network/api/") {
 		api.handleLegacyHTTP(writer, request)
+		return
+	}
+	if strings.HasPrefix(request.URL.Path, "/proxy/network/v2/api/") {
+		api.handleV2HTTP(writer, request)
 		return
 	}
 
