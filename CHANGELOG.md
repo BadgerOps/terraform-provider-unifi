@@ -8,6 +8,8 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 ### Added
 
+- Hardened provider publication by separating read-only artifact construction from the protected `release` environment that holds signing credentials and write permission. Release artifacts cross the boundary through GitHub's digest-verified artifact service, and the secret-bearing job no longer checks out or executes repository scripts.
+
 - Added `unifi_device_port_override` for the settings of one switch port (an entry of the device's legacy `port_overrides`): name, native network, and tagged networks (`auto`, `block_all`, or `custom` with excluded networks). Networks are given as integration network IDs and translated to the legacy networkconf IDs through their `external_id`. Writes read the device and change only that port's entry, keeping its unmodelled fields and the other ports as they are, and are serialised per device so several ports of one switch can be applied in parallel. Unset attributes keep the controller's value. `device_mac` is lower case with colons, the form the controller and an import use. Import with `<site_id>/<device_mac>/<port_idx>`; destroy only removes the resource from state, because resetting a port moves the device plugged into it to the default network.
 
 - Added `unifi_device_management_network` for the network a device itself lives in (legacy `mgmt_network_id`), as an integration network ID. Only that field is written; the controller re-provisions the device. An unset management network reads as null. Import with `<site_id>/<device_mac>`; destroy only removes the resource from state.
