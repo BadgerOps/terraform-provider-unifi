@@ -19,7 +19,7 @@ body:
     id: terraform-version
     attributes:
       label: Terraform or OpenTofu version
-      placeholder: Terraform 1.14.8 or OpenTofu 1.x
+      placeholder: Terraform 1.5.7 or OpenTofu 1.x
     validations:
       required: true
   - type: input

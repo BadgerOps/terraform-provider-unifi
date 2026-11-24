@@ -263,7 +263,7 @@ If you use Nix, enter the pinned development shell with:
 nix develop
 ```
 
-The Nix shell exposes a `terraform` command via an OpenTofu compatibility wrapper for fast local validation, while CI still runs HashiCorp Terraform `1.14.8`.
+The provider supports HashiCorp Terraform `>= 1.5.0`. CI validates the minimum supported release (`1.5.0`) and the maintained release (`1.5.7`). Install `tfenv` in your user environment and run `tfenv install` once; `.terraform-version` selects Terraform `1.5.7` inside and outside the Nix development shell. OpenTofu is also available as `tofu`.
 
 If you use `direnv`, the flake also provides `direnv` in the dev shell. A simple local setup is:
 
@@ -293,6 +293,7 @@ Useful local commands:
 make fmt
 make test
 make build
+make check
 make sync-version
 make check-version-drift
 make docs-generate
@@ -303,6 +304,8 @@ make terraform-fmt-check
 make openapi-generate
 make testacc
 ```
+
+`make check` mirrors the required repository checks: workflow and shell linting, module and generated-code drift, vulnerability scanning, formatting, vetting, unit tests, builds, documentation generation, Terraform formatting, and release-version consistency. Terraform/TFLint example validation runs separately in CI across the supported Terraform versions.
 
 If you use `pre-commit`, install the repo hooks with:
 
@@ -349,6 +352,8 @@ Optional environment variables:
 - `UNIFI_TEST_ENABLE_ZONE_FIREWALL`
 
 Use a dedicated disposable UniFi site for these tests. The live suite creates and destroys real resources.
+
+The weekly `Live Acceptance` workflow uses the protected `acceptance` environment. Configure `UNIFI_API_URL`, `UNIFI_API_KEY`, and optionally `UNIFI_TEST_WIFI_PASSPHRASE` as environment secrets. Configure exactly one of `UNIFI_TEST_SITE_ID` or `UNIFI_TEST_SITE_NAME` as an environment variable; the optional firewall and port-forward variables follow the names above. Do not point this workflow at a production site.
 
 To verify legacy port-forward writes separately, set `UNIFI_TEST_PORT_FORWARD_IP` to an internal IPv4 address on that disposable site and run `TF_ACC=1 go test ./internal/provider -run '^TestAccLiveResourcePortForward$' -v`. This test creates disabled rules, exercises single ports, ranges, comma lists, update, data-source lookup, import, and destroy. Mock tests alone do not verify controller write semantics.
 
