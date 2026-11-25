@@ -20,6 +20,9 @@ type liveAcceptanceConfig struct {
 	APIURL        string
 	APIKey        string
 	AllowInsecure bool
+	// TLSCertSHA256 pins the controller's certificate (tls_certificate_sha256),
+	// for a self-signed controller without allow_insecure.
+	TLSCertSHA256 string
 	SiteID        string
 	SiteName      string
 	NamePrefix    string
@@ -950,6 +953,89 @@ resource "unifi_dns_policy" "test" {
 	})
 }
 
+// A WAN SLA that no WAN uses, so failover never depends on it: create, update
+// (rename, new thresholds, a second monitor of type DNS), import, destroy.
+func TestAccLiveResourceWANSLA(t *testing.T) {
+	t.Parallel()
+
+	config := requireLiveAcceptanceConfig(t)
+	resourceName := "unifi_wan_sla.test"
+	name := liveAcceptanceName(config, "wan-sla")
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             liveCheckDestroyWANSLA(config, resourceName),
+		Steps: []resource.TestStep{
+			{
+				Config: liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+resource "unifi_wan_sla" "test" {
+  site_id             = data.unifi_site.target.id
+  name                = %q
+  monitor_health_type = "ALL"
+  monitors = [{
+    type              = "ICMP"
+    target            = "1.1.1.1"
+    interval          = 5
+    time_period       = 60
+    loss_threshold    = 50
+    latency_threshold = 1000
+    threshold_policy  = "any"
+  }]
+}
+`, name),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", name),
+					resource.TestCheckResourceAttr(resourceName, "monitor_health_type", "ALL"),
+					resource.TestCheckResourceAttr(resourceName, "monitors.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "monitors.0.loss_threshold", "50"),
+				),
+			},
+			{
+				Config: liveProviderConfig(config) + liveSiteLookupDataSource(config) + fmt.Sprintf(`
+resource "unifi_wan_sla" "test" {
+  site_id             = data.unifi_site.target.id
+  name                = "%s-updated"
+  monitor_health_type = "ANY"
+  monitors = [
+    {
+      type             = "ICMP"
+      target           = "1.0.0.1"
+      interval         = 10
+      time_period      = 120
+      loss_threshold   = 40
+      threshold_policy = "any"
+    },
+    {
+      type             = "DNS"
+      domain           = "example.com"
+      interval         = 10
+      time_period      = 120
+      loss_threshold   = 40
+      threshold_policy = "any"
+    },
+  ]
+}
+`, name),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", name+"-updated"),
+					resource.TestCheckResourceAttr(resourceName, "monitor_health_type", "ANY"),
+					resource.TestCheckResourceAttr(resourceName, "monitors.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "monitors.0.target", "1.0.0.1"),
+					resource.TestCheckNoResourceAttr(resourceName, "monitors.0.latency_threshold"),
+					resource.TestCheckResourceAttr(resourceName, "monitors.1.type", "DNS"),
+					resource.TestCheckResourceAttr(resourceName, "monitors.1.domain", "example.com"),
+				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateIdFunc: liveImportCompositeID(resourceName),
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
 func TestAccLiveResourceACLRule(t *testing.T) {
 	t.Parallel()
 
@@ -1224,6 +1310,7 @@ func requireLiveAcceptanceConfig(t *testing.T) liveAcceptanceConfig {
 		SiteName:      strings.TrimSpace(os.Getenv("UNIFI_TEST_SITE_NAME")),
 		NamePrefix:    strings.TrimSpace(os.Getenv("UNIFI_TEST_NAME_PREFIX")),
 		AllowInsecure: parseEnvBool("UNIFI_ALLOW_INSECURE"),
+		TLSCertSHA256: strings.TrimSpace(os.Getenv("UNIFI_TLS_CERTIFICATE_SHA256")),
 	}
 
 	if config.APIURL == "" {
@@ -1302,11 +1389,20 @@ provider "unifi" {
   api_url                 = %q
   api_key                 = %q
   allow_insecure          = %t
+  tls_certificate_sha256  = %s
   # Controllers often stop serving the Network API for minutes while APs
   # reprovision after WiFi changes; keep live acceptance above that window.
   request_timeout_seconds = 300
 }
-`, config.APIURL, config.APIKey, config.AllowInsecure)
+`, config.APIURL, config.APIKey, config.AllowInsecure, liveOptionalString(config.TLSCertSHA256))
+}
+
+// liveOptionalString is a quoted HCL string, or null when empty.
+func liveOptionalString(value string) string {
+	if value == "" {
+		return "null"
+	}
+	return fmt.Sprintf("%q", value)
 }
 
 func liveSiteLookupDataSource(config liveAcceptanceConfig) string {
@@ -1581,12 +1677,42 @@ func liveCheckDestroyFirewallPolicy(config liveAcceptanceConfig, resourceName st
 	}
 }
 
+func liveCheckDestroyWANSLA(config liveAcceptanceConfig, resourceName string) resource.TestCheckFunc {
+	return func(state *tfstate.State) error {
+		resourceState, ok := state.RootModule().Resources[resourceName]
+		if !ok || resourceState.Primary.ID == "" {
+			return nil
+		}
+
+		siteState, ok := state.RootModule().Resources["data.unifi_site.target"]
+		if !ok || siteState.Primary.ID == "" {
+			return fmt.Errorf("site lookup data source missing from state during destroy check")
+		}
+
+		apiClient, err := newLiveDestroyCheckClient(config)
+		if err != nil {
+			return err
+		}
+
+		_, err = apiClient.GetWANSLA(context.Background(), siteState.Primary.ID, resourceState.Primary.ID)
+		if client.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("verify WAN SLA destroy: %w", err)
+		}
+
+		return fmt.Errorf("WAN SLA %s still exists", resourceState.Primary.ID)
+	}
+}
+
 func newLiveDestroyCheckClient(config liveAcceptanceConfig) (*client.Client, error) {
 	apiClient, err := client.New(client.Config{
-		BaseURL:       config.APIURL,
-		APIKey:        config.APIKey,
-		AllowInsecure: config.AllowInsecure,
-		UserAgent:     "terraform-provider-unifi/testacc",
+		BaseURL:              config.APIURL,
+		APIKey:               config.APIKey,
+		AllowInsecure:        config.AllowInsecure,
+		TLSCertificateSHA256: config.TLSCertSHA256,
+		UserAgent:            "terraform-provider-unifi/testacc",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build client for destroy check: %w", err)
