@@ -133,26 +133,94 @@ func TestUpdateWANSLAKeepsUnmodelledFields(t *testing.T) {
 	}
 }
 
+// Without an ID in the answer, the new SLA is the one that wasn't there
+// before the POST, even when an older SLA has the same name; with no such SLA,
+// or more than one, create fails instead of guessing.
 func TestCreateWANSLAWithoutIDInAnswer(t *testing.T) {
-	list := "[]"
+	const older = `{"_id":"sla-1","name":"ping 1.1.1.1","monitors":[]}`
+	appended := []string{}
+	var list []string
 	c := ipsSuppressionTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			raw, _ := io.ReadAll(r.Body)
 			if strings.Contains(string(raw), `"_id"`) {
 				t.Errorf("create must not send an ID: %s", raw)
 			}
+			list = append(list, appended...)
 			_, _ = fmt.Fprint(w, `{}`)
 			return
 		}
-		_, _ = fmt.Fprint(w, list)
+		_, _ = fmt.Fprint(w, "["+strings.Join(list, ",")+"]")
 	})
-	if _, err := c.CreateWANSLA(context.Background(), ipsSuppressionTestSite, WANSLA{ID: "stale", Name: "ping 1.1.1.1"}); err == nil || !strings.Contains(err.Error(), "can't find it") {
-		t.Fatalf("expected a lookup error, got %v", err)
+	create := func() (*WANSLA, error) {
+		return c.CreateWANSLA(context.Background(), ipsSuppressionTestSite, WANSLA{ID: "stale", Name: "ping 1.1.1.1"})
 	}
-	list = wanSLAListJSON
-	sla, err := c.CreateWANSLA(context.Background(), ipsSuppressionTestSite, WANSLA{Name: "ping 1.1.1.1"})
-	if err != nil || sla.ID != "sla-1" {
-		t.Fatalf("expected sla-1 by name, got %v, %v", sla, err)
+
+	list, appended = []string{older}, []string{`{"_id":"sla-2","name":"ping 1.1.1.1","monitors":[]}`}
+	if sla, err := create(); err != nil || sla.ID != "sla-2" {
+		t.Fatalf("expected the new sla-2, not the older same-name sla-1: %v, %v", sla, err)
+	}
+
+	list, appended = []string{older}, nil
+	if _, err := create(); err == nil || !strings.Contains(err.Error(), "0 new SLAs") {
+		t.Fatalf("expected an error when no new SLA appears, got %v", err)
+	}
+
+	list, appended = []string{older}, []string{`{"_id":"sla-2","name":"ping 1.1.1.1"}`, `{"_id":"sla-3","name":"ping 1.1.1.1"}`}
+	if _, err := create(); err == nil || !strings.Contains(err.Error(), "2 new SLAs") {
+		t.Fatalf("expected an error for two new same-name SLAs, got %v", err)
+	}
+}
+
+// Fields the client doesn't model survive an update inside each monitor and
+// its alert too, matched by monitor_id; a threshold that is now unset is
+// removed, not kept from the stored copy.
+func TestUpdateWANSLAKeepsUnmodelledMonitorFields(t *testing.T) {
+	const stored = `[{"_id":"sla-1","name":"x","monitors":[
+		{"monitor_id":1,"type":"ICMP","target":"1.1.1.1","interval":1,"time_period":60,"extra_monitor":"keep-1","alert":{"loss_threshold":25,"latency_threshold":500,"threshold_policy":"any","extra_alert":"keep-a"}},
+		{"monitor_id":2,"type":"ICMP","target":"8.8.8.8","interval":1,"time_period":60,"extra_monitor":"keep-2","alert":{"loss_threshold":25}}]}]`
+	var put struct {
+		Monitors []map[string]any `json:"monitors"`
+	}
+	c := ipsSuppressionTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			raw, _ := io.ReadAll(r.Body)
+			if err := json.Unmarshal(raw, &put); err != nil {
+				t.Error(err)
+			}
+			return
+		}
+		_, _ = fmt.Fprint(w, stored)
+	})
+	loss := int64(30)
+	_, err := c.UpdateWANSLA(context.Background(), ipsSuppressionTestSite, WANSLA{ID: "sla-1", Name: "x", Monitors: []WANSLAMonitor{
+		{MonitorID: 1, Type: "ICMP", Target: "1.0.0.1", Interval: 2, TimePeriod: 60, Alert: WANSLAAlert{LossThreshold: &loss}},
+		{MonitorID: 3, Type: "DNS", Domain: "example.com", Interval: 5, TimePeriod: 60, Alert: WANSLAAlert{LossThreshold: &loss}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(put.Monitors) != 2 {
+		t.Fatalf("expected the two configured monitors, got %v", put.Monitors)
+	}
+	first, second := put.Monitors[0], put.Monitors[1]
+	alert := first["alert"].(map[string]any)
+	if first["extra_monitor"] != "keep-1" || first["target"] != "1.0.0.1" || first["interval"] != float64(2) {
+		t.Fatalf("monitor 1 not merged: %v", first)
+	}
+	if alert["extra_alert"] != "keep-a" || alert["loss_threshold"] != float64(30) {
+		t.Fatalf("alert not merged: %v", alert)
+	}
+	for _, gone := range []string{"latency_threshold", "threshold_policy"} {
+		if _, has := alert[gone]; has {
+			t.Fatalf("unset %s must be removed: %v", gone, alert)
+		}
+	}
+	if _, has := second["extra_monitor"]; has || second["domain"] != "example.com" {
+		t.Fatalf("a new monitor must not inherit another's fields: %v", second)
+	}
+	if _, has := second["target"]; has {
+		t.Fatalf("an unset target must be left out: %v", second)
 	}
 }
 

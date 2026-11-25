@@ -12,8 +12,9 @@ import (
 	tfstate "github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// A WAN SLA as Network 10 stores it, with a field the resource doesn't model
-// (monitor_down_threshold), so a write that drops it fails the checks below.
+// A WAN SLA as Network 11.0.104 stores it, plus monitor_down_threshold, a field
+// of the controller's OpenAPI spec that the resource doesn't model (absent from
+// live documents), so a write that drops unmodelled fields fails the checks below.
 func mockWANSLA() map[string]any {
 	return map[string]any{
 		"_id": "sla-meo", "name": "ping 1.1.1.1", "monitor_health_type": "ALL", "monitor_down_threshold": float64(2),
@@ -239,8 +240,9 @@ func TestAccResourceWANSLACreate(t *testing.T) {
 	})
 }
 
-// An answer without the new ID: the SLA is found by name.
-func TestAccResourceWANSLACreateFindsByName(t *testing.T) {
+// An answer without the new ID: the new SLA is the one that wasn't there
+// before, even though an SLA made in the UI has the same name.
+func TestAccResourceWANSLACreateWithoutIDSkipsSameNameSLA(t *testing.T) {
 	api := newMockUniFiAPI(t)
 	defer api.Close()
 	api.wanSLAs = []map[string]any{mockWANSLA()}
@@ -249,7 +251,7 @@ func TestAccResourceWANSLACreateFindsByName(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{{
 			Config: wanSLAConfig(api, "lte", `
-  name                = "LTE ping"
+  name                = "ping 1.1.1.1"
   monitor_health_type = "ANY"
   monitors = [{
     type             = "ICMP"
@@ -262,7 +264,7 @@ func TestAccResourceWANSLACreateFindsByName(t *testing.T) {
 			Check: resource.ComposeAggregateTestCheckFunc(
 				func(state *tfstate.State) error {
 					id := state.RootModule().Resources["unifi_wan_sla.lte"].Primary.Attributes["id"]
-					if sla := api.wanSLA(id); sla == nil || sla["name"] != "LTE ping" {
+					if sla := api.wanSLA(id); id == "sla-meo" || sla == nil || sla["monitor_health_type"] != "ANY" {
 						return fmt.Errorf("id %s isn't the created SLA: %v", id, sla)
 					}
 					return nil

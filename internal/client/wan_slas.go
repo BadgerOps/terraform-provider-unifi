@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -97,11 +96,21 @@ func (c *Client) getWANSLA(ctx context.Context, site, id string) (*WANSLA, error
 }
 
 // CreateWANSLA creates a WAN SLA and returns it as the controller stored it.
-// The new ID is taken from the answer, or else found by name in the list.
+// The new ID is taken from the answer. Without one, it is the single SLA with
+// this name that wasn't in the list before the POST; names aren't unique, so
+// an SLA that already existed is never taken for the new one.
 func (c *Client) CreateWANSLA(ctx context.Context, siteID string, sla WANSLA) (*WANSLA, error) {
 	site, err := c.resolveLegacySiteReference(ctx, siteID)
 	if err != nil {
 		return nil, fmt.Errorf("create WAN SLA site: %w", err)
+	}
+	before, _, err := c.listWANSLAs(ctx, site)
+	if err != nil {
+		return nil, err
+	}
+	existed := make(map[string]bool, len(before))
+	for _, s := range before {
+		existed[s.ID] = true
 	}
 	sla.ID = ""
 	var created WANSLA
@@ -111,21 +120,26 @@ func (c *Client) CreateWANSLA(ctx context.Context, siteID string, sla WANSLA) (*
 	if created.ID != "" {
 		return c.getWANSLA(ctx, site, created.ID)
 	}
-	slas, _, err := c.listWANSLAs(ctx, site)
+	after, _, err := c.listWANSLAs(ctx, site)
 	if err != nil {
 		return nil, err
 	}
-	for i := range slas {
-		if slas[i].Name == sla.Name {
-			return &slas[i], nil
+	var found []WANSLA
+	for _, s := range after {
+		if !existed[s.ID] && s.Name == sla.Name {
+			found = append(found, s)
 		}
 	}
-	return nil, fmt.Errorf("created WAN SLA %s but can't find it in the list", sla.Name)
+	if len(found) != 1 {
+		return nil, fmt.Errorf("created WAN SLA %s, but the answer has no ID and %d new SLAs have this name; check the controller and import the right one", sla.Name, len(found))
+	}
+	return &found[0], nil
 }
 
 // UpdateWANSLA replaces the SLA's name, health type and monitors. The current
-// document is sent back with those fields overlaid, so top-level fields this
-// client doesn't model keep the controller's values.
+// document is sent back with those fields overlaid, so fields this client
+// doesn't model keep the controller's values: at the top level, in each
+// monitor (matched by monitor_id) and in its alert.
 func (c *Client) UpdateWANSLA(ctx context.Context, siteID string, sla WANSLA) (*WANSLA, error) {
 	site, err := c.resolveLegacySiteReference(ctx, siteID)
 	if err != nil {
@@ -139,7 +153,98 @@ func (c *Client) UpdateWANSLA(ctx context.Context, siteID string, sla WANSLA) (*
 	if !ok {
 		return nil, &Error{StatusCode: http.StatusNotFound, Message: fmt.Sprintf("WAN SLA %s not found in site %s", sla.ID, site)}
 	}
-	encoded, err := json.Marshal(sla)
+	payload, err := mergeWANSLA(existing, sla)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.doV2Request(ctx, http.MethodPut, []string{"site", site, "wan-slas", sla.ID}, payload, nil, http.StatusOK, http.StatusNoContent); err != nil {
+		return nil, fmt.Errorf("update WAN SLA %s: %w", sla.ID, err)
+	}
+	return c.getWANSLA(ctx, site, sla.ID)
+}
+
+// The fields a write sets. Those left out of the encoded value (an unset
+// target, domain or threshold) are removed from the stored copy, so "unset"
+// still means "not evaluated" instead of keeping the old value.
+var (
+	wanSLAMonitorFields = []string{"monitor_id", "type", "target", "domain", "interval", "time_period", "alert"}
+	wanSLAAlertFields   = []string{"loss_threshold", "latency_threshold", "jitter_threshold", "threshold_policy"}
+)
+
+func mergeWANSLA(existing map[string]json.RawMessage, sla WANSLA) (map[string]json.RawMessage, error) {
+	var storedMonitors []map[string]json.RawMessage
+	if raw, ok := existing["monitors"]; ok {
+		if err := json.Unmarshal(raw, &storedMonitors); err != nil {
+			return nil, fmt.Errorf("decode stored WAN SLA monitors: %w", err)
+		}
+	}
+	storedByID := make(map[int64]map[string]json.RawMessage, len(storedMonitors))
+	for _, m := range storedMonitors {
+		var id int64
+		if err := json.Unmarshal(m["monitor_id"], &id); err == nil {
+			storedByID[id] = m
+		}
+	}
+	monitors := make([]map[string]json.RawMessage, 0, len(sla.Monitors))
+	for _, monitor := range sla.Monitors {
+		stored := storedByID[monitor.MonitorID]
+		fields, err := rawFields(monitor)
+		if err != nil {
+			return nil, err
+		}
+		alert, err := rawFields(monitor.Alert)
+		if err != nil {
+			return nil, err
+		}
+		var storedAlert map[string]json.RawMessage
+		if raw, ok := stored["alert"]; ok {
+			if err := json.Unmarshal(raw, &storedAlert); err != nil {
+				return nil, fmt.Errorf("decode stored WAN SLA alert: %w", err)
+			}
+		}
+		mergedAlert, err := json.Marshal(overlay(storedAlert, wanSLAAlertFields, alert))
+		if err != nil {
+			return nil, fmt.Errorf("encode WAN SLA alert: %w", err)
+		}
+		fields["alert"] = mergedAlert
+		monitors = append(monitors, overlay(stored, wanSLAMonitorFields, fields))
+	}
+	top, err := rawFields(sla)
+	if err != nil {
+		return nil, err
+	}
+	encodedMonitors, err := json.Marshal(monitors)
+	if err != nil {
+		return nil, fmt.Errorf("encode WAN SLA monitors: %w", err)
+	}
+	top["monitors"] = encodedMonitors
+	payload := make(map[string]json.RawMessage, len(existing)+len(top))
+	for k, v := range existing {
+		payload[k] = v
+	}
+	for k, v := range top {
+		payload[k] = v
+	}
+	return payload, nil
+}
+
+// overlay returns stored without the modelled keys, plus fields.
+func overlay(stored map[string]json.RawMessage, modelled []string, fields map[string]json.RawMessage) map[string]json.RawMessage {
+	merged := make(map[string]json.RawMessage, len(stored)+len(fields))
+	for k, v := range stored {
+		merged[k] = v
+	}
+	for _, k := range modelled {
+		delete(merged, k)
+	}
+	for k, v := range fields {
+		merged[k] = v
+	}
+	return merged
+}
+
+func rawFields(value any) (map[string]json.RawMessage, error) {
+	encoded, err := json.Marshal(value)
 	if err != nil {
 		return nil, fmt.Errorf("encode WAN SLA: %w", err)
 	}
@@ -147,17 +252,7 @@ func (c *Client) UpdateWANSLA(ctx context.Context, siteID string, sla WANSLA) (*
 	if err := json.Unmarshal(encoded, &fields); err != nil {
 		return nil, fmt.Errorf("encode WAN SLA: %w", err)
 	}
-	payload := make(map[string]json.RawMessage, len(existing)+len(fields))
-	for k, v := range existing {
-		payload[k] = v
-	}
-	for k, v := range fields {
-		payload[k] = v
-	}
-	if err := c.doV2Request(ctx, http.MethodPut, []string{"site", site, "wan-slas", sla.ID}, payload, nil, http.StatusOK, http.StatusNoContent); err != nil {
-		return nil, fmt.Errorf("update WAN SLA %s: %w", sla.ID, err)
-	}
-	return c.getWANSLA(ctx, site, sla.ID)
+	return fields, nil
 }
 
 // DeleteWANSLA deletes a WAN SLA. A WAN that still uses it keeps the
@@ -185,41 +280,12 @@ func (c *Client) v2BaseURL() *url.URL {
 // `meta` envelope: the status code says whether it worked, and an error body
 // carries `code` and `message`.
 func (c *Client) doV2Request(ctx context.Context, method string, pathElements []string, payload any, target any, expectedStatusCodes ...int) error {
-	var bodyReader io.Reader
-	if payload != nil {
-		var err error
-		bodyReader, err = jsonBodyReader(payload)
-		if err != nil {
-			return err
-		}
-	}
 	base := c.v2BaseURL()
 	endpoint := *base
 	endpoint.Path = joinURLPath(base.Path, pathElements...)
-
-	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), bodyReader)
-	if err != nil {
-		return fmt.Errorf("build v2 request: %w", err)
-	}
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("X-API-KEY", c.apiKey)
-	if payload != nil {
-		request.Header.Set("Content-Type", "application/json")
-	}
-	if c.userAgent != "" {
-		request.Header.Set("User-Agent", c.userAgent)
-	}
-
-	response, err := c.httpClient.Do(request)
+	response, body, err := c.sendAPIRequest(ctx, method, endpoint, payload, "v2")
 	if err != nil {
 		return err
-	}
-	defer func() {
-		_ = response.Body.Close()
-	}()
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return fmt.Errorf("read v2 response body: %w", err)
 	}
 	if err := requireStatus(response.StatusCode, body, expectedStatusCodes...); err != nil {
 		return err

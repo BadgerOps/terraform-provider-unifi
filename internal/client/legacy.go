@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 type legacyResponse[T any] struct {
@@ -39,43 +40,11 @@ func (c *Client) doLegacyRequestWithExpectedStatus(
 	target any,
 	expectedStatusCodes ...int,
 ) error {
-	var bodyReader io.Reader
-	if payload != nil {
-		var err error
-		bodyReader, err = jsonBodyReader(payload)
-		if err != nil {
-			return err
-		}
-	}
-
 	endpoint := *c.legacyBaseURL
 	endpoint.Path = joinURLPath(c.legacyBaseURL.Path, pathElements...)
-
-	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), bodyReader)
-	if err != nil {
-		return fmt.Errorf("build legacy request: %w", err)
-	}
-
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("X-API-KEY", c.apiKey)
-	if payload != nil {
-		request.Header.Set("Content-Type", "application/json")
-	}
-	if c.userAgent != "" {
-		request.Header.Set("User-Agent", c.userAgent)
-	}
-
-	response, err := c.httpClient.Do(request)
+	response, body, err := c.sendAPIRequest(ctx, method, endpoint, payload, "legacy")
 	if err != nil {
 		return err
-	}
-	defer func() {
-		_ = response.Body.Close()
-	}()
-
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return fmt.Errorf("read legacy response body: %w", err)
 	}
 
 	// Legacy failures can arrive with HTTP 200. Check meta even when callers
@@ -136,4 +105,42 @@ func unmarshalWithRawFields(data []byte, typed any) (map[string]json.RawMessage,
 		return nil, err
 	}
 	return raw, nil
+}
+
+// sendAPIRequest sends one request to a controller API (legacy or v2) with the
+// provider's authentication and headers, and returns the response with its
+// whole body. The caller decides what the status and body mean.
+func (c *Client) sendAPIRequest(ctx context.Context, method string, endpoint url.URL, payload any, api string) (*http.Response, []byte, error) {
+	var bodyReader io.Reader
+	if payload != nil {
+		var err error
+		bodyReader, err = jsonBodyReader(payload)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), bodyReader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build %s request: %w", api, err)
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("X-API-KEY", c.apiKey)
+	if payload != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if c.userAgent != "" {
+		request.Header.Set("User-Agent", c.userAgent)
+	}
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read %s response body: %w", api, err)
+	}
+	return response, body, nil
 }
