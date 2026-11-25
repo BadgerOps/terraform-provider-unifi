@@ -24,6 +24,12 @@ The format follows Keep a Changelog and the release numbers follow Semantic Vers
 
 - Added `unifi_setting_ips_suppression` for the site's IPS alert suppressions (CyberSecure > Suppressions), using the legacy Network setting `ips_suppression` because the integration API does not expose it. The resource is authoritative for the alert list: each alert suppresses one signature either everywhere (`type = "all"`) or only for tracked IPv4 or IPv6 addresses, prefixes, or UniFi networks (`type = "track"`). Writes read the current setting and replace only `alerts`, and send the document back whole, so the suppression whitelist and fields the provider does not model are preserved. The signature description is kept from the controller when it is not configured, and follows its signature when the list is reordered. A site that has never had the setting gets it created on the first apply. Import with the site ID; destroy only removes the resource from state and leaves the suppressions on the controller. Tracking values, duplicate signatures, and `tracking` with `type = "all"` are validated at plan time.
 
+### Changed
+
+- Refreshed the committed UniFi Network integration OpenAPI snapshot from `10.6.106` to `10.6.109`. Only the document's `info.version` changed. Endpoints and schemas are identical, so the generated client and the provider schema are unchanged.
+
+- Bumped `github.com/oapi-codegen/runtime` from `1.4.0` to `1.9.1` and `github.com/hashicorp/terraform-plugin-testing` from `1.15.0` to `1.16.0`, with the transitive modules they pull in.
+
 ### Fixed
 
 - Preserve omitted switch port exclusion lists in custom mode, and allow explicit empty port names and exclusion lists to clear their existing values.
