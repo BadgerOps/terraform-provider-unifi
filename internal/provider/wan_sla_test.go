@@ -310,6 +310,7 @@ func TestResourceWANSLAValidation(t *testing.T) {
 		"period < interval":  {monitor("    target = \"a\"\n    interval = 10\n    time_period = 5\n    loss_threshold = 1"), "at least one probe"},
 		"icmp without host":  {monitor("    interval = 1\n    time_period = 60\n    loss_threshold = 1"), "host to ping"},
 		"icmp with domain":   {monitor("    target = \"a\"\n    domain = \"d\"\n    interval = 1\n    time_period = 60\n    loss_threshold = 1"), "Only DNS monitors"},
+		"dns without server": {strings.Replace(monitor("    domain = \"d\"\n    interval = 1\n    time_period = 60\n    loss_threshold = 1"), "ICMP", "DNS", 1), "DNS server to ask"},
 		"dns without domain": {strings.Replace(monitor("    target = \"a\"\n    interval = 1\n    time_period = 60\n    loss_threshold = 1"), "ICMP", "DNS", 1), "name to resolve"},
 		"no threshold":       {monitor("    target = \"a\"\n    interval = 1\n    time_period = 60"), "never fails"},
 		"bad policy":         {strings.Replace(monitor("    target = \"a\"\n    interval = 1\n    time_period = 60\n    loss_threshold = 1"), "\"any\"", "\"some\"", 1), "Must be one of: any"},

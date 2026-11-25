@@ -88,7 +88,7 @@ func (r *wanSLAResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				MarkdownDescription: "The probes, in order.",
 				NestedObject: schema.NestedAttributeObject{Attributes: map[string]schema.Attribute{
 					"type":              schema.StringAttribute{Required: true, Validators: []validator.String{wanSLAMonitorTypes}, MarkdownDescription: "`ICMP` pings `target`; `DNS` resolves `domain` through the server `target`."},
-					"target":            schema.StringAttribute{Optional: true, MarkdownDescription: "Host to ping, or the DNS server to ask."},
+					"target":            schema.StringAttribute{Optional: true, MarkdownDescription: "Host to ping, or the DNS server to ask; required for both types."},
 					"domain":            schema.StringAttribute{Optional: true, MarkdownDescription: "Name to resolve, for `DNS` monitors."},
 					"interval":          schema.Int64Attribute{Required: true, MarkdownDescription: "Seconds between probes."},
 					"time_period":       schema.Int64Attribute{Required: true, MarkdownDescription: "Seconds of probes the thresholds are evaluated over."},
@@ -133,6 +133,10 @@ func (r *wanSLAResource) ValidateConfig(ctx context.Context, req resource.Valida
 		}
 		if m.Type.ValueString() == "ICMP" && m.Target.IsNull() {
 			resp.Diagnostics.AddAttributeError(at.AtName("target"), "Missing target", "An ICMP monitor needs the host to ping.")
+		}
+		// The controller refuses a DNS monitor without a server (api.err.InvalidDnstargetException).
+		if m.Type.ValueString() == "DNS" && m.Target.IsNull() {
+			resp.Diagnostics.AddAttributeError(at.AtName("target"), "Missing target", "A DNS monitor needs the DNS server to ask.")
 		}
 		if m.Type.ValueString() == "DNS" && m.Domain.IsNull() {
 			resp.Diagnostics.AddAttributeError(at.AtName("domain"), "Missing domain", "A DNS monitor needs the name to resolve.")

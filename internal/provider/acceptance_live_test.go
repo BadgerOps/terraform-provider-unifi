@@ -1007,6 +1007,7 @@ resource "unifi_wan_sla" "test" {
     },
     {
       type             = "DNS"
+      target           = "1.1.1.1"
       domain           = "example.com"
       interval         = 10
       time_period      = 120

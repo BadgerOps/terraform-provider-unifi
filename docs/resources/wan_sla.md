@@ -68,7 +68,7 @@ Optional:
 - `jitter_threshold` (Number) Jitter in milliseconds at which the monitor fails. Not set: not evaluated.
 - `latency_threshold` (Number) Latency in milliseconds at which the monitor fails. Not set: not evaluated.
 - `loss_threshold` (Number) Packet loss in percent (0-100) at which the monitor fails. Not set: not evaluated.
-- `target` (String) Host to ping, or the DNS server to ask.
+- `target` (String) Host to ping, or the DNS server to ask; required for both types.
 
 ## Import
 
