@@ -148,6 +148,7 @@ func (p *unifiProvider) Resources(_ context.Context) []func() resource.Resource 
 		NewIPSSuppressionResource,
 		NewRemoteSyslogResource,
 		NewNTPResource,
+		NewWANSLAResource,
 		NewSNMPResource,
 		NewDeviceManagementResource,
 		NewDevicePortOverrideResource,
