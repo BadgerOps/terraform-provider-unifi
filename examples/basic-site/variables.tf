@@ -26,3 +26,8 @@ variable "wifi_passphrase" {
   type        = string
   sensitive   = true
 }
+
+variable "gate_failcheck_unused" {
+  type    = string
+  default = ""
+}
