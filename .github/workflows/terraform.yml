@@ -20,7 +20,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  validate:
+  terraform-versions:
+    name: validate (${{ matrix.terraform-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -100,3 +101,16 @@ jobs:
         env:
           TF_CLI_CONFIG_FILE: ${{ runner.temp }}/terraformrc
         run: terraform -chdir=examples/basic-site validate
+
+  # The master ruleset requires a check named `validate`; the matrix jobs
+  # report as `validate (<version>)`, so this job reports their combined result.
+  validate:
+    if: always()
+    needs: terraform-versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every Terraform version to pass
+        env:
+          RESULT: ${{ needs.terraform-versions.result }}
+        run: test "${RESULT}" = success
