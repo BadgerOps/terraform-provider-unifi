@@ -139,7 +139,8 @@ func (c *Client) CreateWANSLA(ctx context.Context, siteID string, sla WANSLA) (*
 // UpdateWANSLA replaces the SLA's name, health type and monitors. The current
 // document is sent back with those fields overlaid, so fields this client
 // doesn't model keep the controller's values: at the top level, in each
-// monitor (matched by monitor_id) and in its alert.
+// monitor and in its alert. Monitors are matched by monitor_id, which the
+// provider sets to the list position (1..n), so in effect by position.
 func (c *Client) UpdateWANSLA(ctx context.Context, siteID string, sla WANSLA) (*WANSLA, error) {
 	site, err := c.resolveLegacySiteReference(ctx, siteID)
 	if err != nil {
@@ -255,12 +256,37 @@ func rawFields(value any) (map[string]json.RawMessage, error) {
 	return fields, nil
 }
 
-// DeleteWANSLA deletes a WAN SLA. A WAN that still uses it keeps the
-// reference until it is changed; the controller decides whether to refuse.
+// legacyWANNetwork is the part of a networkconf that says which SLA a WAN uses.
+type legacyWANNetwork struct {
+	ID     string `json:"_id"`
+	Name   string `json:"name"`
+	WANSLA string `json:"wan_sla"`
+}
+
+// DeleteWANSLA deletes a WAN SLA. It refuses while a WAN still uses it
+// (`wan_sla` on the WAN's networkconf): what the controller would do with the
+// dangling reference is untested, and a WAN's failover must not depend on it.
 func (c *Client) DeleteWANSLA(ctx context.Context, siteID, id string) error {
 	site, err := c.resolveLegacySiteReference(ctx, siteID)
 	if err != nil {
 		return fmt.Errorf("delete WAN SLA site: %w", err)
+	}
+	var networks legacyResponse[[]legacyWANNetwork]
+	if err := c.doLegacyRequest(ctx, http.MethodGet, []string{"s", site, "rest", "networkconf"}, nil, &networks); err != nil {
+		return fmt.Errorf("delete WAN SLA %s: check which WANs use it: %w", id, err)
+	}
+	var users []string
+	for _, network := range networks.Data {
+		if network.WANSLA == id {
+			name := network.Name
+			if name == "" {
+				name = network.ID
+			}
+			users = append(users, fmt.Sprintf("%q", name))
+		}
+	}
+	if len(users) > 0 {
+		return fmt.Errorf("delete WAN SLA %s: still used by WAN %s; point that WAN at another SLA first", id, strings.Join(users, ", "))
 	}
 	if err := c.doV2Request(ctx, http.MethodDelete, []string{"site", site, "wan-slas", id}, nil, nil, http.StatusOK, http.StatusNoContent); err != nil {
 		return fmt.Errorf("delete WAN SLA %s: %w", id, err)

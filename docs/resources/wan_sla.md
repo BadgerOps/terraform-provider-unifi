@@ -3,12 +3,12 @@
 page_title: "unifi_wan_sla Resource - unifi"
 subcategory: ""
 description: |-
-  Manage a WAN SLA (Settings > Internet > WAN SLA): the monitors that decide whether a WAN counts as up for failover and load balancing. Uses the Network application's v2 API (/v2/api/site/<site>/wan-slas), which the integration API does not cover. A WAN refers to its SLA by ID (wan_sla on the WAN); this resource doesn't change which WAN uses which SLA. The monitor list is authoritative and numbered in order. Import with <site_id>/<sla_id>.
+  Manage a WAN SLA (Settings > Internet > WAN SLA): the monitors that decide whether a WAN counts as up for failover and load balancing. Uses the Network application's v2 API (/v2/api/site/<site>/wan-slas), which the integration API does not cover. A WAN refers to its SLA by ID (wan_sla on the WAN); this resource doesn't change which WAN uses which SLA, and destroying an SLA that a WAN still uses fails (point the WAN at another SLA first). The monitor list is authoritative and numbered in order. Import with <site_id>/<sla_id>.
 ---
 
 # unifi_wan_sla (Resource)
 
-Manage a WAN SLA (Settings > Internet > WAN SLA): the monitors that decide whether a WAN counts as up for failover and load balancing. Uses the Network application's v2 API (`/v2/api/site/<site>/wan-slas`), which the integration API does not cover. A WAN refers to its SLA by ID (`wan_sla` on the WAN); this resource doesn't change which WAN uses which SLA. The monitor list is authoritative and numbered in order. Import with `<site_id>/<sla_id>`.
+Manage a WAN SLA (Settings > Internet > WAN SLA): the monitors that decide whether a WAN counts as up for failover and load balancing. Uses the Network application's v2 API (`/v2/api/site/<site>/wan-slas`), which the integration API does not cover. A WAN refers to its SLA by ID (`wan_sla` on the WAN); this resource doesn't change which WAN uses which SLA, and destroying an SLA that a WAN still uses fails (point the WAN at another SLA first). The monitor list is authoritative and numbered in order. Import with `<site_id>/<sla_id>`.
 
 ## Example Usage
 

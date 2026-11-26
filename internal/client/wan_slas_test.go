@@ -236,6 +236,10 @@ func TestCreateAndDeleteWANSLA(t *testing.T) {
 			}
 			w.WriteHeader(http.StatusNoContent)
 		default:
+			if strings.HasSuffix(r.URL.Path, "/rest/networkconf") {
+				_, _ = fmt.Fprint(w, `{"meta":{"rc":"ok"},"data":[{"_id":"n1","name":"Fibre","wan_sla":"sla-other"},{"_id":"n2","name":"LAN"}]}`)
+				return
+			}
 			_, _ = fmt.Fprint(w, wanSLAListJSON)
 		}
 	})
@@ -245,6 +249,26 @@ func TestCreateAndDeleteWANSLA(t *testing.T) {
 	}
 	if err := c.DeleteWANSLA(context.Background(), ipsSuppressionTestSite, "sla-1"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Deleting an SLA that a WAN still uses is refused before anything is sent, and
+// the error names the WAN (by its ID when it has no name).
+func TestDeleteWANSLARefusesWhileAWANUsesIt(t *testing.T) {
+	networks := `{"meta":{"rc":"ok"},"data":[{"_id":"n1","name":"Fibre","wan_sla":"sla-1"},{"_id":"n2","wan_sla":"sla-1"},{"_id":"n3","name":"LTE","wan_sla":"sla-2"}]}`
+	c := ipsSuppressionTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			t.Errorf("a used SLA must not be deleted: %s", r.URL.Path)
+		}
+		_, _ = fmt.Fprint(w, networks)
+	})
+	err := c.DeleteWANSLA(context.Background(), ipsSuppressionTestSite, "sla-1")
+	if err == nil || !strings.Contains(err.Error(), `still used by WAN "Fibre", "n2"`) {
+		t.Fatalf("expected a refusal naming the WANs, got %v", err)
+	}
+	networks = `{"meta":{"rc":"error","msg":"api.err.NoPermission"},"data":[]}`
+	if err := c.DeleteWANSLA(context.Background(), ipsSuppressionTestSite, "sla-1"); err == nil || !strings.Contains(err.Error(), "check which WANs use it") {
+		t.Fatalf("a failed networkconf read must stop the delete, got %v", err)
 	}
 }
 

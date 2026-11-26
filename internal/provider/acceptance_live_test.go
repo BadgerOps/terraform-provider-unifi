@@ -979,7 +979,8 @@ resource "unifi_wan_sla" "test" {
     time_period       = 60
     loss_threshold    = 50
     latency_threshold = 1000
-    threshold_policy  = "any"
+    jitter_threshold  = 200
+    threshold_policy  = "jitter-plus-one"
   }]
 }
 `, name),
@@ -988,6 +989,8 @@ resource "unifi_wan_sla" "test" {
 					resource.TestCheckResourceAttr(resourceName, "monitor_health_type", "ALL"),
 					resource.TestCheckResourceAttr(resourceName, "monitors.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "monitors.0.loss_threshold", "50"),
+					resource.TestCheckResourceAttr(resourceName, "monitors.0.jitter_threshold", "200"),
+					resource.TestCheckResourceAttr(resourceName, "monitors.0.threshold_policy", "jitter-plus-one"),
 				),
 			},
 			{

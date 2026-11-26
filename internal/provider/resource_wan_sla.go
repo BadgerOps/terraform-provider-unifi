@@ -72,7 +72,7 @@ func (r *wanSLAResource) Metadata(_ context.Context, req resource.MetadataReques
 
 func (r *wanSLAResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manage a WAN SLA (Settings > Internet > WAN SLA): the monitors that decide whether a WAN counts as up for failover and load balancing. Uses the Network application's v2 API (`/v2/api/site/<site>/wan-slas`), which the integration API does not cover. A WAN refers to its SLA by ID (`wan_sla` on the WAN); this resource doesn't change which WAN uses which SLA. The monitor list is authoritative and numbered in order. Import with `<site_id>/<sla_id>`.",
+		MarkdownDescription: "Manage a WAN SLA (Settings > Internet > WAN SLA): the monitors that decide whether a WAN counts as up for failover and load balancing. Uses the Network application's v2 API (`/v2/api/site/<site>/wan-slas`), which the integration API does not cover. A WAN refers to its SLA by ID (`wan_sla` on the WAN); this resource doesn't change which WAN uses which SLA, and destroying an SLA that a WAN still uses fails (point the WAN at another SLA first). The monitor list is authoritative and numbered in order. Import with `<site_id>/<sla_id>`.",
 		Attributes: map[string]schema.Attribute{
 			"id":      schema.StringAttribute{Computed: true, PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()}, MarkdownDescription: "The SLA's ID, as a WAN's `wan_sla` refers to it."},
 			"site_id": schema.StringAttribute{Required: true, PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()}, MarkdownDescription: "Integration site UUID."},
